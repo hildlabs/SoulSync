@@ -205,6 +205,15 @@ impl Encounters {
         changed
     }
 
+    /// Whether the Pokémon with this PID has been judged, and whether it
+    /// counts as an encounter.
+    pub fn knows(&self, pid: u32) -> (bool, bool) {
+        (
+            self.seen.contains(&pid),
+            self.list.iter().any(|p| p.pid == pid),
+        )
+    }
+
     /// Takes back an encounter that was noted by mistake. Returns whether
     /// there was one. The Pokémon is not noted again.
     pub fn forget(&mut self, pid: u32) -> bool {
