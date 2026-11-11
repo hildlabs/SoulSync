@@ -398,7 +398,7 @@ mod tests {
         report[4 + 4] = 1;
         report[4 + 8..4 + 228].copy_from_slice(&build_raw(7, 495, "", 4, 5, Some(&stats)));
         report[4 + 0x604..4 + 0x606].copy_from_slice(&[0xFF, 0xFF]);
-        report[4 + 0x780] = 1;
+        report[4 + 0x704] = 1;
         report.push(1);
         report.extend(build_raw_ivs(9, 504, "", 0, 0, Some(&stats), 0x0123_4567));
         std::fs::write(&file, &report).unwrap();

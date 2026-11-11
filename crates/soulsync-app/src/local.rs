@@ -950,7 +950,7 @@ mod tests {
         trainer.name = "Hi".into();
         let note = soulsync_core::live::trainer_note(&trainer);
         std::fs::write(dir.join("live-trainer.txt"), note).unwrap();
-        ram[at + 0x780] = 3;
+        ram[at + 0x704] = 3;
         // Left over from a battle before the script started.
         ram[0x8000..0x8000 + 220].copy_from_slice(&wild(50, 519));
 
