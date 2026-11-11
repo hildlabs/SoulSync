@@ -57,6 +57,8 @@ struct Inner {
     place: Option<Arc<Mutex<Option<u16>>>>,
     /// Where the sync takes requests to forget an encounter.
     forget: Option<Arc<Mutex<Vec<u32>>>>,
+    /// Whether the script reports a party that is not the save's.
+    foreign: Option<Arc<Mutex<bool>>>,
     /// A newer build of the app, if one is published.
     update: Option<crate::update::Release>,
 }
@@ -386,6 +388,7 @@ impl Local {
                 "active": live_active(out),
                 "lua": inner.lua,
                 "auto": inner.auto,
+                "foreign": inner.foreign.as_ref().is_some_and(|f| *f.lock().unwrap()),
                 "place": inner
                     .place
                     .as_ref()
@@ -450,6 +453,7 @@ impl Local {
             let mut inner = self.inner.lock().unwrap();
             inner.place = live.as_ref().map(|l| l.place.clone());
             inner.forget = live.as_ref().map(|l| l.forget.clone());
+            inner.foreign = live.as_ref().map(|l| l.foreign.clone());
             inner.lua = Some(install_lua(&save));
             inner.auto = installed
                 .as_ref()
@@ -912,11 +916,18 @@ mod tests {
         // first in memory. Only the player's is followed by their trainer.
         ram[0x404] = 1;
         ram[0x408..0x408 + 220].copy_from_slice(&wild(60, 527));
-        // The trainer (no name) and map 3.
         let trainer_id = 0xCAFE_1234u32;
-        ram[at + 0x604..at + 0x606].copy_from_slice(&[0xFF, 0xFF]);
+        // The player's ID turns up behind it, as in a battle's data, but
+        // not their name.
+        ram[0x404 + 0x700..0x404 + 0x704].copy_from_slice(&trainer_id.to_le_bytes());
+        // The trainer "Hi" and map 3.
+        ram[at + 0x604..at + 0x60A].copy_from_slice(&[b'H', 0, b'i', 0, 0xFF, 0xFF]);
         ram[at + 0x614..at + 0x618].copy_from_slice(&trainer_id.to_le_bytes());
-        std::fs::write(dir.join("live-trainer.txt"), trainer_id.to_string()).unwrap();
+        let mut trainer = parse_b2w2(&vec![0u8; 0x80000]).unwrap().trainer;
+        trainer.id = trainer_id;
+        trainer.name = "Hi".into();
+        let note = soulsync_core::live::trainer_note(&trainer);
+        std::fs::write(dir.join("live-trainer.txt"), note).unwrap();
         ram[at + 0x780] = 3;
         // Left over from a battle before the script started.
         ram[0x8000..0x8000 + 220].copy_from_slice(&wild(50, 519));
@@ -979,8 +990,11 @@ mod tests {
         let report = LiveReport::parse(&data).unwrap();
         assert_eq!(report.party(), &ram[at..at + PARTY_BLOCK_LEN]);
         let mut save = parse_b2w2(&vec![0u8; 0x80000]).unwrap();
+        // Same ID under another name: somebody else.
+        save.trainer = trainer.clone();
+        save.trainer.name = "Ho".into();
         assert!(!report.is_of(&save.trainer));
-        save.trainer.id = trainer_id;
+        save.trainer = trainer;
         assert!(report.is_of(&save.trainer));
         let live = save.with_live_party(report.party()).unwrap();
         assert_eq!(live.party.len(), 2);

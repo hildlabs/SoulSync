@@ -30,6 +30,31 @@ const MAP: usize = 0x80;
 /// Remembered PIDs, so that a Pokémon is judged once.
 const SEEN_LIMIT: usize = 2000;
 
+/// A trainer's name as the game keeps it at the start of the trainer block,
+/// 4 bytes in: UTF-16 with an end mark, 16 bytes at most.
+fn trainer_name(trainer: &Trainer) -> Vec<u8> {
+    let mut name: Vec<u8> = trainer
+        .name
+        .encode_utf16()
+        .chain([0xFFFF])
+        .flat_map(u16::to_le_bytes)
+        .collect();
+    name.truncate(0x10);
+    name
+}
+
+/// What the app tells the Lua script about the trainer whose party to look
+/// for: the ID as a decimal number, then the name's bytes in hex. The script
+/// and [`LiveReport::is_of`] look for the same thing, so a party the script
+/// settles on is one the app accepts.
+pub fn trainer_note(trainer: &Trainer) -> String {
+    let name: String = trainer_name(trainer)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    format!("{}\n{name}\n", trainer.id)
+}
+
 /// One report of the Lua script.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LiveReport<'a> {
@@ -72,13 +97,7 @@ impl<'a> LiveReport<'a> {
 
     /// Where the trainer block of `trainer` follows the party in the window.
     fn trainer_at(&self, trainer: &Trainer) -> Option<usize> {
-        let mut name: Vec<u8> = trainer
-            .name
-            .encode_utf16()
-            .chain([0xFFFF])
-            .flat_map(u16::to_le_bytes)
-            .collect();
-        name.resize(0x10.min(name.len()), 0);
+        let name = trainer_name(trainer);
         let id = trainer.id.to_le_bytes();
         let w = self.window;
         (PARTY_BLOCK_LEN..w.len().saturating_sub(0x18))
