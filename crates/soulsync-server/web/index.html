@@ -446,6 +446,7 @@ const T = {
 waitPlayer: "Waiting for player two", playerTwo: "Player two", notJoined: "not joined yet",
     noLinks: "No catches yet. Links show up here after the first save.", noEvents: "Nothing yet.",
     setup: "Connect your game", step1: "Save in DeSmuME. The .dsv file is in its Battery folder.", step2: "Run this on each player’s computer:", step3: "Every in-game save updates this page.",
+    aStep1: "Your partner starts SoulSync and chooses “Join a run”.", aStep2: "They enter this run code:", aStep3: g => `Under Server, they enter the same address as you: ${g}`, aLocal: "This run is only on this computer. To play together, set a run server in Settings and start a new run.",
     yourSave: "<save file>", yourName: "<your name>",
     kCap: "Level cap", kSeed: "Shared seed", none: "none",
     evCaught: (p, m, l) => `<b>${p}</b> caught <b>${m}</b> in ${l}.`, evLinked: m => ` Linked with ${m}.`,
@@ -496,6 +497,7 @@ waitPlayer: "Waiting for player two", playerTwo: "Player two", notJoined: "not j
 waitPlayer: "Warte auf Spieler zwei", playerTwo: "Spieler zwei", notJoined: "noch nicht dabei",
     noLinks: "Noch keine Fänge. Links erscheinen hier nach dem ersten Speichern.", noEvents: "Noch nichts passiert.",
     setup: "Spiel verbinden", step1: "In DeSmuME speichern. Die .dsv-Datei liegt im Ordner Battery.", step2: "Auf dem Rechner jedes Spielers ausführen:", step3: "Jedes Speichern im Spiel aktualisiert diese Seite.",
+    aStep1: "Dein Mitspieler startet SoulSync und wählt „Run beitreten“.", aStep2: "Dort gibt er diesen Run-Code ein:", aStep3: g => `Unter Server trägt er dieselbe Adresse ein wie du: ${g}`, aLocal: "Dieser Run liegt nur auf diesem Rechner. Für das Spiel zu zweit trag in den Einstellungen einen Run-Server ein und starte einen neuen Run.",
     yourSave: "<spielstand>", yourName: "<dein Name>",
     kCap: "Level-Cap", kSeed: "Gemeinsamer Seed", none: "keins",
     evCaught: (p, m, l) => `<b>${p}</b> hat <b>${m}</b> gefangen (${l}).`, evLinked: m => ` Verbunden mit ${m}.`,
@@ -1218,10 +1220,14 @@ function syncCmd() {
 function updateSetup() {
   const el = $("#setup"), need = state.players.length < 2 && !DEMO;
   if (!need) { el.innerHTML = ""; el._on = false; return; }
-  if (el._on) return;
-  el._on = true;
-  el.innerHTML = `<div class="setup"><h3>${t().setup}</h3><ol><li>${t().step1}</li><li>${t().step2}<div class="cmd"><code>${esc(syncCmd())}</code><button type="button">${t().copy}</button></div></li><li>${t().step3}</li></ol></div>`;
-  $("button", el).onclick = e => copyText(syncCmd(), e.currentTarget);
+  const sig = lang + "|" + (local ? "a" + (local.server || "") : "w");
+  if (el._on === sig) return;
+  el._on = sig;
+  const code = `<div class="cmd"><code class="mono">${esc(state.code)}</code><button type="button">${t().copy}</button></div>`;
+  el.innerHTML = local
+    ? `<div class="setup"><h3>${t().setup}</h3><ol><li>${t().aStep1}</li><li>${t().aStep2}${code}</li>${local.server ? `<li>${t().aStep3(esc(local.server))}</li>` : ""}</ol>${local.server ? "" : `<p class="lead" style="margin:10px 0 0;font-size:13px">${t().aLocal}</p>`}</div>`
+    : `<div class="setup"><h3>${t().setup}</h3><ol><li>${t().step1}</li><li>${t().step2}<div class="cmd"><code>${esc(syncCmd())}</code><button type="button">${t().copy}</button></div></li><li>${t().step3}</li></ol></div>`;
+  $(".cmd button", el).onclick = e => copyText(local ? state.code : syncCmd(), e.currentTarget);
 }
 
 function updateRail() {
