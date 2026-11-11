@@ -95,6 +95,8 @@ pub struct Live {
     /// Location by map id, from the ROM. Empty: encounters cannot be placed.
     locations: Vec<u16>,
     encounters: Encounters,
+    /// When the save was last seen written.
+    saved_at: Option<SystemTime>,
     /// Reports in a row that could not be read.
     unreadable: u8,
     /// The location the player is in, for whoever wants to show it.
@@ -112,6 +114,7 @@ impl Live {
             store,
             locations,
             encounters,
+            saved_at: None,
             unreadable: 0,
             place: Arc::default(),
         }
@@ -129,6 +132,18 @@ impl Live {
         let live = report
             .as_ref()
             .and_then(|r| Some((r, base.with_live_party(r.party())?)));
+        let mut changed = false;
+        let saved_at = modified(save);
+        if self.saved_at != saved_at {
+            // Not on the first look: what was unsaved before a restart of the
+            // app still is.
+            if self.saved_at.is_some() {
+                self.encounters.saved();
+                changed = true;
+            }
+            self.saved_at = saved_at;
+        }
+        let is_live = live.is_some();
         if let Some((report, with_party)) = live {
             self.unreadable = 0;
             snap = with_party;
@@ -136,11 +151,7 @@ impl Live {
                 .map(&base.trainer)
                 .and_then(|m| self.locations.get(usize::from(m)).copied());
             *self.place.lock().unwrap() = place;
-            if self.encounters.observe(&snap, &report.seen, place) {
-                if let Ok(json) = serde_json::to_vec(&self.encounters) {
-                    let _ = std::fs::write(&self.store, json);
-                }
-            }
+            changed |= self.encounters.observe(&snap, &report.seen, place);
         } else if current {
             // Caught mid-write, most likely. A file that stays unreadable is
             // not a report; then the save alone counts.
@@ -149,7 +160,12 @@ impl Live {
                 return None;
             }
         }
-        snap.encounters = self.encounters.of(&base.trainer).to_vec();
+        changed |= self.encounters.complete(&mut snap, is_live);
+        if changed {
+            if let Ok(json) = serde_json::to_vec(&self.encounters) {
+                let _ = std::fs::write(&self.store, json);
+            }
+        }
         Some(snap)
     }
 }

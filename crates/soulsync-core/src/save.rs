@@ -68,6 +68,11 @@ pub struct SaveSnapshot {
     /// not own were not caught. A save file alone has none.
     #[serde(default)]
     pub encounters: Vec<Pokemon>,
+    /// Pokémon that fainted at some point, as they were then. Fainted stays
+    /// fainted in a Soul Link, whatever a Pokémon Center does. A save file
+    /// alone has none.
+    #[serde(default)]
+    pub fallen: Vec<Pokemon>,
 }
 
 impl SaveSnapshot {
@@ -90,8 +95,7 @@ impl SaveSnapshot {
     /// party-format Pokémon. Returns `None` if it is not a valid party.
     ///
     /// A Pokémon that was in the saved party but is neither in the live party
-    /// nor in a saved box was deposited since the last save. It is listed in
-    /// the last box until the next save says where it went.
+    /// nor in a saved box was deposited since the last save; see [`Self::keep`].
     pub fn with_live_party(&self, block: &[u8]) -> Option<SaveSnapshot> {
         if block.len() != PARTY_BLOCK_LEN {
             return None;
@@ -107,38 +111,49 @@ impl SaveSnapshot {
             })
             .collect::<Option<Vec<_>>>()?;
         let in_party = |pid: u32| party.iter().any(|p| p.pid == pid);
-        let mut boxes: Vec<Pokemon> = self
+        let boxes: Vec<Pokemon> = self
             .boxes
             .iter()
             .filter(|p| !in_party(p.pid))
             .cloned()
             .collect();
-        let last_box = BOX_COUNT as u8;
-        let mut free = (0..BOX_SLOTS as u8)
-            .filter(|&slot| {
-                let place = Place::Box {
-                    r#box: last_box,
-                    slot,
-                };
-                !self.boxes.iter().any(|p| p.place == place)
-            })
-            .collect::<Vec<_>>()
-            .into_iter();
-        for old in self.party.iter().filter(|p| !in_party(p.pid)) {
-            let Some(slot) = free.next() else { break };
-            let mut kept = old.clone();
-            kept.place = Place::Box {
-                r#box: last_box,
-                slot,
-            };
-            boxes.push(kept);
-        }
-        Some(SaveSnapshot {
+        let mut live = SaveSnapshot {
             trainer: self.trainer.clone(),
             party,
             boxes,
             encounters: self.encounters.clone(),
-        })
+            fallen: self.fallen.clone(),
+        };
+        for old in &self.party {
+            live.keep(old);
+        }
+        Some(live)
+    }
+
+    /// Lists a Pokémon that is known to be the player's but is in no place
+    /// this snapshot knows, in the last box, until the next save says where
+    /// it went. Does nothing if the player has it.
+    pub fn keep(&mut self, pokemon: &Pokemon) {
+        if self.owns(pokemon.pid) {
+            return;
+        }
+        let last_box = BOX_COUNT as u8;
+        let free = (0..BOX_SLOTS as u8).find(|&slot| {
+            let place = Place::Box {
+                r#box: last_box,
+                slot,
+            };
+            !self.boxes.iter().any(|p| p.place == place)
+        });
+        if let Some(slot) = free {
+            let mut kept = pokemon.clone();
+            kept.place = Place::Box {
+                r#box: last_box,
+                slot,
+            };
+            kept.battle = None;
+            self.boxes.push(kept);
+        }
     }
 }
 
@@ -187,6 +202,7 @@ pub fn parse_b2w2(data: &[u8]) -> Result<SaveSnapshot, SaveError> {
         party,
         boxes,
         encounters: Vec::new(),
+        fallen: Vec::new(),
     })
 }
 

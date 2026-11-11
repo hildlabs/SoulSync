@@ -110,6 +110,7 @@ mod tests {
             party,
             boxes,
             encounters: vec![],
+            fallen: vec![],
         }
     }
 

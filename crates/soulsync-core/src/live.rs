@@ -80,8 +80,9 @@ impl<'a> LiveReport<'a> {
     }
 }
 
-/// The first wild Pokémon a player met in each location, kept by the
-/// player's client across restarts.
+/// What a save file does not tell, kept by the player's client across
+/// restarts: the first wild Pokémon met in each location, which Pokémon
+/// fainted, and who was in the party since the last save.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Encounters {
     /// The game they belong to; see [`Trainer::id`].
@@ -89,6 +90,13 @@ pub struct Encounters {
     /// PIDs already judged.
     seen: Vec<u32>,
     list: Vec<Pokemon>,
+    /// Pokémon that fainted, as they were then.
+    #[serde(default)]
+    fallen: Vec<Pokemon>,
+    /// The party as last seen live. Whoever leaves it before the next save
+    /// went to a box the save does not show yet.
+    #[serde(default)]
+    unsaved: Vec<Pokemon>,
 }
 
 impl Encounters {
@@ -148,6 +156,46 @@ impl Encounters {
         changed
     }
 
+    /// The game was saved: the save now knows where every Pokémon is.
+    pub fn saved(&mut self) {
+        self.unsaved.clear();
+    }
+
+    /// Completes a snapshot with what the save does not tell. `live` says
+    /// that its party comes from the emulator's memory. Returns whether
+    /// there is something new to keep.
+    pub fn complete(&mut self, snapshot: &mut SaveSnapshot, live: bool) -> bool {
+        self.of(&snapshot.trainer);
+        let mut changed = false;
+        if live {
+            for p in &snapshot.party {
+                match self.unsaved.iter_mut().find(|u| u.pid == p.pid) {
+                    Some(u) if u == p => {}
+                    Some(u) => {
+                        *u = p.clone();
+                        changed = true;
+                    }
+                    None => {
+                        self.unsaved.push(p.clone());
+                        changed = true;
+                    }
+                }
+            }
+            for p in &self.unsaved {
+                snapshot.keep(p);
+            }
+        }
+        for p in snapshot.party.iter().filter(|p| p.is_fainted()) {
+            if !self.fallen.iter().any(|f| f.pid == p.pid) {
+                self.fallen.push(p.clone());
+                changed = true;
+            }
+        }
+        snapshot.fallen = self.fallen.clone();
+        snapshot.encounters = self.list.clone();
+        changed
+    }
+
     fn remember(&mut self, pid: u32) {
         self.seen.push(pid);
         if self.seen.len() > SEEN_LIMIT {
@@ -184,6 +232,7 @@ mod tests {
             party,
             boxes: vec![],
             encounters: vec![],
+            fallen: vec![],
         }
     }
 
@@ -256,11 +305,49 @@ mod tests {
         assert!(!e.observe(&snap, &[&starter], Some(15)));
         assert_eq!(e.of(&trainer()).len(), 1);
 
+        // Fainted stays fainted: healed, boxed after a live catch, released.
+        let mon = |pid, hp| {
+            let stats = BattleStats {
+                level: 8,
+                hp,
+                max_hp: 20,
+            };
+            pk5::parse(
+                &build_raw(pid, 427, "", 15, 5, Some(&stats)),
+                Place::Party { slot: 1 },
+            )
+            .unwrap()
+        };
+        let mut live = snapshot(vec![snap.party[0].clone(), mon(30, 0)]);
+        assert!(e.complete(&mut live, true));
+        assert_eq!(live.fallen.len(), 1);
+        assert_eq!(live.encounters.len(), 1);
+        let mut healed = snapshot(vec![snap.party[0].clone(), mon(30, 20)]);
+        e.complete(&mut healed, true);
+        assert_eq!(healed.fallen[0].pid, 30);
+        // Put into a box the save does not show yet: still the player's.
+        let mut boxed = snapshot(vec![snap.party[0].clone()]);
+        e.complete(&mut boxed, true);
+        assert!(boxed.owns(30));
+        assert_eq!(boxed.boxes[0].place, Place::Box { r#box: 24, slot: 0 });
+        // After a save the save decides who is there.
+        e.saved();
+        let mut saved = snapshot(vec![snap.party[0].clone()]);
+        e.complete(&mut saved, false);
+        assert!(!saved.owns(30));
+        assert_eq!(saved.fallen[0].pid, 30);
+
         // A new game starts over.
         let again = Trainer {
             id: 77,
             ..trainer()
         };
         assert!(e.of(&again).is_empty());
+        let mut fresh = SaveSnapshot {
+            trainer: again,
+            ..snapshot(vec![])
+        };
+        e.complete(&mut fresh, false);
+        assert!(fresh.fallen.is_empty());
     }
 }

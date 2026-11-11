@@ -15,7 +15,7 @@ pub enum Status {
     Party,
     /// In a PC box.
     Boxed,
-    /// In the party with 0 HP.
+    /// Fainted, now or earlier. Healing does not bring a link back.
     Fainted,
     /// The first wild Pokémon of the location, met but not caught. The
     /// location is used up for both players.
@@ -53,8 +53,8 @@ impl Link {
     }
 }
 
-fn status(p: &Pokemon) -> Status {
-    if p.is_fainted() {
+fn status(p: &Pokemon, fallen: &[Pokemon]) -> Status {
+    if p.is_fainted() || fallen.iter().any(|f| f.pid == p.pid) {
         Status::Fainted
     } else if p.battle.is_some() {
         Status::Party
@@ -80,7 +80,19 @@ pub fn links(players: &[Option<&SaveSnapshot>]) -> Vec<Link> {
             if sides[i].is_none() {
                 sides[i] = Some(Side {
                     pokemon: p.clone(),
-                    status: status(p),
+                    status: status(p, &snap.fallen),
+                });
+            }
+        }
+        // Fainted and then released: the link stays lost.
+        for gone in snap.fallen.iter().filter(|f| !snap.owns(f.pid)) {
+            let sides = by_loc
+                .entry(gone.met_location)
+                .or_insert_with(|| vec![None; players.len()]);
+            if sides[i].is_none() {
+                sides[i] = Some(Side {
+                    pokemon: gone.clone(),
+                    status: Status::Fainted,
                 });
             }
         }
@@ -144,6 +156,7 @@ mod tests {
             party,
             boxes,
             encounters: vec![],
+            fallen: vec![],
         }
     }
 
@@ -183,5 +196,35 @@ mod tests {
         let l = links(&[Some(&a), None]);
         assert_eq!(l.len(), 1);
         assert!(l[0].sides[1].is_none());
+    }
+
+    #[test]
+    fn fainted_stays_fainted() {
+        let fell = party(1, 427, 15, 0);
+        // Healed at a Pokémon Center.
+        let mut healed = snap(vec![party(1, 427, 15, 30)], vec![]);
+        healed.fallen = vec![fell.clone()];
+        let l = links(&[Some(&healed), None]);
+        assert_eq!(l[0].sides[0].as_ref().unwrap().status, Status::Fainted);
+        assert!(l[0].is_dead());
+        // Released afterwards: the location is not open again.
+        let mut released = snap(vec![party(2, 495, 4, 30)], vec![]);
+        released.fallen = vec![fell];
+        let l = links(&[Some(&released), None]);
+        assert_eq!(l.len(), 2);
+        assert_eq!(l[1].location, 15);
+        assert_eq!(l[1].sides[0].as_ref().unwrap().status, Status::Fainted);
+    }
+
+    #[test]
+    fn a_missed_encounter_uses_the_location_up() {
+        let mut a = snap(vec![party(2, 495, 4, 30)], vec![]);
+        a.encounters = vec![party(9, 504, 14, 12), party(2, 495, 4, 30)];
+        let b = snap(vec![party(3, 498, 14, 30)], vec![]);
+        let l = links(&[Some(&a), Some(&b)]);
+        assert_eq!(l.len(), 2);
+        assert_eq!(l[0].sides[0].as_ref().unwrap().status, Status::Party);
+        assert_eq!(l[1].sides[0].as_ref().unwrap().status, Status::Missed);
+        assert!(l[1].is_dead());
     }
 }
