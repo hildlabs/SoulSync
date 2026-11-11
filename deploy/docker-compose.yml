@@ -5,6 +5,11 @@
 #
 #   SOULSYNC_DOMAIN=soulsync.example.org docker compose --profile https up -d --build
 #
+# If another program holds port 80 or 443 on one of the machine's addresses
+# (Tailscale does, on its own interface), set SOULSYNC_BIND to the public
+# address so Caddy only listens there. Put the variables in a `.env` file next
+# to this one to keep them across restarts.
+#
 # Behind a reverse proxy you already run: start only the server and point the
 # proxy at 127.0.0.1:3000 (it must pass WebSocket upgrades through):
 #
@@ -23,8 +28,8 @@ services:
     image: caddy:2
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
+      - "${SOULSYNC_BIND:-0.0.0.0}:80:80"
+      - "${SOULSYNC_BIND:-0.0.0.0}:443:443"
     environment:
       SOULSYNC_DOMAIN: ${SOULSYNC_DOMAIN:-localhost}
     volumes:
