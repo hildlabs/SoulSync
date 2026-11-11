@@ -51,6 +51,8 @@ struct Inner {
     live: Option<(PathBuf, PathBuf)>,
     /// Whether DeSmuME has what it needs to run the script.
     lua: Option<LuaSetup>,
+    /// Whether DeSmuME loads the script by itself.
+    auto: Option<LuaSetup>,
     /// The location the script last reported the player in.
     place: Option<Arc<Mutex<Option<u16>>>>,
 }
@@ -118,7 +120,7 @@ enum LuaSetup {
     Present,
     /// SoulSync put it there.
     Installed,
-    /// No DeSmuME near the save, or the folder is read-only.
+    /// No DeSmuME near the save, or it could not be set up there.
     Missing,
 }
 
@@ -136,16 +138,12 @@ fn exe_machine(exe: &Path) -> Option<u16> {
     (&pe[..4] == b"PE\0\0").then(|| u16::from_le_bytes([pe[4], pe[5]]))
 }
 
-/// DeSmuME needs `lua51.dll` next to its `.exe` and does not bring it. Looks
-/// for DeSmuME where the save is (its `Battery` folder sits next to the
-/// `.exe`) and adds the DLL if it is missing.
-fn install_lua(save: &Path) -> LuaSetup {
-    let folders = save.ancestors().skip(1).take(2);
-    for dir in folders {
-        let Ok(entries) = std::fs::read_dir(dir) else {
-            continue;
-        };
-        let mut exes: Vec<PathBuf> = entries
+/// The folder DeSmuME runs from and the machine type it is built for. Looks
+/// where the save is: its `Battery` folder sits next to the `.exe`.
+fn find_desmume(save: &Path) -> Option<(&Path, u16)> {
+    save.ancestors().skip(1).take(2).find_map(|dir| {
+        let mut exes: Vec<PathBuf> = std::fs::read_dir(dir)
+            .ok()?
             .flatten()
             .map(|e| e.path())
             .filter(|p| {
@@ -155,20 +153,131 @@ fn install_lua(save: &Path) -> LuaSetup {
             })
             .collect();
         exes.sort();
-        let Some(machine) = exes.iter().find_map(|e| exe_machine(e)) else {
-            continue;
-        };
-        let dll = dir.join("lua51.dll");
-        if dll.exists() {
-            return LuaSetup::Present;
-        }
-        let ours = LUA_DLLS.iter().find(|(m, _)| *m == machine);
-        return match ours.map(|(_, bytes)| std::fs::write(&dll, bytes)) {
-            Some(Ok(())) => LuaSetup::Installed,
-            _ => LuaSetup::Missing,
-        };
+        Some((dir, exes.iter().find_map(|e| exe_machine(e))?))
+    })
+}
+
+/// DeSmuME needs `lua51.dll` next to its `.exe` and does not bring it. Adds
+/// the DLL if it is missing.
+fn install_lua(save: &Path) -> LuaSetup {
+    let Some((dir, machine)) = find_desmume(save) else {
+        return LuaSetup::Missing;
+    };
+    let dll = dir.join("lua51.dll");
+    if dll.exists() {
+        return LuaSetup::Present;
     }
-    LuaSetup::Missing
+    let ours = LUA_DLLS.iter().find(|(m, _)| *m == machine);
+    match ours.map(|(_, bytes)| std::fs::write(&dll, bytes)) {
+        Some(Ok(())) => LuaSetup::Installed,
+        _ => LuaSetup::Missing,
+    }
+}
+
+/// First line of the copy of the script that DeSmuME loads by itself, so the
+/// app only ever replaces its own file.
+const AUTOLOAD_MARK: &str = "-- SoulSync autoload: rewritten by the SoulSync app, do not edit.\n";
+
+/// The value of `key` in `[section]` of an `.ini` file.
+fn ini_get(text: &str, section: &str, key: &str) -> Option<String> {
+    let mut inside = false;
+    for line in text.lines().map(str::trim) {
+        if let Some(name) = line.strip_prefix('[') {
+            inside = name.trim_end_matches(']').eq_ignore_ascii_case(section);
+        } else if inside {
+            if let Some((k, v)) = line.split_once('=') {
+                if k.trim().eq_ignore_ascii_case(key) {
+                    return Some(v.trim().to_string());
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Sets `key` in `[section]` of an `.ini` file, leaving everything else.
+fn ini_set(text: &str, section: &str, key: &str, value: &str) -> String {
+    let entry = format!("{key}={value}");
+    let mut lines: Vec<String> = text.lines().map(String::from).collect();
+    let header = lines.iter().position(|l| {
+        let l = l.trim();
+        l.starts_with('[') && l[1..].trim_end_matches(']').eq_ignore_ascii_case(section)
+    });
+    match header {
+        Some(h) => {
+            let end = lines[h + 1..]
+                .iter()
+                .position(|l| l.trim().starts_with('['))
+                .map_or(lines.len(), |n| h + 1 + n);
+            let found = (h + 1..end).find(|&i| {
+                lines[i]
+                    .split_once('=')
+                    .is_some_and(|(k, _)| k.trim().eq_ignore_ascii_case(key))
+            });
+            match found {
+                Some(i) => lines[i] = entry,
+                None => lines.insert(h + 1, entry),
+            }
+        }
+        None => lines.extend([format!("[{section}]"), entry]),
+    }
+    lines.join("\r\n") + "\r\n"
+}
+
+/// Has DeSmuME load the script by itself whenever the game opens. DeSmuME
+/// does that with `AutoLoad=1` under `[Scripting]` in its `desmume.ini`, for
+/// a script named like the ROM in its Lua folder. Never touches a script of
+/// that name that is not ours.
+fn install_autoload(save: &Path, script: &str) -> LuaSetup {
+    let done = (|| {
+        let (dir, _) = find_desmume(save)?;
+        let ini = dir.join("desmume.ini");
+        // DeSmuME writes the file in the system's code page. Bytes are kept
+        // as they are by reading each one as a character of its own.
+        let bytes = std::fs::read(&ini).unwrap_or_default();
+        if bytes.starts_with(&[0xFF, 0xFE]) || bytes.starts_with(&[0xFE, 0xFF]) {
+            return None;
+        }
+        let text: String = bytes.iter().map(|&b| char::from(b)).collect();
+        let folder = ini_get(&text, "PathSettings", "Lua").unwrap_or_else(|| "Lua".into());
+        if !folder.is_ascii() {
+            return None;
+        }
+        let rooted = folder.starts_with(['\\', '/']) || folder.as_bytes().get(1) == Some(&b':');
+        let folder = if rooted {
+            PathBuf::from(folder)
+        } else {
+            folder
+                .split(['\\', '/'])
+                .filter(|part| !part.is_empty() && *part != ".")
+                .fold(dir.to_path_buf(), |path, part| path.join(part))
+        };
+        let file = folder.join(save.file_stem()?).with_extension("lua");
+        let script = format!("{AUTOLOAD_MARK}{script}");
+        let mut changed = false;
+        match std::fs::read_to_string(&file) {
+            Ok(theirs) if !theirs.starts_with(AUTOLOAD_MARK) => return None,
+            Ok(ours) if ours == script => {}
+            _ => {
+                std::fs::create_dir_all(&folder).ok()?;
+                std::fs::write(&file, script).ok()?;
+                changed = true;
+            }
+        }
+        let on = ini_get(&text, "Scripting", "AutoLoad");
+        if !on.is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true")) {
+            let text = ini_set(&text, "Scripting", "AutoLoad", "1");
+            let bytes: Vec<u8> = text.chars().map(|c| c as u8).collect();
+            std::fs::write(&ini, bytes).ok()?;
+            changed = true;
+        }
+        Some(changed)
+    })();
+    match done {
+        Some(true) => LuaSetup::Installed,
+        Some(false) => LuaSetup::Present,
+        None => LuaSetup::Missing,
+    }
 }
 
 /// Whether the Lua script wrote the party a moment ago.
@@ -272,6 +381,7 @@ impl Local {
                 "script": script,
                 "active": live_active(out),
                 "lua": inner.lua,
+                "auto": inner.auto,
                 "place": inner
                     .place
                     .as_ref()
@@ -332,6 +442,9 @@ impl Local {
             let mut inner = self.inner.lock().unwrap();
             inner.place = live.as_ref().map(|l| l.place.clone());
             inner.lua = Some(install_lua(&save));
+            inner.auto = installed
+                .as_ref()
+                .map(|(_, out)| install_autoload(&save, &live_script(out)));
             inner.live = installed;
         }
         let me = self.clone();
@@ -647,6 +760,46 @@ mod tests {
             std::fs::write(&file, bytes).unwrap();
             assert_eq!(exe_machine(&file), Some(machine));
         }
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn has_desmume_load_the_script() {
+        let dir = std::env::temp_dir().join(format!("soulsync-auto-{}", std::process::id()));
+        let save = dir.join("Battery").join("Soul Link.dsv");
+        std::fs::create_dir_all(save.parent().unwrap()).unwrap();
+        assert_eq!(install_autoload(&save, "print(1)"), LuaSetup::Missing);
+        let mut exe = vec![0u8; 0x90];
+        exe[0x3C] = 0x80;
+        exe[0x80..0x86].copy_from_slice(b"PE\0\0\x64\x86");
+        std::fs::write(dir.join("DeSmuME_0.9.13_x64.exe"), &exe).unwrap();
+        // A settings file in the system's code page, with a byte that is not UTF-8.
+        let ini = dir.join("desmume.ini");
+        let theirs = b"[General]\r\nName=J\xF6rg\r\n[Scripting]\r\nRecent Lua Script 1=a.lua\r\n[PathSettings]\r\nLua=.\\Scripts\\Lua\r\n";
+        std::fs::write(&ini, theirs).unwrap();
+        assert_eq!(install_autoload(&save, "print(1)"), LuaSetup::Installed);
+        let script = dir.join("Scripts").join("Lua").join("Soul Link.lua");
+        let text = std::fs::read_to_string(&script).unwrap();
+        assert_eq!(text, format!("{AUTOLOAD_MARK}print(1)"));
+        assert_eq!(
+            std::fs::read(&ini).unwrap(),
+            b"[General]\r\nName=J\xF6rg\r\n[Scripting]\r\nAutoLoad=1\r\nRecent Lua Script 1=a.lua\r\n[PathSettings]\r\nLua=.\\Scripts\\Lua\r\n"
+        );
+        // Nothing to do the second time; a new script replaces ours.
+        assert_eq!(install_autoload(&save, "print(1)"), LuaSetup::Present);
+        assert_eq!(install_autoload(&save, "print(2)"), LuaSetup::Installed);
+        // A script of the player's own under that name stays.
+        std::fs::write(&script, "print('mine')").unwrap();
+        assert_eq!(install_autoload(&save, "print(1)"), LuaSetup::Missing);
+        assert_eq!(std::fs::read_to_string(&script).unwrap(), "print('mine')");
+        // Without a settings file DeSmuME uses its `Lua` folder.
+        std::fs::remove_file(&ini).unwrap();
+        assert_eq!(install_autoload(&save, "print(1)"), LuaSetup::Installed);
+        assert!(dir.join("Lua").join("Soul Link.lua").exists());
+        assert_eq!(
+            std::fs::read(&ini).unwrap(),
+            b"[Scripting]\r\nAutoLoad=1\r\n"
+        );
         std::fs::remove_dir_all(dir).unwrap();
     }
 
