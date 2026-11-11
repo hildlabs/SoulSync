@@ -1,0 +1,8 @@
+/target
+# ROMs und Spielstände gehören nie ins Repo
+*.nds
+*.dsv
+*.sav
+*.dst
+*.ds[0-9]
+*.log
