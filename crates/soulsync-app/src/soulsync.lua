@@ -148,6 +148,69 @@ local reported = {}
 -- memory only takes note of it.
 local cursor, settled = RAM_START, false
 
+-- During a battle the game works on its own copy of each Pokémon and
+-- leaves the one above as it was when the battle began. That copy starts
+-- with a pointer to the Pokémon it was made from, and has the species 12
+-- bytes on, then the most HP and the HP now.
+local BATTLE_SPECIES, BATTLE_MAX, BATTLE_HP, BATTLE_LEVEL = 0x0C, 0x0E, 0x10, 0x18
+-- Most battle copies followed per Pokémon; the game keeps two.
+local COPIES = 4
+-- Checks for which a Pokémon's battle copy is looked for, about a minute.
+local HUNT = 120
+-- Reported Pokémon still in memory, by personality value.
+local facing, hunting = {}, false
+
+-- The word that encrypts the n-th word of a Pokémon's battle stats.
+local function stat_key(pid, n)
+  local seed = pid
+  for _ = 1, n do seed = advance(seed) end
+  return floor(seed / 65536)
+end
+
+-- The HP the battle copy at addr has for the reported Pokémon r, or nil if
+-- there is none there (any more).
+local function battle_hp(addr, r)
+  local from = memory.readdword(addr)
+  if from < RAM_START or from >= RAM_END - MON or from % 4 ~= 0 then return nil end
+  if memory.readdword(from) ~= r.pid then return nil end
+  local most, hp = memory.readword(addr + BATTLE_MAX), memory.readword(addr + BATTLE_HP)
+  local level = memory.readbyte(addr + BATTLE_LEVEL)
+  if most == 0 or hp > most or level < 1 or level > 100 then return nil end
+  -- The same most HP as the Pokémon it was made from.
+  if most ~= xor(memory.readword(from + 0x90), stat_key(r.pid, 5)) then return nil end
+  return hp
+end
+
+-- Whether addr is a battle copy of a reported Pokémon; then it is followed.
+local function battle_copy(addr)
+  local from = memory.readdword(addr)
+  if from < RAM_START or from >= RAM_END - MON or from % 4 ~= 0 then return end
+  local r = facing[memory.readdword(from)]
+  if not r or #r.battle >= COPIES or not battle_hp(addr, r) then return end
+  for i = 1, #r.battle do
+    if r.battle[i] == addr then return end
+  end
+  r.battle[#r.battle + 1] = addr
+  return true
+end
+
+-- The Pokémon's bytes with the HP of its battle copies in place of its own,
+-- so that whoever reads them sees the battle as it stands.
+local function with_battle_hp(r, data)
+  local hp = nil
+  for i = #r.battle, 1, -1 do
+    local now = battle_hp(r.battle[i], r)
+    if not now then
+      table.remove(r.battle, i)
+    elseif not hp or now < hp then
+      hp = now
+    end
+  end
+  if not hp then return data end
+  local word = xor(hp, stat_key(r.pid, 4))
+  return data:sub(1, 0x8E) .. string.char(word % 256, floor(word / 256)) .. data:sub(0x91)
+end
+
 local function notice(addr, pid)
   known[pid] = true
   if not watching[addr] and #watched < WATCHED then
@@ -155,7 +218,7 @@ local function notice(addr, pid)
     watched[#watched + 1] = addr
   end
   if settled then
-    reported[#reported + 1] = { addr = addr, pid = pid, data = read(addr, MON), present = true }
+    reported[#reported + 1] = { addr = addr, pid = pid, data = read(addr, MON), present = true, battle = {} }
     if #reported > REPORTED then table.remove(reported, 1) end
     return true
   end
@@ -177,6 +240,7 @@ local function sweep()
   for addr = cursor, stop - 4, 4 do
     local pid = new_pokemon(addr)
     if pid and notice(addr, pid) then found = true end
+    if hunting and battle_copy(addr) then found = true end
   end
   if stop >= last then
     cursor = RAM_START
@@ -202,10 +266,24 @@ end
 -- Follows the reported Pokémon while they stay where they were found: a
 -- wild Pokémon loses HP and gets a status during the battle.
 local function refresh()
+  facing, hunting = {}, false
   for i = 1, #reported do
     local r = reported[i]
     r.present = memory.readdword(r.addr) == r.pid and is_pokemon(r.addr)
-    if r.present then r.data = read(r.addr, MON) end
+    if r.present then
+      r.data = with_battle_hp(r, read(r.addr, MON))
+      facing[r.pid] = r
+      -- Looked for only for a while: what is left over from a battle that
+      -- is over has no copy any more.
+      if #r.battle > 0 then
+        r.hunted = 0
+      elseif (r.hunted or 0) < HUNT then
+        r.hunted = (r.hunted or 0) + 1
+        hunting = true
+      end
+    else
+      r.battle, r.hunted = {}, 0
+    end
   end
 end
 
