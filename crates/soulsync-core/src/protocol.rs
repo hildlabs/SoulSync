@@ -10,8 +10,9 @@ use crate::links::Link;
 use crate::save::SaveSnapshot;
 use serde::{Deserialize, Serialize};
 
-/// Most players a run accepts. Soul Link is played in pairs.
-pub const MAX_PLAYERS: usize = 2;
+/// Most players a run accepts. Soul Link is usually played in pairs; a run
+/// says how many seats it has in [`RunSettings::players`].
+pub const MAX_PLAYERS: usize = 4;
 
 /// Sent by a player's client.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -33,8 +34,11 @@ pub enum ServerMsg {
 }
 
 /// Settings chosen when a run is created.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RunSettings {
+    /// How many players the run has seats for: 2 to [`MAX_PLAYERS`].
+    #[serde(default = "two")]
+    pub players: usize,
     /// Level cap before each badge: `caps[n]` applies while a player has `n`
     /// badges. Empty means no caps.
     #[serde(default)]
@@ -43,15 +47,33 @@ pub struct RunSettings {
     /// show. Empty means the dashboard's default set.
     #[serde(default)]
     pub rules: Vec<String>,
-    /// Both players randomize with the same seed and so get the same world.
+    /// All players randomize with the same seed and so get the same world.
     /// Usually each player has their own.
     #[serde(default)]
     pub shared_seed: bool,
 }
 
+fn two() -> usize {
+    2
+}
+
+impl Default for RunSettings {
+    fn default() -> Self {
+        Self {
+            players: 2,
+            caps: Vec::new(),
+            rules: Vec::new(),
+            shared_seed: false,
+        }
+    }
+}
+
 impl RunSettings {
     /// Checks limits before a server accepts the settings.
     pub fn validate(&self) -> Result<(), &'static str> {
+        if !(2..=MAX_PLAYERS).contains(&self.players) {
+            return Err("a run has 2 to 4 players");
+        }
         if self.caps.len() > 16 || self.caps.iter().any(|&c| c == 0 || c > 100) {
             return Err("caps must be 1 to 100, at most 16 of them");
         }
@@ -79,7 +101,7 @@ pub struct NewRun {
     pub seed: u64,
 }
 
-/// The randomizer seed of the player in seat `seat` (0 or 1). With a shared
+/// The randomizer seed of the player in seat `seat` (from 0). With a shared
 /// seed it is the run's seed for everyone. Seeds stay below 2^53 so that
 /// dashboards, which read them as JavaScript numbers, show them exactly.
 pub fn player_seed(run_seed: u64, seat: usize, shared: bool) -> u64 {
@@ -136,6 +158,19 @@ pub struct LogEntry {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn runs_have_two_to_four_players() {
+        let old: RunSettings = serde_json::from_str("{}").unwrap();
+        assert_eq!(old.players, 2);
+        for (players, ok) in [(1, false), (2, true), (4, true), (5, false)] {
+            let s = RunSettings {
+                players,
+                ..RunSettings::default()
+            };
+            assert_eq!(s.validate().is_ok(), ok);
+        }
+    }
 
     #[test]
     fn caps_follow_badges() {
