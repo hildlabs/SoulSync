@@ -13,7 +13,7 @@
   --bg:#0D0F13;--surface:#14171D;--raised:#1D2129;--line:#272C36;
   --text:#EDEFF3;--muted:#9CA3B0;--faint:#7A8292;
   --a:#FF8D4D;--b:#56C2F0;--ok:#5FD38D;--danger:#F2617A;
-  --inverse:#EDEFF3;--inverse-text:#0D0F13;
+  --inverse:#EDEFF3;--inverse-text:#0D0F13;--band:#191C23;
   --out:cubic-bezier(.22,1,.36,1);--spring:cubic-bezier(.34,1.56,.64,1);
 }
 @media (prefers-color-scheme:light){:root:not([data-theme=dark]){
@@ -21,19 +21,21 @@
   --bg:#F5F4F0;--surface:#FFFFFF;--raised:#EDEBE5;--line:#E2DFD8;
   --text:#16181D;--muted:#5A606C;--faint:#858A94;
   --a:#C9500F;--b:#0A76AD;--ok:#1B8A4A;--danger:#C22B48;
-  --inverse:#16181D;--inverse-text:#FFFFFF;
+  --inverse:#16181D;--inverse-text:#FFFFFF;--band:#F7F6F2;
 }}
 :root[data-theme=light]{
   color-scheme:light;
   --bg:#F5F4F0;--surface:#FFFFFF;--raised:#EDEBE5;--line:#E2DFD8;
   --text:#16181D;--muted:#5A606C;--faint:#858A94;
   --a:#C9500F;--b:#0A76AD;--ok:#1B8A4A;--danger:#C22B48;
-  --inverse:#16181D;--inverse-text:#FFFFFF;
+  --inverse:#16181D;--inverse-text:#FFFFFF;--band:#F7F6F2;
 }
 
 *,*::before,*::after{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
-body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 Geist,system-ui,sans-serif;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;min-height:100vh}
+html,body{height:100%}
+#app{display:flex;flex-direction:column;height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 Geist,system-ui,sans-serif;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;}
 h1,h2,h3,p,ol{margin:0;padding:0}
 button,input{font:inherit;color:inherit}
 button{cursor:pointer;background:none;border:0;padding:0}
@@ -43,11 +45,16 @@ button{cursor:pointer;background:none;border:0;padding:0}
 [hidden]{display:none!important}
 
 /* ---------- top bar */
-.top{height:56px;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 32px;border-bottom:1px solid var(--line)}
+.top{flex:none;height:56px;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 32px;border-bottom:1px solid var(--line)}
 .brand{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600;letter-spacing:-.01em;color:inherit;text-decoration:none}
 .mark{position:relative;width:24px;height:14px}
 .mark i{position:absolute;top:0;width:14px;height:14px;border-radius:50%;border:2px solid var(--a)}
 .mark i+i{left:10px;border-color:var(--b)}
+.top-l{display:flex;align-items:center;gap:32px;min-width:0}
+.nav{display:flex;gap:4px}
+.nav button{padding:6px 12px;border-radius:8px;font-weight:500;color:var(--muted);transition:color .15s,background .2s,transform .12s var(--out)}
+.nav button:hover{color:var(--text)}
+.nav button[aria-current=page]{background:var(--raised);color:var(--text)}
 .top-r{display:flex;align-items:center;gap:16px;min-width:0}
 .status{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);white-space:nowrap}
 .status i{position:relative;width:8px;height:8px;border-radius:50%;background:var(--faint);transition:background .3s}
@@ -67,15 +74,18 @@ button{cursor:pointer;background:none;border:0;padding:0}
 button:active{transform:scale(.97)}
 
 /* ---------- run layout */
-.body{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:48px;max-width:1440px;margin:0 auto;padding:36px 40px 56px}
-.head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:20px}
+.body{flex:1;min-height:0;width:100%;display:grid;grid-template-columns:minmax(0,1fr) 300px;grid-template-rows:minmax(0,1fr);gap:48px;max-width:1440px;margin:0 auto;padding:28px 40px 32px}
+main{display:flex;flex-direction:column;min-height:0}
+.view{flex:1;min-height:0;display:flex;flex-direction:column;animation:fade .3s var(--out) both}
+.scroll{flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+.head{flex:none;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:20px}
 .head h1{font-size:28px;line-height:1.2;font-weight:600;letter-spacing:-.02em}
 .sum{font-size:14px;color:var(--muted);white-space:pre}
 .sum b{font-weight:400;color:var(--text)}
 .sum .bad{color:var(--danger)}
-.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.panel{display:flex;flex-direction:column;min-height:0;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .players,.row{display:grid;grid-template-columns:minmax(0,1fr) 250px minmax(0,1fr);align-items:center;padding:0 24px}
-.players{padding-block:20px}
+.players{flex:none;padding-block:18px;border-bottom:1px solid var(--line)}
 .pl{display:flex;align-items:center;justify-content:space-between;gap:16px;min-width:0}
 .pl.b,.pl.b .pl-n div,.pl.b .pl-b{flex-direction:row-reverse}
 .pl.b .pl-n{text-align:right}
@@ -91,9 +101,20 @@ button:active{transform:scale(.97)}
 .badges i.pop{animation:pop .6s var(--spring)}
 .cap{text-align:center;font-size:13px;color:var(--muted)}
 
-.sec{border-top:1px solid var(--line);padding-bottom:10px}
-.sec h3{display:flex;gap:8px;padding:18px 24px 8px;font-size:13px;font-weight:500}
+.sec{padding-bottom:8px}
+.sec h3{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:10px;margin-bottom:6px;padding:9px 24px;background:var(--band);border-bottom:1px solid var(--line);font-size:13px;font-weight:600}
+.sec+.sec h3,.sec~.sec h3{border-top:1px solid var(--line)}
 .sec h3 em{font-style:normal;font-weight:400;color:var(--faint)}
+.sec h3 small{margin-left:auto;font-size:13px;font-weight:400;color:var(--muted)}
+.glyph{display:flex;align-items:center;gap:2px}
+.glyph i{width:7px;height:7px;border-radius:50%;background:var(--a)}
+.glyph i:last-child{background:var(--b)}
+.glyph u{width:9px;height:2px;border-radius:1px;background:var(--muted)}
+.sec[data-sec=boxed] .glyph i{opacity:.55}
+.sec[data-sec=open] .glyph i:last-child{background:none;box-shadow:inset 0 0 0 1.5px var(--faint)}
+.sec[data-sec=open] .glyph u,.sec[data-sec=lost] .glyph u{background:radial-gradient(circle,var(--faint) 1px,transparent 1.2px) 0 50%/4px 2px repeat-x}
+.sec[data-sec=lost] .glyph i{background:var(--faint)}
+.sec[data-sec=lost] h3 span{color:var(--danger)}
 .row{height:60px}
 .row.enter{animation:rise .5s var(--out) both;animation-delay:calc(var(--i,0)*40ms)}
 
@@ -108,7 +129,7 @@ button:active{transform:scale(.97)}
 .names b{font-size:15px;font-weight:500;line-height:1.3;transition:color .4s}
 .names small{font-size:13px;line-height:1.35;color:var(--muted);transition:color .4s}
 .slot{position:relative;flex:none;display:grid;place-items:center;width:44px;height:44px;border-radius:10px;background:var(--raised);overflow:hidden}
-.slot img{position:absolute;left:50%;top:50%;width:60px;height:60px;margin:-30px 0 0 -30px;image-rendering:pixelated;transition:filter .5s,opacity .5s}
+.slot img{max-width:none;position:absolute;left:50%;top:50%;width:60px;height:60px;margin:-30px 0 0 -30px;image-rendering:pixelated;transition:filter .5s,opacity .5s}
 .slot.empty{background:none;border:1px dashed var(--line)}
 .slot.pulse::after{content:"";position:absolute;inset:0;border-radius:10px;box-shadow:inset 0 0 0 2px var(--c);animation:flash .9s var(--out) both}
 .wait{font-size:14px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -144,8 +165,8 @@ button:active{transform:scale(.97)}
 .row.lost .names small{color:var(--faint)}
 .row.lost .slot img{filter:grayscale(1);opacity:.45}
 
-.empty-list{padding:28px 24px 34px;border-top:1px solid var(--line);color:var(--muted)}
-.setup{padding:22px 24px 26px;border-top:1px solid var(--line)}
+.empty-list{padding:28px 24px 34px;color:var(--muted)}
+.setup{padding:22px 24px 26px}
 .setup h3{font-size:15px;font-weight:600;letter-spacing:-.01em}
 .setup ol{margin:10px 0 0;padding-left:18px;color:var(--muted)}
 .setup li{padding:3px 0}
@@ -154,12 +175,14 @@ button:active{transform:scale(.97)}
 .cmd button{flex:none;font-size:13px;font-weight:500;color:var(--muted)}
 
 /* ---------- rail */
-.rail{display:flex;flex-direction:column;gap:36px;padding-top:6px;min-width:0}
+.rail{display:flex;flex-direction:column;gap:32px;padding-top:6px;min-width:0;min-height:0}
+.rail section{flex:none}
+.rail section:last-child{flex:1;min-height:0;display:flex;flex-direction:column}
 .rail h2{font-size:15px;font-weight:600;letter-spacing:-.01em}
 .kv{display:flex;justify-content:space-between;gap:16px;padding:11px 0;border-bottom:1px solid var(--line)}
 .kv span{color:var(--muted)}
 .kv b{font-weight:400;text-align:right;min-width:0;overflow:hidden;text-overflow:ellipsis}
-.feed{margin-top:16px}
+.feed{flex:1;min-height:0;margin-top:16px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
 .ev{display:grid;grid-template-rows:1fr;transition:grid-template-rows .45s var(--out)}
 .ev>div{overflow:hidden;display:grid;grid-template-columns:46px minmax(0,1fr);gap:12px;line-height:21px;transition:opacity .4s var(--out) .1s,transform .45s var(--out) .1s}
 .ev>div>*{padding-bottom:16px}
@@ -170,8 +193,53 @@ button:active{transform:scale(.97)}
 .ev.new>div{opacity:0;transform:translateY(-6px)}
 .feed-empty{margin-top:14px;color:var(--muted)}
 
+/* ---------- encounters, timeline, rules */
+.thead,.erow{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.2fr) minmax(0,1.2fr) 110px;align-items:center;gap:16px;padding:0 24px}
+.thead{flex:none;height:40px;background:var(--band);border-bottom:1px solid var(--line);font-size:13px;font-weight:600}
+.thead i{display:inline-block;width:8px;height:8px;margin-right:8px;border-radius:50%}
+.erow{height:52px;border-bottom:1px solid var(--line)}
+.erow:last-child{border-bottom:0}
+.eloc{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ecell{display:flex;align-items:center;gap:12px;min-width:0}
+.ecell b,.ecell small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ecell b{font-weight:500;line-height:1.3}
+.ecell small{font-size:13px;color:var(--muted);line-height:1.3}
+.ecell.none{color:var(--faint)}
+.slot.sm{width:34px;height:34px;border-radius:8px}
+.slot.sm img{width:46px;height:46px;margin:-23px 0 0 -23px}
+.est{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.est i{width:8px;height:8px;border-radius:50%;background:var(--ok)}
+.est.boxed i{background:var(--muted)}
+.est.open i{background:none;box-shadow:inset 0 0 0 1.5px var(--faint)}
+.est.lost{color:var(--danger)}.est.lost i{background:var(--danger)}
+.erow.lost .slot img{filter:grayscale(1);opacity:.45}
+.erow.lost .ecell b{color:var(--muted)}
+.trow{display:grid;grid-template-columns:52px 8px minmax(0,1fr);align-items:baseline;gap:14px;padding:11px 24px;border-bottom:1px solid var(--line)}
+.trow:last-child{border-bottom:0}
+.trow time{font-size:13px;color:var(--faint)}
+.trow i{width:8px;height:8px;border-radius:50%}
+.trow b{font-weight:500}
+.trow .bad{color:var(--danger)}
+.rules{display:flex;flex-direction:column;gap:16px;padding-right:4px}
+.rblock{padding:20px 24px 22px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+.rblock h2{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.rblock>p{margin-top:8px;color:var(--muted);max-width:60ch}
+.caps{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.capc{min-width:64px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;transition:background .3s,border-color .3s}
+.capc small{display:block;font-size:12px;color:var(--muted)}
+.capc b{font-size:18px;font-weight:600;letter-spacing:-.01em}
+.capc.done{opacity:.45}
+.capc.now{background:var(--raised);border-color:var(--text)}
+.rlist{margin-top:6px;list-style:none}
+.rlist li{display:grid;grid-template-columns:200px minmax(0,1fr);gap:16px;padding:11px 0;border-bottom:1px solid var(--line)}
+.rlist li:last-child{border-bottom:0;padding-bottom:0}
+.rlist b{font-weight:500}
+.rlist span{color:var(--muted)}
+.rblock ol.steps{margin:10px 0 0;padding-left:18px;color:var(--muted)}
+.rblock ol.steps li{padding:3px 0}
+
 /* ---------- start */
-.stage{display:flex;justify-content:center;padding:56px 16px 80px}
+.stage{flex:1;overflow-y:auto;display:flex;justify-content:center;align-items:flex-start;padding:56px 16px 80px}
 .form{width:100%;max-width:420px;display:flex;flex-direction:column;gap:28px}
 .form h1{font-size:32px;line-height:1.15;font-weight:600;letter-spacing:-.025em}
 .form .lead{margin-top:10px;font-size:15px;line-height:23px;color:var(--muted)}
@@ -201,10 +269,23 @@ button:active{transform:scale(.97)}
 @keyframes roll-in{from{transform:translateY(100%);opacity:0}}
 
 @media (max-width:1040px){
-  .body{grid-template-columns:minmax(0,1fr);gap:40px;padding:28px 20px 48px}
+  html,body,#app{height:auto}
+  #app{display:block}
+  .body{display:block;padding:28px 20px 48px}
+  .rail{margin-top:40px}
+  .scroll,.feed{overflow:visible}
+  .view,.panel{display:block}
+  .nav{overflow-x:auto}
 }
 @media (max-width:760px){
-  .top{padding:0 12px;gap:8px}
+  .top{padding:0 12px;gap:8px;height:auto;flex-wrap:wrap;padding-block:10px}
+  .top-l{gap:12px;order:2;width:100%}
+  .thead,.erow{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);padding-inline:12px;gap:8px}
+  .thead>:last-child,.est,.ecell small{display:none}
+  .erow{height:auto;padding-block:8px}
+  .ecell{flex-direction:column;align-items:flex-start;gap:4px}
+  .rlist li{grid-template-columns:minmax(0,1fr);gap:2px}
+  .trow{padding-inline:12px}
   .top-r{gap:8px}
   .brand{font-size:0;gap:0}
   .chip{white-space:nowrap}
@@ -238,6 +319,12 @@ const T = {
     links: "Links", run: "Run", activity: "Activity", copy: "Copy", copied: "Copied",
     live2: "Both players live", live1: "1 of 2 players live", live0: "Waiting for players", offline: "Reconnecting", missing: "Run not found",
     theme: "Switch theme",
+    tabs: { links: "Links", encounters: "Encounters", timeline: "Timeline", rules: "Rules" },
+    area: "Area", status: "Status",
+    hint: { team: "both in the team", boxed: "at least one in a box", open: "waiting for the partner’s catch", lost: "one fainted, both are out" },
+    rCaps: "Level caps", rNoCaps: "This run has no level caps.", rCapsHint: "The highlighted cap applies until both players have the next badge.", gym: n => `Gym ${n}`,
+    rRules: "Soul Link rules", rNote: "SoulSync tracks links, levels and losses. The other rules are on your honour for now.",
+    rList: [["First encounter only", "In each area you may catch only the first Pokémon you meet."], ["Same area, linked", "Your catch and your partner’s catch from the same area form a link."], ["Shared fate", "If one of them faints, its partner is lost too."], ["Failed catch", "If one of you fails the catch, the area is closed for both."], ["Level cap", "No Pokémon may be above the strongest Pokémon of the next gym leader."]],
     team: "Team", boxed: "Boxed", open: "Open", lost: "Lost",
     sum: (l, o, x) => [`<b>${l} linked</b>`, `${o} open`, x ? `<span class="bad">${x} lost</span>` : `0 lost`].join("  ·  "),
     badges: n => n === 1 ? "1 badge" : `${n} badges`, cap: n => `Level cap ${n}`,
@@ -265,6 +352,12 @@ const T = {
     links: "Links", run: "Run", activity: "Verlauf", copy: "Kopieren", copied: "Kopiert",
     live2: "Beide Spieler live", live1: "1 von 2 Spielern live", live0: "Warte auf Spieler", offline: "Verbinde neu", missing: "Run nicht gefunden",
     theme: "Farbschema wechseln",
+    tabs: { links: "Links", encounters: "Begegnungen", timeline: "Verlauf", rules: "Regeln" },
+    area: "Gebiet", status: "Status",
+    hint: { team: "beide im Team", boxed: "mindestens eins in der Box", open: "wartet auf den Fang des Partners", lost: "eins besiegt, beide raus" },
+    rCaps: "Level-Caps", rNoCaps: "Dieser Run hat keine Level-Caps.", rCapsHint: "Der markierte Cap gilt, bis beide Spieler den nächsten Orden haben.", gym: n => `Arena ${n}`,
+    rRules: "Soul-Link-Regeln", rNote: "SoulSync verfolgt Links, Level und Verluste. Die übrigen Regeln laufen vorerst auf Vertrauen.",
+    rList: [["Nur die erste Begegnung", "In jedem Gebiet darfst du nur das erste Pokémon fangen, das dir begegnet."], ["Gleiches Gebiet, verbunden", "Dein Fang und der Fang deines Partners aus demselben Gebiet bilden einen Link."], ["Geteiltes Schicksal", "Wird eins besiegt, ist auch sein Partner verloren."], ["Fehlgeschlagener Fang", "Misslingt einem von euch der Fang, ist das Gebiet für beide gesperrt."], ["Level-Cap", "Kein Pokémon darf über dem stärksten Pokémon des nächsten Arenaleiters liegen."]],
     team: "Team", boxed: "In der Box", open: "Offen", lost: "Verloren",
     sum: (l, o, x) => [`<b>${l} verbunden</b>`, `${o} offen`, x ? `<span class="bad">${x} verloren</span>` : `0 verloren`].join("  ·  "),
     badges: n => `${n} Orden`, cap: n => `Level-Cap ${n}`,
@@ -301,6 +394,8 @@ const OUT = "cubic-bezier(.22,1,.36,1)";
 const DEMO = location.pathname === "/demo" || window.SOULSYNC_DEMO === true;
 const codeFromPath = DEMO ? "DEMO-0000" : (location.pathname.match(/^\/run\/([^/]+)/) || [])[1];
 
+const VIEWS = ["links", "encounters", "timeline", "rules"];
+let view = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "links";
 let state = null, conn = "offline", sprites = window.SOULSYNC_SPRITES || null, mounted = false;
 const theme = store.get("soulsync.theme");
 if (theme) document.documentElement.dataset.theme = theme;
@@ -317,7 +412,8 @@ const nextFrame = fn => requestAnimationFrame(() => requestAnimationFrame(fn));
 function topBar() {
   const run = !!codeFromPath;
   return `<header class="top">
-    <a class="brand" href="/"><span class="mark"><i></i><i></i></span>SoulSync</a>
+    <div class="top-l"><a class="brand" href="/"><span class="mark"><i></i><i></i></span>SoulSync</a>
+    ${run ? `<nav class="nav" id="nav">${VIEWS.map(v => `<button type="button" data-v="${v}">${t().tabs[v]}</button>`).join("")}</nav>` : ""}</div>
     <div class="top-r">
       ${run ? `<span class="status" id="status"><i></i><span></span></span>
       <span class="chip"><span class="mono" id="code">${esc(codeFromPath.toUpperCase())}</span><button type="button" id="copy">${t().copy}</button></span>` : ""}
@@ -336,6 +432,12 @@ function bindChrome() {
     const root = document.documentElement;
     const dark = root.dataset.theme ? root.dataset.theme === "dark" : !matchMedia("(prefers-color-scheme:light)").matches;
     root.dataset.theme = dark ? "light" : "dark"; store.set("soulsync.theme", root.dataset.theme);
+  };
+  const nav = $("#nav");
+  if (nav) nav.onclick = e => {
+    const b = e.target.closest("button"); if (!b || b.dataset.v === view) return;
+    view = b.dataset.v; try { history.replaceState(null, "", "#" + view); } catch {}
+    showView();
   };
   const copy = $("#copy");
   if (copy) copy.onclick = () => copyText($("#code").textContent, copy);
@@ -396,13 +498,18 @@ function mount() {
   rows.clear(); feed.clear();
   $app.innerHTML = topBar() + `<div class="body">
     <main>
-      <div class="head"><h1>${t().links}</h1><p class="sum" id="sum"></p></div>
-      <div class="panel">
+      <div class="head"><h1 id="title"></h1><p class="sum" id="sum"></p></div>
+      <div class="view" data-view="links"><div class="panel">
         <div class="players"><div class="pl a" style="--c:var(--a)"></div><div class="cap" id="cap"></div><div class="pl b" style="--c:var(--b)"></div></div>
-        <div id="setup"></div>
-        ${SECTIONS.map(s => `<section class="sec" data-sec="${s}" hidden><h3><span>${t()[s]}</span><em></em></h3><div class="rows"></div></section>`).join("")}
-        <p class="empty-list" id="none" hidden>${t().noLinks}</p>
-      </div>
+        <div class="scroll">
+          <div id="setup"></div>
+          ${SECTIONS.map(s => `<section class="sec" data-sec="${s}" hidden><h3><span class="glyph"><i></i><u></u><i></i></span><span>${t()[s]}</span><em></em><small>${t().hint[s]}</small></h3><div class="rows"></div></section>`).join("")}
+          <p class="empty-list" id="none" hidden>${t().noLinks}</p>
+        </div>
+      </div></div>
+      <div class="view" data-view="encounters" hidden><div class="panel"><div class="thead" id="ehead"></div><div class="scroll" id="enc"></div></div></div>
+      <div class="view" data-view="timeline" hidden><div class="panel"><div class="scroll" id="tl"></div></div></div>
+      <div class="view" data-view="rules" hidden><div class="scroll rules" id="rules"></div></div>
     </main>
     <aside class="rail">
       <section><h2>${t().run}</h2><div id="kv" style="margin-top:4px"></div></section>
@@ -411,6 +518,49 @@ function mount() {
   </div>`;
   bindChrome();
   mounted = true;
+  showView();
+}
+
+function showView() {
+  document.querySelectorAll(".view").forEach(el => { el.hidden = el.dataset.view !== view; });
+  document.querySelectorAll("#nav button").forEach(b => { if (b.dataset.v === view) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
+  const h = $("#title"); if (h) h.textContent = t().tabs[view];
+}
+
+function updateEncounters() {
+  const ms = model(), ps = state.players;
+  $("#ehead").innerHTML = `<span>${t().area}</span>${[0, 1].map(i => `<span><i style="background:var(--${i ? "b" : "a"})"></i>${esc(ps[i] ? ps[i].name : t().playerTwo)}</span>`).join("")}<span>${t().status}</span>`;
+  const cell = s => {
+    if (!s) return `<span class="ecell none">–</span>`;
+    const p = s.pokemon, b = p.battle;
+    return `<span class="ecell"><span class="slot sm">${spriteImg(p)}</span><span style="min-width:0"><b>${esc(label(p))}</b><small>${esc(p.is_nicknamed && p.nickname ? species(p) + " · " : "")}${b ? `${t().lv} ${b.level}` : t().box(p.place.box ?? "")}</small></span></span>`;
+  };
+  $("#enc").innerHTML = ms.length ? ms.map(m => `<div class="erow ${m.dead ? "lost" : ""}"><span class="eloc">${esc(locName(m.link))}</span>${cell(m.sides[0])}${cell(m.sides[1])}<span class="est ${m.sec}"><i></i>${t()[m.sec]}</span></div>`).join("") : `<p class="empty-list">${t().noLinks}</p>`;
+}
+
+function updateTimeline() {
+  const idx = Object.fromEntries(state.players.map((p, i) => [p.name, i]));
+  const two = n => String(n).padStart(2, "0");
+  $("#tl").innerHTML = state.log.length ? state.log.map(e => {
+    const d = new Date(e.at);
+    return `<div class="trow"><time>${two(d.getHours())}:${two(d.getMinutes())}</time><i style="background:var(--${idx[e.player] ? "b" : "a"})"></i><span>${eventHtml(e)}</span></div>`;
+  }).join("") : `<p class="empty-list">${t().noEvents}</p>`;
+}
+
+function updateRules() {
+  const caps = state.settings && state.settings.caps || [];
+  const withSave = state.players.filter(p => p.snapshot);
+  const badges = withSave.length ? Math.min(...withSave.map(p => p.snapshot.trainer.badges)) : 0;
+  const now = Math.min(badges, caps.length - 1);
+  const sig = [lang, caps.join(), now, state.code].join("|"), el = $("#rules");
+  if (el._sig === sig) return;
+  el._sig = sig;
+  el.innerHTML = `<section class="rblock"><h2>${t().rCaps}</h2>${caps.length
+      ? `<div class="caps">${caps.map((c, i) => `<span class="capc ${i < now ? "done" : i === now ? "now" : ""}"><small>${t().gym(i + 1)}</small><b>${c}</b></span>`).join("")}</div><p>${t().rCapsHint}</p>`
+      : `<p>${t().rNoCaps}</p>`}</section>
+    <section class="rblock"><h2>${t().rRules}</h2><ol class="rlist">${t().rList.map(([a, b]) => `<li><b>${a}</b><span>${b}</span></li>`).join("")}</ol><p>${t().rNote}</p></section>
+    <section class="rblock"><h2>${t().setup}</h2><ol class="steps"><li>${t().step1}</li><li>${t().step2}<div class="cmd"><code>${esc(syncCmd())}</code><button type="button">${t().copy}</button></div></li><li>${t().step3}</li></ol></section>`;
+  $(".cmd button", el).onclick = e => copyText(syncCmd(), e.currentTarget);
 }
 
 function capNow() {
@@ -639,7 +789,7 @@ function render() {
     bindChrome(); updateStatus(); mounted = false; return;
   }
   if (!mounted) mount();
-  updateStatus(); updatePlayers(); updateSetup(); updateLinks(); updateRail();
+  updateStatus(); updatePlayers(); updateSetup(); updateLinks(); updateRail(); updateEncounters(); updateTimeline(); updateRules();
 }
 
 function apply(next) { state = next; conn = "live"; render(); }
