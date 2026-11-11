@@ -1,23 +1,32 @@
-# A public SoulSync run server with HTTPS.
+# A public SoulSync run server.
 #
-#   SOULSYNC_DOMAIN=soulsync.example.org docker compose up -d --build
+# With HTTPS from the bundled Caddy (ports 80 and 443 must be free and open,
+# and the domain must point to this machine):
 #
-# The domain must point to this machine, and ports 80 and 443 must be open.
+#   SOULSYNC_DOMAIN=soulsync.example.org docker compose --profile https up -d --build
+#
+# Behind a reverse proxy you already run: start only the server and point the
+# proxy at 127.0.0.1:3000 (it must pass WebSocket upgrades through):
+#
+#   docker compose up -d --build
 services:
   server:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:${SOULSYNC_PORT:-3000}:3000"
 
   caddy:
+    profiles: ["https"]
     image: caddy:2
     restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
     environment:
-      SOULSYNC_DOMAIN: ${SOULSYNC_DOMAIN:?set SOULSYNC_DOMAIN to the server's domain}
+      SOULSYNC_DOMAIN: ${SOULSYNC_DOMAIN:-localhost}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

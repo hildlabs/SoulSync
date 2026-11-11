@@ -20,10 +20,12 @@ To play together, both players enter the same run server under *Server*. Without
 
 ```sh
 cd deploy
-SOULSYNC_DOMAIN=soulsync.example.org docker compose up -d --build
+SOULSYNC_DOMAIN=soulsync.example.org docker compose --profile https up -d --build
 ```
 
-This runs the server behind Caddy with HTTPS. The domain must point to the machine, and ports 80 and 443 must be open. Runs are kept in memory.
+This runs the server behind Caddy with HTTPS. The domain must point to the machine, and ports 80 and 443 must be free and open.
+
+If the machine already runs a reverse proxy, start only the server with `docker compose up -d --build` and point the proxy at `127.0.0.1:3000`, passing WebSocket upgrades through. Runs are kept in memory.
 
 ## Command line
 
