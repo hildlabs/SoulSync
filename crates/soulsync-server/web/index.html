@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SoulSync</title>
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
 <style>
 @font-face{font-family:Geist;src:url(/assets/fonts/Geist.woff2) format("woff2");font-weight:100 900;font-display:swap}
 @font-face{font-family:"Geist Mono";src:url(/assets/fonts/GeistMono.woff2) format("woff2");font-weight:100 900;font-display:swap}
@@ -47,9 +48,7 @@ button{cursor:pointer;background:none;border:0;padding:0}
 /* ---------- top bar */
 .top{flex:none;height:56px;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 32px;border-bottom:1px solid var(--line)}
 .brand{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600;letter-spacing:-.01em;color:inherit;text-decoration:none}
-.mark{position:relative;width:24px;height:14px}
-.mark i{position:absolute;top:0;width:14px;height:14px;border-radius:50%;border:2px solid var(--a)}
-.mark i+i{left:10px;border-color:var(--b)}
+.mark{flex:none;width:19px;height:22px}
 .top-l{display:flex;align-items:center;gap:32px;min-width:0}
 .nav{display:flex;gap:4px}
 .nav button{padding:6px 12px;border-radius:8px;font-weight:500;color:var(--muted);transition:color .15s,background .2s,transform .12s var(--out)}
@@ -553,7 +552,7 @@ const nextFrame = fn => requestAnimationFrame(() => requestAnimationFrame(fn));
 function topBar() {
   const run = !!codeFromPath;
   return `<header class="top">
-    <div class="top-l"><a class="brand" href="/"><span class="mark"><i></i><i></i></span>SoulSync</a>
+    <div class="top-l"><a class="brand" href="/"><svg class="mark" viewBox="104 80 304 352" fill="none" stroke-width="64" aria-hidden="true"><path d="M327.4 154A76 76 0 1 0 256 256" stroke="var(--a)"/><circle cx="327.4" cy="154" r="32" fill="var(--a)"/><path d="M256 256A76 76 0 1 1 184.600 358" stroke="var(--b)"/><circle cx="184.6" cy="358" r="32" fill="var(--b)"/></svg>SoulSync</a>
     ${run ? `<nav class="nav" id="nav">${VIEWS.map(v => `<button type="button" data-v="${v}">${t().tabs[v]}</button>`).join("")}</nav>` : ""}</div>
     <div class="top-r">
       ${run ? `<span class="game" id="game"></span><span class="status" id="status"><i></i><span></span></span>

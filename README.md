@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/soulsync-icon.svg" width="96" height="96" alt=""></p>
+
 # SoulSync
 
 Track Pokémon Soul Link runs live, straight from your emulator.
