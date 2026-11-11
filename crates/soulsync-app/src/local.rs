@@ -61,6 +61,8 @@ struct Inner {
     foreign: Option<Arc<Mutex<bool>>>,
     /// A newer build of the app, if one is published.
     update: Option<crate::update::Release>,
+    /// How far the installation of it is, once asked for.
+    progress: Option<crate::update::Progress>,
 }
 
 #[derive(Clone)]
@@ -398,6 +400,7 @@ impl Local {
             "update": serde_json::json!({
                 "build": crate::update::build(),
                 "latest": inner.update.as_ref().map(|r| r.build),
+                "progress": inner.progress,
             }),
             "dialogs": cfg!(any(windows, target_os = "macos")),
             "version": env!("CARGO_PKG_VERSION"),
@@ -694,18 +697,37 @@ fn look_for_update(local: &Local) {
     });
 }
 
-/// Installs the newer build and quits, so that it can take over.
+/// Starts installing the newer build. The page follows the progress in the
+/// state; when the new program is started, this one quits so that it can
+/// take over.
 async fn update(State(local): State<Local>) -> Reply {
-    let release = local.inner.lock().unwrap().update.clone();
-    let release = release.ok_or_else(|| bad("no update"))?;
-    tokio::task::spawn_blocking(move || crate::update::install(&release))
-        .await
-        .map_err(|e| bad(e.to_string()))?
-        .map_err(bad)?;
-    // After the answer is out.
-    tokio::spawn(async {
-        tokio::time::sleep(Duration::from_millis(400)).await;
-        std::process::exit(0);
+    use crate::update::Progress;
+    let release = {
+        let mut inner = local.inner.lock().unwrap();
+        let release = inner.update.clone().ok_or_else(|| bad("no update"))?;
+        let busy = matches!(
+            inner.progress,
+            Some(Progress::Download { .. } | Progress::Start)
+        );
+        (!busy).then(|| {
+            inner.progress = Some(Progress::Download { percent: None });
+            release
+        })
+    };
+    let Some(release) = release else {
+        return Ok(Json(local.view()));
+    };
+    let worker = local.clone();
+    std::thread::spawn(move || {
+        let tell = |p: Progress| worker.inner.lock().unwrap().progress = Some(p);
+        match crate::update::install(&release, &tell) {
+            // A moment for the page to hear of it.
+            Ok(()) => {
+                std::thread::sleep(Duration::from_millis(400));
+                std::process::exit(0);
+            }
+            Err(_) => tell(Progress::Failed),
+        }
     });
     Ok(Json(local.view()))
 }

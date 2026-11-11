@@ -94,14 +94,49 @@ pub fn tidy() {
     }
 }
 
-/// Downloads a program to `to`. Blocks.
-fn fetch(url: &str, to: &Path) -> Result<(), String> {
+/// How far an installation is.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "step", rename_all = "lowercase")]
+pub enum Progress {
+    /// Downloading; the share that is there, where the size is known.
+    Download {
+        percent: Option<u8>,
+    },
+    /// Swapping the program file and starting the new one.
+    Start,
+    Failed,
+}
+
+/// Downloads a program to `to`, telling `on` how far it is. Blocks.
+fn fetch(url: &str, to: &Path, on: &dyn Fn(Progress)) -> Result<(), String> {
+    use std::io::{Read, Write};
     let mut response = ureq::get(url)
         .header("User-Agent", AGENT)
         .call()
         .map_err(|e| e.to_string())?;
+    let size = response
+        .headers()
+        .get("content-length")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse::<u64>().ok())
+        .filter(|&n| n > 0);
     let mut file = std::fs::File::create(to).map_err(|e| e.to_string())?;
-    std::io::copy(&mut response.body_mut().as_reader(), &mut file).map_err(|e| e.to_string())?;
+    let mut reader = response.body_mut().as_reader();
+    let mut buffer = vec![0u8; 64 * 1024];
+    let (mut done, mut told) = (0u64, None);
+    loop {
+        let n = reader.read(&mut buffer).map_err(|e| e.to_string())?;
+        if n == 0 {
+            break;
+        }
+        file.write_all(&buffer[..n]).map_err(|e| e.to_string())?;
+        done += n as u64;
+        let percent = size.map(|size| (done * 100 / size).min(100) as u8);
+        if percent != told {
+            told = percent;
+            on(Progress::Download { percent });
+        }
+    }
     drop(file);
     // A page of text instead of a program must not replace the app.
     if crate::local::exe_machine(to).is_none() {
@@ -111,12 +146,14 @@ fn fetch(url: &str, to: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Downloads a release, puts it in this program's place and starts it. The
-/// caller quits afterwards. Blocks.
-pub fn install(release: &Release) -> Result<(), String> {
+/// Downloads a release, puts it in this program's place and starts it,
+/// telling `on` how far it is. The caller quits afterwards. Blocks.
+pub fn install(release: &Release, on: &dyn Fn(Progress)) -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let new = beside(&exe, "new");
-    fetch(&release.url, &new)?;
+    on(Progress::Download { percent: None });
+    fetch(&release.url, &new, on)?;
+    on(Progress::Start);
     swap(&exe, &new).map_err(|e| e.to_string())?;
     std::process::Command::new(&exe)
         .arg(UPDATED_FLAG)
@@ -180,9 +217,15 @@ mod tests {
         let mut program = vec![0u8; 0x90];
         program[0x3C] = 0x80;
         program[0x80..0x86].copy_from_slice(b"PE\0\0\x64\x86");
-        fetch(&serve(program.clone()), &to).unwrap();
+        let steps = std::sync::Mutex::new(Vec::new());
+        fetch(&serve(program.clone()), &to, &|p| {
+            steps.lock().unwrap().push(p)
+        })
+        .unwrap();
         assert_eq!(std::fs::read(&to).unwrap(), program);
-        assert!(fetch(&serve(b"<html>Not found</html>".to_vec()), &to).is_err());
+        let last = steps.lock().unwrap().last().cloned();
+        assert_eq!(last, Some(Progress::Download { percent: Some(100) }));
+        assert!(fetch(&serve(b"<html>Not found</html>".to_vec()), &to, &|_| {}).is_err());
         assert!(!to.exists());
         std::fs::remove_dir_all(dir).unwrap();
     }
