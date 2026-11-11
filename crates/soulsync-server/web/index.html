@@ -13,7 +13,7 @@
   color-scheme:dark;
   --bg:#0D0F13;--surface:#14171D;--raised:#1D2129;--line:#272C36;
   --text:#EDEFF3;--muted:#9CA3B0;--faint:#7A8292;
-  --a:#FF8D4D;--b:#56C2F0;--ok:#5FD38D;--danger:#F2617A;
+  --a:#FF8D4D;--b:#56C2F0;--p3:#B79CFF;--p4:#EBC34A;--ok:#5FD38D;--danger:#F2617A;
   --inverse:#EDEFF3;--inverse-text:#0D0F13;--band:#191C23;--warn:#F2B544;
   --out:cubic-bezier(.22,1,.36,1);--spring:cubic-bezier(.34,1.56,.64,1);
 }
@@ -21,14 +21,14 @@
   color-scheme:light;
   --bg:#F5F4F0;--surface:#FFFFFF;--raised:#EDEBE5;--line:#E2DFD8;
   --text:#16181D;--muted:#5A606C;--faint:#858A94;
-  --a:#C9500F;--b:#0A76AD;--ok:#1B8A4A;--danger:#C22B48;
+  --a:#C9500F;--b:#0A76AD;--p3:#6A4BD1;--p4:#8F6A00;--ok:#1B8A4A;--danger:#C22B48;
   --inverse:#16181D;--inverse-text:#FFFFFF;--band:#F7F6F2;--warn:#A86400;
 }}
 :root[data-theme=light]{
   color-scheme:light;
   --bg:#F5F4F0;--surface:#FFFFFF;--raised:#EDEBE5;--line:#E2DFD8;
   --text:#16181D;--muted:#5A606C;--faint:#858A94;
-  --a:#C9500F;--b:#0A76AD;--ok:#1B8A4A;--danger:#C22B48;
+  --a:#C9500F;--b:#0A76AD;--p3:#6A4BD1;--p4:#8F6A00;--ok:#1B8A4A;--danger:#C22B48;
   --inverse:#16181D;--inverse-text:#FFFFFF;--band:#F7F6F2;--warn:#A86400;
 }
 
@@ -100,6 +100,18 @@ main{display:flex;flex-direction:column;min-height:0}
 .badges i.on{background:var(--c)}
 .badges i.pop{animation:pop .6s var(--spring)}
 .cap{text-align:center;font-size:13px;color:var(--muted)}
+.players.multi,.row.multi{grid-template-columns:170px repeat(var(--n),minmax(0,1fr));column-gap:16px}
+.players.multi .cap{text-align:left}
+.players.multi .pl{flex-direction:column;align-items:flex-start;gap:8px}
+.row.multi{height:auto;min-height:60px;padding-block:8px}
+.row.multi .loc{justify-self:start;max-width:100%}
+.row.multi .side{display:grid;grid-template:"slot names" auto "slot stat" auto/44px minmax(0,1fr);gap:3px 12px;align-items:center}
+.row.multi .idg{display:contents}
+.row.multi .slot{grid-area:slot}
+.row.multi .names{grid-area:names;text-align:left}
+.row.multi .wait{grid-area:1/2/3/3}
+.row.multi .stat{grid-area:stat}
+.row.multi .tys{justify-content:flex-start}
 .cap b{display:block;font-size:15px;font-weight:600;letter-spacing:-.01em;color:var(--text)}
 .game{font-size:13px;color:var(--muted);white-space:nowrap}
 
@@ -157,11 +169,11 @@ main{display:flex;flex-direction:column;min-height:0}
 .wait b{font-weight:500;color:var(--c)}
 .row:not(.lost)[data-b="0"] .seg.b{animation:march .9s linear infinite}
 .row:not(.lost)[data-a="0"] .seg.a{animation:march .9s linear infinite reverse}
-.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:2px 20px;padding:2px 24px 4px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(calc(152px + var(--n,2)*44px),1fr));gap:2px 20px;padding:2px 24px 4px}
 .tile{display:flex;align-items:center;gap:12px;min-width:0;height:48px}
 .tile.enter{animation:rise .5s var(--out) both}
 .duo{flex:none;display:flex;align-items:center}
-.duo u{width:10px;height:2px;background:linear-gradient(90deg,var(--a) 50%,var(--b) 50%)}
+.duo u{width:10px;height:2px;background:linear-gradient(90deg,var(--l,var(--a)) 50%,var(--r,var(--b)) 50%)}
 .tt{min-width:0}
 .tt b,.tt small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tt b{font-weight:500;line-height:1.3}
@@ -241,7 +253,7 @@ main{display:flex;flex-direction:column;min-height:0}
 .feed-empty{margin-top:14px;color:var(--muted)}
 
 /* ---------- encounters, timeline, rules */
-.thead,.erow{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.2fr) minmax(0,1.2fr) 110px;align-items:center;gap:16px;padding:0 24px}
+.thead,.erow{display:grid;grid-template-columns:minmax(0,1.1fr) repeat(var(--n,2),minmax(0,1.2fr)) 110px;align-items:center;gap:16px;padding:0 24px}
 .thead{flex:none;height:40px;background:var(--band);border-bottom:1px solid var(--line);font-size:13px;font-weight:600}
 .thead i{display:inline-block;width:8px;height:8px;margin-right:8px;border-radius:50%}
 .erow{height:52px;border-bottom:1px solid var(--line)}
@@ -381,7 +393,7 @@ details.adv .field{margin-top:12px}
 @media (max-width:760px){
   .top{padding:0 12px;gap:8px;height:auto;flex-wrap:wrap;padding-block:10px}
   .top-l{gap:12px;order:2;width:100%}
-  .thead,.erow{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);padding-inline:12px;gap:8px}
+  .thead,.erow{grid-template-columns:minmax(0,1fr) repeat(var(--n,2),minmax(0,1fr));padding-inline:12px;gap:8px}
   .thead>:last-child,.est,.ecell small{display:none}
   .erow{height:auto;padding-block:8px}
   .ecell{flex-direction:column;align-items:flex-start;gap:4px}
@@ -396,6 +408,13 @@ details.adv .field{margin-top:12px}
   .pl.b{align-items:flex-end}
   .body{padding:24px 12px 40px}
   .players,.row{grid-template-columns:minmax(0,1fr) 110px minmax(0,1fr);padding-inline:12px}
+  .players.multi,.row.multi{grid-template-columns:repeat(var(--n),minmax(0,1fr));column-gap:8px;row-gap:6px}
+  .players.multi .cap,.row.multi .loc{grid-column:1/-1}
+  .players.multi .pl-b{display:none}
+  .row.multi .side{grid-template:"slot" auto "names" auto/minmax(0,1fr);justify-items:center}
+  .row.multi .names{text-align:center}
+  .row.multi .wait{grid-area:names}
+  .row.multi .tys{justify-content:center}
   .sec h3{padding-inline:12px}
   .stat,.pl-b span,.cap>:not(b),.top .game{display:none}
   .cap{font-size:13px}
@@ -423,7 +442,7 @@ details.adv .field{margin-top:12px}
 const T = {
   en: {
     links: "Links", run: "Run", activity: "Activity", copy: "Copy", copied: "Copied",
-    live2: "Both players live", live1: "1 of 2 players live", live0: "Waiting for players", offline: "Reconnecting", missing: "Run not found",
+    liveAll: n => n === 2 ? "Both players live" : `All ${n} players live`, liveSome: (k, n) => `${k} of ${n} players live`, live0: "Waiting for players", offline: "Reconnecting", missing: "Run not found",
     theme: "Switch theme",
     tabs: { links: "Links", encounters: "Encounters", timeline: "Timeline", types: "Types", rules: "Rules", settings: "Settings" },
     area: "Area", status: "Status",
@@ -446,18 +465,18 @@ const T = {
     ago: s => s < 10 ? "just now" : s < 60 ? `${Math.floor(s)} s ago` : s < 3600 ? `${Math.floor(s / 60)} min ago` : `${Math.floor(s / 3600)} h ago`,
     short: s => s < 45 ? "now" : s < 3600 ? `${Math.max(1, Math.round(s / 60))} min` : s < 86400 ? `${Math.floor(s / 3600)} h` : `${Math.floor(s / 86400)} d`,
     lv: "Lv", box: n => `Box ${n}`, fainted: "Fainted", faintedAt: n => `Fainted at Lv ${n}`, lostWith: "Lost with the link",
-waitPlayer: "Waiting for player two", playerTwo: "Player two", notJoined: "not joined yet",
+waitPlayer: n => `Waiting for player ${n}`, playerN: n => `Player ${n}`, fPlayers: "Players", notJoined: "not joined yet",
     noLinks: "No catches yet. Links show up here after the first save.", noEvents: "Nothing yet.",
     setup: "Connect your game", step1: "Save in DeSmuME. The .dsv file is in its Battery folder.", step2: "Run this on each player’s computer:", step3: "Every in-game save updates this page.",
     aStep1: "Your partner starts SoulSync and chooses “Join a run”.", aStep2: "They enter this run code:", aStep3: g => `Under Server, they enter the same address as you: ${g}`, aLocal: "This run is only on this computer. To play together, set a run server in Settings and start a new run.",
     yourSave: "<save file>", yourName: "<your name>",
-    kCap: "Level cap", kSeed: "Shared seed", kSeedOf: n => `Seed ${n}`, ail: { sleep: "asleep", poison: "poisoned", burn: "burned", freeze: "frozen", paralysis: "paralysed" }, fSeed: "Same seed for both players", fSeedHelp: "Both randomize with one seed and get the same world. Usually each player has their own.", none: "none",
+    kCap: "Level cap", kSeed: "Shared seed", kSeedOf: n => `Seed ${n}`, ail: { sleep: "asleep", poison: "poisoned", burn: "burned", freeze: "frozen", paralysis: "paralysed" }, fSeed: "Same seed for all players", fSeedHelp: "Everyone randomizes with one seed and gets the same world. Usually each player has their own.", none: "none",
     evCaught: (p, m, l) => `<b>${p}</b> caught <b>${m}</b> in ${l}.`, evLinked: m => ` Linked with ${m}.`,
     evFainted: m => `<b>${m}</b> fainted.`, evLost: m => ` <span class="bad">Link with ${m} is lost.</span>`,
     evEvolved: (m, s) => `<b>${m}</b> evolved into ${s}`, evLevel: (m, n) => `<b>${m}</b> grew to Lv ${n}`,
     evParty: m => `<b>${m}</b> moved to the team`, evBox: (m, n) => `<b>${m}</b> moved to Box ${n}`, evGone: m => `<b>${m}</b> is gone`, evMet: (n, m, l) => `<b>${n}</b> met <b>${m}</b> first in ${l}.`, missed: "Not caught", locked: "Location used up", sPlace: "You are in", sPlaceNone: "unknown",
     evBadges: (p, n) => `<b>${p}</b> now has ${n === 1 ? "1 badge" : n + " badges"}`,
-    startTitle: "Start a Soul Link", startLead: "Two players, one run. Every catch is linked to your partner’s catch from the same area.",
+    startTitle: "Start a Soul Link", startLead: "Two to four players, one run. Every catch is linked to the others’ catches from the same area.",
     setupTitle: "Set up SoulSync", setupLead: "Pick your game once. SoulSync then keeps it in sync and shows the dashboard.",
     fName: "Your name", fNamePh: "Shown to your partner", fRom: "Your ROM", fSave: "Your save", browse: "Browse", fPathPh: "Path to the file",
     romOk: (g, n) => `Pokémon ${g}  ·  Gen ${n}`, romBad: "This is not a supported Pokémon ROM (Black, White, Black 2, White 2).",
@@ -474,7 +493,7 @@ waitPlayer: "Waiting for player two", playerTwo: "Player two", notJoined: "not j
   },
   de: {
     links: "Links", run: "Run", activity: "Verlauf", copy: "Kopieren", copied: "Kopiert",
-    live2: "Beide Spieler live", live1: "1 von 2 Spielern live", live0: "Warte auf Spieler", offline: "Verbinde neu", missing: "Run nicht gefunden",
+    liveAll: n => n === 2 ? "Beide Spieler live" : `Alle ${n} Spieler live`, liveSome: (k, n) => `${k} von ${n} Spielern live`, live0: "Warte auf Spieler", offline: "Verbinde neu", missing: "Run nicht gefunden",
     theme: "Farbschema wechseln",
     tabs: { links: "Links", encounters: "Begegnungen", timeline: "Verlauf", types: "Typen", rules: "Regeln", settings: "Einstellungen" },
     area: "Gebiet", status: "Status",
@@ -497,18 +516,18 @@ waitPlayer: "Waiting for player two", playerTwo: "Player two", notJoined: "not j
     ago: s => s < 10 ? "gerade eben" : s < 60 ? `vor ${Math.floor(s)} s` : s < 3600 ? `vor ${Math.floor(s / 60)} Min.` : `vor ${Math.floor(s / 3600)} Std.`,
     short: s => s < 45 ? "jetzt" : s < 3600 ? `${Math.max(1, Math.round(s / 60))} Min.` : s < 86400 ? `${Math.floor(s / 3600)} Std.` : `${Math.floor(s / 86400)} T.`,
     lv: "Lv", box: n => `Box ${n}`, fainted: "Besiegt", faintedAt: n => `Besiegt auf Lv ${n}`, lostWith: "Mit dem Link verloren",
-waitPlayer: "Warte auf Spieler zwei", playerTwo: "Spieler zwei", notJoined: "noch nicht dabei",
+waitPlayer: n => `Warte auf Spieler ${n}`, playerN: n => `Spieler ${n}`, fPlayers: "Spieler", notJoined: "noch nicht dabei",
     noLinks: "Noch keine Fänge. Links erscheinen hier nach dem ersten Speichern.", noEvents: "Noch nichts passiert.",
     setup: "Spiel verbinden", step1: "In DeSmuME speichern. Die .dsv-Datei liegt im Ordner Battery.", step2: "Auf dem Rechner jedes Spielers ausführen:", step3: "Jedes Speichern im Spiel aktualisiert diese Seite.",
     aStep1: "Dein Mitspieler startet SoulSync und wählt „Run beitreten“.", aStep2: "Dort gibt er diesen Run-Code ein:", aStep3: g => `Unter Server trägt er dieselbe Adresse ein wie du: ${g}`, aLocal: "Dieser Run liegt nur auf diesem Rechner. Für das Spiel zu zweit trag in den Einstellungen einen Run-Server ein und starte einen neuen Run.",
     yourSave: "<spielstand>", yourName: "<dein Name>",
-    kCap: "Level-Cap", kSeed: "Gemeinsamer Seed", kSeedOf: n => `Seed ${n}`, ail: { sleep: "schläft", poison: "vergiftet", burn: "verbrannt", freeze: "eingefroren", paralysis: "paralysiert" }, fSeed: "Gleicher Seed für beide Spieler", fSeedHelp: "Beide randomisieren mit einem Seed und bekommen dieselbe Welt. Üblich ist ein eigener Seed pro Spieler.", none: "keins",
+    kCap: "Level-Cap", kSeed: "Gemeinsamer Seed", kSeedOf: n => `Seed ${n}`, ail: { sleep: "schläft", poison: "vergiftet", burn: "verbrannt", freeze: "eingefroren", paralysis: "paralysiert" }, fSeed: "Gleicher Seed für alle Spieler", fSeedHelp: "Alle randomisieren mit einem Seed und bekommen dieselbe Welt. Üblich ist ein eigener Seed pro Spieler.", none: "keins",
     evCaught: (p, m, l) => `<b>${p}</b> hat <b>${m}</b> gefangen (${l}).`, evLinked: m => ` Verbunden mit ${m}.`,
     evFainted: m => `<b>${m}</b> wurde besiegt.`, evLost: m => ` <span class="bad">Der Link mit ${m} ist verloren.</span>`,
     evEvolved: (m, s) => `<b>${m}</b> hat sich zu ${s} entwickelt`, evLevel: (m, n) => `<b>${m}</b> ist jetzt Lv ${n}`,
     evParty: m => `<b>${m}</b> ist jetzt im Team`, evBox: (m, n) => `<b>${m}</b> liegt jetzt in Box ${n}`, evGone: m => `<b>${m}</b> ist weg`, evMet: (n, m, l) => `<b>${n}</b> trifft zuerst auf <b>${m}</b> (${l}).`, missed: "Nicht gefangen", locked: "Ort verbraucht", sPlace: "Du bist in", sPlaceNone: "unbekannt",
     evBadges: (p, n) => `<b>${p}</b> hat jetzt ${n} Orden`,
-    startTitle: "Soul Link starten", startLead: "Zwei Spieler, ein Run. Jeder Fang ist mit dem Fang deines Partners aus demselben Gebiet verbunden.",
+    startTitle: "Soul Link starten", startLead: "Zwei bis vier Spieler, ein Run. Jeder Fang ist mit den Fängen der anderen aus demselben Gebiet verbunden.",
     setupTitle: "SoulSync einrichten", setupLead: "Wähle einmal dein Spiel aus. SoulSync hält es danach synchron und zeigt das Dashboard.",
     fName: "Dein Name", fNamePh: "So sieht dich dein Partner", fRom: "Deine ROM", fSave: "Dein Spielstand", browse: "Durchsuchen", fPathPh: "Pfad zur Datei",
     romOk: (g, n) => `Pokémon ${g}  ·  Gen ${n}`, romBad: "Das ist keine unterstützte Pokémon-ROM (Schwarz, Weiß, Schwarz 2, Weiß 2).",
@@ -593,7 +612,7 @@ async function copyText(text, btn) {
 }
 
 /* ---------- start page */
-let tab = 0;
+let tab = 0, newPlayers = 2;
 function renderStart() {
   $app.innerHTML = topBar() + `<main class="stage"><div class="form">
     <div><h1>${t().startTitle}</h1><p class="lead">${t().startLead}</p></div>
@@ -605,7 +624,7 @@ function renderStart() {
   const fill = () => {
     pane.innerHTML = tab === 0
       ? `<div class="field"><label for="f-code">${t().code}</label><input id="f-code" class="mono" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="HYPNO-6811" required><small>${t().codeHelp}</small></div><button class="btn" type="submit">${t().openRun}</button>`
-      : `<div class="field"><label for="f-caps">${t().caps}</label><input id="f-caps" autocomplete="off" placeholder="${t().capsPh}"><small>${t().capsHelp}</small></div>${rulePicker(RULES_DEFAULT)}<p class="err" id="err" hidden></p><button class="btn" type="submit">${t().create}</button>`;
+      : `${playersField(newPlayers)}<div class="field"><label for="f-caps">${t().caps}</label><input id="f-caps" autocomplete="off" placeholder="${t().capsPh}"><small>${t().capsHelp}</small></div>${rulePicker(RULES_DEFAULT)}<p class="err" id="err" hidden></p><button class="btn" type="submit">${t().create}</button>`;
     pane.style.animation = "none"; void pane.offsetWidth; pane.style.animation = "";
   };
   fill();
@@ -615,6 +634,7 @@ function renderStart() {
     tabs.querySelectorAll("button").forEach(x => x.setAttribute("aria-selected", +x.dataset.i === tab));
     fill();
   };
+  pane.onclick = e => { newPlayers = pickPlayers(e) || newPlayers; };
   pane.onsubmit = async e => {
     e.preventDefault();
     if (tab === 0) {
@@ -627,7 +647,7 @@ function renderStart() {
     if (!caps) { err.textContent = t().capsErr; err.hidden = false; return; }
     btn.disabled = true;
     try {
-      const res = await fetch("/api/runs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ caps, rules: readRules(caps) }) });
+      const res = await fetch("/api/runs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ players: newPlayers, caps, rules: readRules(caps) }) });
       if (!res.ok) throw new Error(await res.text());
       location.href = "/run/" + encodeURIComponent((await res.json()).code);
     } catch (e2) { btn.disabled = false; err.textContent = String(e2.message || e2); err.hidden = false; }
@@ -635,7 +655,7 @@ function renderStart() {
 }
 
 /* ---------- setup page (desktop app) */
-const setupUi = { tab: 1, rules: null, capOn: true, sharedSeed: false, code: "", error: "" };
+const setupUi = { tab: 1, players: 2, rules: null, capOn: true, sharedSeed: false, code: "", error: "" };
 function rulePicker(chosen, first = "") {
   return `<div class="field"><label>${t().pickRules}</label><div class="checks" id="f-rules">${first}${RULES.filter(id => id !== "cap").map(id => {
     const fixed = RULES_FIXED.includes(id);
@@ -675,7 +695,7 @@ function renderSetup() {
     <div class="tabs" role="tablist" data-i="${u.tab}"><button type="button" role="tab" aria-selected="${u.tab === 0}" data-i="0">${t().tabJoin}</button><button type="button" role="tab" aria-selected="${u.tab === 1}" data-i="1">${t().tabNew}</button></div>
     <div class="pane" style="animation:none">${u.tab === 0
       ? `<div class="field"><label for="f-code">${t().code}</label><input id="f-code" class="mono" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="HYPNO-6811" value="${esc(u.code)}"><small>${t().codeHelp}</small></div>`
-      : rulePicker(u.rules, capPicker(u.capOn, rom))}
+      : playersField(u.players) + rulePicker(u.rules, capPicker(u.capOn, rom))}
       <details class="adv" ${local.server ? "open" : ""}><summary>${t().advanced}</summary><div class="field"><label for="f-server">${t().fServer}</label><input id="f-server" autocomplete="off" spellcheck="false" placeholder="https://" value="${esc(local.server)}"><small>${t().fServerHelp}</small></div>${u.tab === 1 ? `<div class="field"><label class="check"><input type="checkbox" id="f-seed" ${u.sharedSeed ? "checked" : ""}> ${t().fSeed}</label><small>${t().fSeedHelp}</small></div>` : ""}</details>
       <p class="err" id="err" ${u.error ? "" : "hidden"}>${esc(u.error)}</p>
       <button class="btn" type="submit">${u.tab === 0 ? t().startJoin : t().startNew}</button>
@@ -695,6 +715,7 @@ function renderSetup() {
   form.onchange = e => { if (e.target.id === "f-cap") { keep(); renderSetup(); } };
   form.onclick = async e => {
     const pick = e.target.closest("[data-pick]"), tabBtn = e.target.closest(".tabs button");
+    u.players = pickPlayers(e) || u.players;
     if (pick) {
       await save_(fields()); pick.disabled = true;
       const r = await localPost("pick", { kind: pick.dataset.pick });
@@ -708,7 +729,7 @@ function renderSetup() {
     const fail = msg => { u.error = msg; renderSetup(); };
     const rom = local.rom, caps = u.tab === 1 && u.capOn ? rom && rom.ok && rom.caps && rom.caps.levels : [];
     if (!caps) return fail(t().capsNoRom);
-    const body = u.tab === 0 ? { code: u.code.trim() } : { settings: { caps, shared_seed: u.sharedSeed, rules: RULES.filter(id => u.rules.includes(id) || (id === "cap" && caps.length)) } };
+    const body = u.tab === 0 ? { code: u.code.trim() } : { settings: { players: u.players, caps, shared_seed: u.sharedSeed, rules: RULES.filter(id => u.rules.includes(id) || (id === "cap" && caps.length)) } };
     if (u.tab === 0 && !body.code) return fail(t().eCode);
     $(".btn", form).disabled = true;
     const r = await localPost("start", body).catch(() => null);
@@ -724,6 +745,18 @@ function renderSetup() {
 
 /* ---------- run page */
 const SECTIONS = ["open", "team", "boxed", "lost"];
+// A run has two to four seats; each has its colour.
+const COLS = ["--a", "--b", "--p3", "--p4"];
+const col = i => `var(${COLS[i] || "--muted"})`;
+const seats = () => Math.max(2, Math.min(4, state && state.settings && state.settings.players || 2), state ? state.players.length : 0);
+const seatList = () => [...Array(seats()).keys()];
+const seatName = i => state.players[i] ? state.players[i].name : t().playerN(i + 1);
+const playersField = n => `<div class="field"><label>${t().fPlayers}</label><div class="seg3" id="f-players">${[2, 3, 4].map(k => `<button type="button" data-n="${k}" aria-pressed="${k === n}">${k}</button>`).join("")}</div></div>`;
+const pickPlayers = e => {
+  const b = e.target.closest("#f-players button");
+  if (b) b.parentNode.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
+  return b ? +b.dataset.n : null;
+};
 const TILED = { boxed: true, lost: true };
 const rows = new Map();   // location id -> row element
 const feed = new Map();   // event key -> element
@@ -734,7 +767,7 @@ function mount() {
     <main>
       <div class="head"><h1 id="title"></h1><p class="sum" id="sum"></p></div>
       <div class="view" data-view="links"><div class="panel">
-        <div class="players"><div class="pl a" style="--c:var(--a)"></div><div class="cap" id="cap"></div><div class="pl b" style="--c:var(--b)"></div></div>
+        <div class="players"></div>
         <div class="scroll">
           <div id="setup"></div>
           ${SECTIONS.map(s => `<section class="sec" data-sec="${s}" hidden><h3><span class="glyph"><i></i><u></u><i></i></span><span>${t()[s]}</span><em></em><small>${t().hint[s]}</small></h3><div class="${TILED[s] ? "tiles" : "rows"}"></div></section>`).join("")}
@@ -766,14 +799,14 @@ function showView() {
 }
 
 function updateEncounters() {
-  const ms = model(), ps = state.players;
-  $("#ehead").innerHTML = `<span>${t().area}</span>${[0, 1].map(i => `<span><i style="background:var(--${i ? "b" : "a"})"></i>${esc(ps[i] ? ps[i].name : t().playerTwo)}</span>`).join("")}<span>${t().status}</span>`;
+  const ms = model();
+  $("#ehead").innerHTML = `<span>${t().area}</span>${seatList().map(i => `<span><i style="background:${col(i)}"></i>${esc(seatName(i))}</span>`).join("")}<span>${t().status}</span>`;
   const cell = s => {
     if (!s) return `<span class="ecell none">–</span>`;
     const p = s.pokemon, b = p.battle;
     return `<span class="ecell"><span class="slot sm">${spriteImg(p)}</span><span style="min-width:0"><b>${esc(label(p))}</b><small>${esc(p.is_nicknamed && p.nickname ? species(p) + " · " : "")}${s.status === "missed" ? t().missed : b ? `${t().lv} ${b.level}` : t().box(p.place.box ?? "")}</small></span></span>`;
   };
-  $("#enc").innerHTML = ms.length ? ms.map(m => `<div class="erow ${m.dead ? "lost" : ""}"><span class="eloc">${esc(locName(m.link))}</span>${cell(m.sides[0])}${cell(m.sides[1])}<span class="est ${m.sec}"><i></i>${t()[m.sec]}</span></div>`).join("") : `<p class="empty-list">${t().noLinks}</p>`;
+  $("#enc").innerHTML = ms.length ? ms.map(m => `<div class="erow ${m.dead ? "lost" : ""}"><span class="eloc">${esc(locName(m.link))}</span>${m.sides.map(cell).join("")}<span class="est ${m.sec}"><i></i>${t()[m.sec]}</span></div>`).join("") : `<p class="empty-list">${t().noLinks}</p>`;
 }
 
 function updateTimeline() {
@@ -781,7 +814,7 @@ function updateTimeline() {
   const two = n => String(n).padStart(2, "0");
   $("#tl").innerHTML = state.log.length ? state.log.map(e => {
     const d = new Date(e.at);
-    return `<div class="trow"><time>${two(d.getHours())}:${two(d.getMinutes())}</time><i style="background:var(--${idx[e.player] ? "b" : "a"})"></i><span>${eventHtml(e)}</span></div>`;
+    return `<div class="trow"><time>${two(d.getHours())}:${two(d.getMinutes())}</time><i style="background:${col(idx[e.player] || 0)}"></i><span>${eventHtml(e)}</span></div>`;
   }).join("") : `<p class="empty-list">${t().noEvents}</p>`;
 }
 
@@ -875,7 +908,7 @@ function capNow() {
 function model() {
   const cap = capNow();
   return state.links.map(l => {
-    const sides = [l.sides[0] || null, l.sides[1] || null];
+    const sides = seatList().map(i => l.sides[i] || null);
     const dead = sides.some(s => s && (s.status === "fainted" || s.status === "missed"));
     const complete = sides.every(Boolean);
     const sec = dead ? "lost" : !complete ? "open" : sides.some(s => s.status === "party") ? "team" : "boxed";
@@ -893,21 +926,21 @@ function sideSig(m, i) {
   const s = m.sides[i];
   if (!s) return ["empty", m.dead, lang, state.players.map(p => p.name).join()].join("|");
   const p = s.pokemon;
-  const o = m.sides[i ? 0 : 1];
-  return [p.pid, p.species, p.nickname, p.is_nicknamed, s.status, m.dead, p.place.kind, p.place.box, o && o.status, lang].join("|");
+  const others = m.sides.map((o, j) => j !== i && o && o.status).join();
+  return [p.pid, p.species, p.nickname, p.is_nicknamed, s.status, m.dead, p.place.kind, p.place.box, others, lang].join("|");
 }
 
 function sideHtml(m, i) {
   const s = m.sides[i];
   if (!s) {
     const other = state.players[i];
-    return `<div class="idg"><span class="wait">${m.dead ? esc(t().locked) : other ? t().turn(esc(other.name)) : esc(t().waitPlayer)}</span><span class="slot empty"></span></div>`;
+    return `<div class="idg"><span class="wait">${m.dead ? esc(t().locked) : other ? t().turn(esc(other.name)) : esc(t().waitPlayer(i + 1))}</span><span class="slot empty"></span></div>`;
   }
   const p = s.pokemon, b = p.battle;
   let stat;
   if (m.dead) stat = s.status === "missed" ? `<span class="note bad">${t().missed}</span>` : s.status === "fainted" ? `<span class="note bad">${b ? t().faintedAt(b.level) : t().fainted}</span>` : `<span class="note">${t().lostWith}</span>`;
   else if (!b) {
-    const o = m.sides[i ? 0 : 1], split = o && o.status === "party";
+    const split = m.sides.some((o, j) => j !== i && o && o.status === "party");
     stat = `<span class="note ${split ? "warn" : ""}">${t().box(p.place.box ?? "")}${split ? "  ·  " + t().partnerInTeam : ""}</span>`;
   }
   else stat = `<span class="lv"><span>${t().lv}</span><b class="roll" data-v="${b.level}"><span>${b.level}</span></b></span><span class="hp"><i class="ghost"></i><i class="fill"></i></span><span class="hpn"></span>`;
@@ -933,8 +966,10 @@ function patchStat(el, m, i, fresh) {
 }
 
 function patchRow(el, m, fresh) {
-  for (const i of [0, 1]) {
-    const side = el.children[i === 0 ? 0 : 2], sig = sideSig(m, i);
+  const sideEls = el.querySelectorAll(":scope > .side");
+  for (const i of seatList()) {
+    const side = sideEls[i], sig = sideSig(m, i);
+    if (!side) continue;
     if (side._sig !== sig) {
       const had = side._sig !== undefined;
       side._sig = sig; side.innerHTML = sideHtml(m, i);
@@ -955,10 +990,14 @@ function patchRow(el, m, fresh) {
   }
 }
 
+// Two players face each other across the location; more sit in columns
+// under their names.
 function newRow() {
-  const el = document.createElement("div");
-  el.className = "row enter"; el._kind = "row";
-  el.innerHTML = `<div class="side a" style="--c:var(--a)"></div><div class="tether"><i class="seg a"></i><span class="loc"></span><i class="seg b"></i></div><div class="side b" style="--c:var(--b)"></div>`;
+  const el = document.createElement("div"), n = seats();
+  el.className = "row enter" + (n > 2 ? " multi" : ""); el._kind = "row";
+  el.innerHTML = n > 2
+    ? `<span class="loc"></span>` + seatList().map(i => `<div class="side" style="--c:${col(i)}"></div>`).join("")
+    : `<div class="side a" style="--c:var(--a)"></div><div class="tether"><i class="seg a"></i><span class="loc"></span><i class="seg b"></i></div><div class="side b" style="--c:var(--b)"></div>`;
   el.addEventListener("animationend", e => { if (e.target === el) el.classList.remove("enter"); });
   return el;
 }
@@ -971,17 +1010,17 @@ function newTile() {
 }
 
 function patchTile(el, m) {
-  const [a, b] = m.sides.map(s => s && s.pokemon);
+  const mons = m.sides.map(s => s && s.pokemon);
   const fallen = m.sides.find(s => s && s.status === "fainted"), missed = m.sides.find(s => s && s.status === "missed");
-  const sig = [a && a.pid, b && b.pid, a && a.species, b && b.species, a && a.nickname, b && b.nickname, m.sec, fallen && fallen.pokemon.pid, missed && missed.pokemon.pid, lang].join("|");
+  const sig = [mons.map(p => p ? [p.pid, p.species, p.nickname].join(":") : "").join(), m.sec, fallen && fallen.pokemon.pid, missed && missed.pokemon.pid, lang].join("|");
   if (el._sig === sig) return;
   el._sig = sig;
   el.classList.toggle("lost", m.dead);
   const why = fallen ? t().evFainted(label(fallen.pokemon)).replace(/<[^>]+>/g, "").replace(/\.$/, "") : missed ? `${species(missed.pokemon)} ${t().missed.toLowerCase()}` : "";
   const sub = locName(m.link) + (why ? "  ·  " + why : "");
   const slot = p => `<span class="slot sm${p ? "" : " empty"}">${p ? spriteImg(p) : ""}</span>`;
-  const names = [a, b].filter(Boolean);
-  el.innerHTML = `<span class="duo">${slot(a)}<u></u>${slot(b)}</span><span class="tt"><b>${names.map(p => esc(label(p))).join(` ${t().and} `)}</b><small>${esc(sub)}</small></span>`;
+  const names = mons.filter(Boolean);
+  el.innerHTML = `<span class="duo">${mons.map((p, i) => (i ? `<u style="--l:${col(i - 1)};--r:${col(i)}"></u>` : "") + slot(p)).join("")}</span><span class="tt"><b>${names.map(p => esc(label(p))).join(` ${t().and} `)}</b><small>${esc(sub)}</small></span>`;
   el.title = names.map(species).join(` ${t().and} `);
 }
 
@@ -1025,7 +1064,7 @@ function updateLinks() {
     const n = el.getBoundingClientRect(), dx = r.left - n.left, dy = r.top - n.top;
     if (Math.abs(dx) > 1 || Math.abs(dy) > 1) el.animate([{ transform: `translate(${dx}px,${dy}px)` }, { transform: "none" }], { duration: 480, easing: OUT });
   });
-  $("#none").hidden = ms.length > 0 || state.players.length < 2;
+  $("#none").hidden = ms.length > 0 || state.players.length < seats();
   const n = s => ms.filter(m => m.sec === s).length;
   $("#sum").innerHTML = t().sum(n("team") + n("boxed"), n("open"), n("lost"));
 }
@@ -1200,7 +1239,7 @@ function seedRows() {
   const mono = v => `<span class="mono" style="font-size:13px">${esc(v)}</span>`;
   const seeds = state.seeds && state.seeds.length ? state.seeds : [state.seed];
   if (state.settings.shared_seed || seeds.length < 2) return [[t().kSeed, mono(seeds[0])]];
-  return seeds.map((v, i) => [t().kSeedOf(esc(state.players[i] ? state.players[i].name : t().playerTwo)), mono(v)]);
+  return seeds.map((v, i) => [t().kSeedOf(esc(seatName(i))), mono(v)]);
 }
 
 // The wild Pokémon a player faces right now, from the Lua script: in the app
@@ -1233,15 +1272,22 @@ function followWild() {
 function gameOf(p) { const g = p && p.snapshot && p.snapshot.trainer.game; return g ? t().games[g] || g : null; }
 
 function updatePlayers() {
-  const cap = capNow();
+  const cap = capNow(), box = $(".players"), n = seats();
+  if (box._n !== n) {
+    box._n = n; box.classList.toggle("multi", n > 2);
+    document.documentElement.style.setProperty("--n", n);
+    const pl = i => `<div class="pl${n > 2 ? "" : i ? " b" : " a"}" style="--c:${col(i)}"></div>`, mid = `<div class="cap" id="cap"></div>`;
+    box.innerHTML = n > 2 ? mid + seatList().map(pl).join("") : pl(0) + mid + pl(1);
+  }
+  const cards = box.querySelectorAll(".pl");
   $("#cap").innerHTML = `<b>${t().attempt(state.attempt || 1)}</b>${cap != null ? t().cap(cap) : ""}`;
   const games = [...new Set(state.players.map(gameOf).filter(Boolean))];
   $("#game").textContent = games.length ? `Pokémon ${games.join(" / ")}  ·  ${t().gen(5)}` : "";
-  for (const i of [0, 1]) {
-    const el = $(i ? ".pl.b" : ".pl.a"), p = state.players[i];
+  for (const i of seatList()) {
+    const el = cards[i], p = state.players[i];
     if (!el.firstChild) el.innerHTML = `<div class="pl-n"><div><i></i><span></span><em></em></div><small></small></div><div class="pl-b"><div class="badges">${"<i></i>".repeat(8)}</div><span></span></div>`;
     el.classList.toggle("off", !p || !p.connected);
-    $(".pl-n span", el).textContent = p ? p.name : t().playerTwo;
+    $(".pl-n span", el).textContent = seatName(i);
     $(".pl-n em", el).textContent = gameOf(p) || "";
     const secs = p && p.updated_at ? Math.max(0, (Date.now() - p.updated_at) / 1000) : null;
     $("small", el).textContent = !p ? t().notJoined : [p.connected ? null : t().away, secs == null ? t().never : `${t().saved} ${t().ago(secs)}`].filter(Boolean).join("  ·  ");
@@ -1261,7 +1307,7 @@ function updateStatus() {
   const el = $("#status"); if (!el) return;
   const live = state ? state.players.filter(p => p.connected).length : 0;
   el.className = "status" + (conn === "missing" ? " bad" : conn === "live" && live ? " live" : "");
-  $("span", el).textContent = conn === "missing" ? t().missing : conn !== "live" ? t().offline : live >= 2 ? t().live2 : live === 1 ? t().live1 : t().live0;
+  $("span", el).textContent = conn === "missing" ? t().missing : conn !== "live" ? t().offline : !live ? t().live0 : live >= seats() ? t().liveAll(live) : t().liveSome(live, seats());
 }
 
 function syncCmd() {
@@ -1270,7 +1316,7 @@ function syncCmd() {
 }
 
 function updateSetup() {
-  const el = $("#setup"), need = state.players.length < 2 && !DEMO;
+  const el = $("#setup"), need = state.players.length < seats() && !DEMO;
   if (!need) { el.innerHTML = ""; el._on = false; return; }
   const sig = lang + "|" + (local ? "a" + (local.server || "") : "w");
   if (el._on === sig) return;
@@ -1292,8 +1338,8 @@ function updateRail() {
 function partnerOf(p, player) {
   const i = state.players.findIndex(x => x.name === player);
   const l = state.links.find(x => x.location === p.met_location);
-  const o = l && l.sides[i === 0 ? 1 : 0];
-  return o ? label(o.pokemon) : null;
+  const others = l ? l.sides.filter((o, j) => j !== i && o).map(o => label(o.pokemon)) : [];
+  return others.length ? others.join(` ${t().and} `) : null;
 }
 
 function eventHtml(e) {

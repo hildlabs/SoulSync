@@ -4,7 +4,7 @@
 
 Track Pokémon Soul Link runs live, straight from your emulator.
 
-SoulSync reads both players' game state and shows it on one shared dashboard: linked pairs, encounters per route, deaths, level caps and your house rules. No manual bookkeeping. The goal is a single app you send to your partner: enter the run code, pick your own ROM, play.
+SoulSync reads the game state of two to four players and shows it on one shared dashboard: linked Pokémon, encounters per route, deaths, level caps and your house rules. No manual bookkeeping. The goal is a single app you send to your partner: enter the run code, pick your own ROM, play.
 
 > **Status:** early development. Black 2 / White 2 saves sync to a shared live dashboard every time a player saves in-game, and a Lua script for DeSmuME reports the party and the first wild encounter of each location without saving. Boxes and battle state live are next, see the [roadmap](docs/ROADMAP.md).
 
@@ -13,7 +13,7 @@ SoulSync reads both players' game state and shows it on one shared dashboard: li
 Start `SoulSync` (on Windows: `SoulSync.exe`). It opens in its own window; closing the window quits it:
 
 1. Enter your name and pick your ROM and your save. For DeSmuME the save is the `.dsv` in its `Battery` folder; SoulSync finds it next to the ROM if it can.
-2. Start a new run and choose your rules, or join your partner's run with their code.
+2. Start a new run, choose how many players it has (two to four) and your rules, or join your partner's run with their code.
 3. Play. Every in-game save updates the dashboard for both of you.
 4. For updates without saving, DeSmuME runs SoulSync's Lua script. When SoulSync finds DeSmuME next to your save, it sets this up by itself: it puts `lua51.dll` next to the `.exe`, a copy of the script named like your ROM into DeSmuME's Lua folder, and `AutoLoad=1` under `[Scripting]` in `desmume.ini`, so the script starts whenever you open the game (restart DeSmuME once afterwards). *Settings › Live from DeSmuME* shows whether that worked. If not, load the script by hand: *Tools › Lua Scripting › New Lua Script Window*, choose the file shown there and press *Run*. Catches, faints and level-ups in your party then show up within a second or two, and so does the first wild Pokémon you meet in a location: if you do not catch it, the location counts as used up for both players. What happens in the PC boxes still arrives with the next save, so a catch that went straight to a box shows as not caught until you save.
 

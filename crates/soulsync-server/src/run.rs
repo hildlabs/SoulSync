@@ -40,7 +40,7 @@ pub enum JoinError {
 impl std::fmt::Display for JoinError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            JoinError::Full => write!(f, "this run already has {MAX_PLAYERS} players"),
+            JoinError::Full => write!(f, "this run already has all its players"),
             JoinError::BadName => write!(f, "player names must be 1 to 24 characters"),
         }
     }
@@ -106,7 +106,7 @@ impl Run {
             p.connections += 1;
             return Ok(());
         }
-        if self.players.len() >= MAX_PLAYERS {
+        if self.players.len() >= self.settings.players.clamp(2, MAX_PLAYERS) {
             return Err(JoinError::Full);
         }
         self.players.push(Player {
@@ -156,7 +156,7 @@ impl Run {
         RunState {
             code: self.code.clone(),
             seed: self.seed,
-            seeds: (0..MAX_PLAYERS)
+            seeds: (0..self.settings.players.clamp(2, MAX_PLAYERS))
                 .map(|seat| player_seed(self.seed, seat, self.settings.shared_seed))
                 .collect(),
             attempt: self.attempt,
@@ -234,6 +234,22 @@ mod tests {
         assert_eq!(r.catch_rate(650), None);
         r.restart();
         assert!(r.state().rom_data);
+    }
+
+    #[test]
+    fn a_run_seats_as_many_as_it_was_made_for() {
+        let settings = RunSettings {
+            players: 3,
+            ..RunSettings::default()
+        };
+        let mut r = Run::new("ZORUA-1234".into(), 7, settings);
+        for name in ["Hannes", "Buddy", "Third"] {
+            r.join(name).unwrap();
+        }
+        assert_eq!(r.join("Fourth"), Err(JoinError::Full));
+        let s = r.state();
+        assert_eq!(s.seeds.len(), 3);
+        assert!(s.seeds[0] != s.seeds[1] && s.seeds[1] != s.seeds[2]);
     }
 
     #[test]
