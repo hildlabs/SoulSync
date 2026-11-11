@@ -1,9 +1,11 @@
 //! What the SoulSync Lua script reports from a running emulator.
 //!
-//! The script writes one file: the magic `SSL2`, then [`WINDOW`] bytes of the
-//! game's memory starting at the party block, then any number of Pokémon
-//! (220 bytes each) that turned up in memory while it ran and are not in the
-//! party. Those are mostly the opponents of battles, wild and trainers'.
+//! The script writes one file: the magic `SSL3`, then [`WINDOW`] bytes of the
+//! game's memory starting at the party block, then any number of Pokémon that
+//! turned up in memory while it ran and are not in the party. Those are
+//! mostly the opponents of battles, wild and trainers'. Each is one byte, 1
+//! while the Pokémon is still where it was found, and its 220 bytes as they
+//! are now, or were last.
 //!
 //! The memory after the party block holds the trainer and the player's
 //! position, as in the save file. Where exactly is checked against the save,
@@ -15,7 +17,9 @@ use crate::pk5::{self, Pokemon};
 use crate::save::{SaveSnapshot, Trainer, PARTY_BLOCK_LEN};
 use serde::{Deserialize, Serialize};
 
-const MAGIC: &[u8] = b"SSL2";
+const MAGIC: &[u8] = b"SSL3";
+/// A reported Pokémon: a flag, then the Pokémon.
+const ENTRY: usize = 1 + PARTY_SIZE;
 /// Bytes of memory the script copies, starting at the party block.
 pub const WINDOW: usize = 0x800;
 /// Where the trainer block follows the party block in a save file.
@@ -32,20 +36,33 @@ pub struct LiveReport<'a> {
     window: &'a [u8],
     /// Pokémon that appeared in memory, newest last.
     pub seen: Vec<&'a [u8]>,
+    /// For each of them, whether it is still in memory.
+    present: Vec<bool>,
 }
 
 impl<'a> LiveReport<'a> {
     /// Reads a report. `None` if the file is not one or was cut off.
     pub fn parse(data: &'a [u8]) -> Option<Self> {
         let rest = data.strip_prefix(MAGIC)?;
-        if rest.len() < WINDOW || (rest.len() - WINDOW) % PARTY_SIZE != 0 {
+        if rest.len() < WINDOW || (rest.len() - WINDOW) % ENTRY != 0 {
             return None;
         }
         let (window, seen) = rest.split_at(WINDOW);
         Some(LiveReport {
             window,
-            seen: seen.chunks(PARTY_SIZE).collect(),
+            seen: seen.chunks(ENTRY).map(|e| &e[1..]).collect(),
+            present: seen.chunks(ENTRY).map(|e| e[0] == 1).collect(),
         })
+    }
+
+    /// The wild Pokémon the player is facing: the newest one still in memory
+    /// that is not theirs and has HP left.
+    pub fn wild(&self, snapshot: &SaveSnapshot) -> Option<Pokemon> {
+        let newest = self.seen.iter().zip(&self.present).rev();
+        newest
+            .filter(|(_, present)| **present)
+            .find_map(|(raw, _)| pk5::parse_wild(raw))
+            .filter(|w| !snapshot.owns(w.pid) && !w.is_fainted())
     }
 
     /// The party block, for [`SaveSnapshot::with_live_party`].
@@ -233,6 +250,7 @@ mod tests {
             boxes: vec![],
             encounters: vec![],
             fallen: vec![],
+            wild: None,
         }
     }
 
@@ -249,7 +267,10 @@ mod tests {
         w[position + MAP..position + MAP + 2].copy_from_slice(&map.to_le_bytes());
         let mut data = MAGIC.to_vec();
         data.extend(w);
-        data.extend(seen.iter().flatten());
+        for raw in seen {
+            data.push(1);
+            data.extend(raw);
+        }
         data
     }
 
@@ -261,6 +282,14 @@ mod tests {
         assert_eq!(r.party().len(), PARTY_BLOCK_LEN);
         assert_eq!(r.seen, vec![&wild[..]]);
         assert_eq!(r.map(&trainer()), Some(427));
+        // The battle: who the player faces, until it is over.
+        assert_eq!(r.wild(&snapshot(vec![])).unwrap().species, 504);
+        let mut over = data.clone();
+        over[4 + WINDOW] = 0;
+        assert_eq!(
+            LiveReport::parse(&over).unwrap().wild(&snapshot(vec![])),
+            None
+        );
         // Blocks packed without the gaps of the save file.
         let packed = report(0x534, 12, &[]);
         assert_eq!(

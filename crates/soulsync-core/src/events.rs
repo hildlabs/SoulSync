@@ -111,6 +111,7 @@ mod tests {
             boxes,
             encounters: vec![],
             fallen: vec![],
+            wild: None,
         }
     }
 

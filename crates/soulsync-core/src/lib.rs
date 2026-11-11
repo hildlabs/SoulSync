@@ -21,6 +21,6 @@ pub use game::{read_rom_header, Game, RomInfo, ROM_HEADER_LEN};
 pub use lang::{Lang, Names};
 pub use links::{links, Link, Side, Status};
 pub use live::{Encounters, LiveReport};
-pub use pk5::{BattleStats, Place, Pokemon};
+pub use pk5::{Ailment, BattleStats, Place, Pokemon};
 pub use rom::{read_catch_rates, read_level_caps, read_map_locations, RomError};
 pub use save::{parse_b2w2, SaveError, SaveSnapshot, Trainer, PARTY_BLOCK_LEN};

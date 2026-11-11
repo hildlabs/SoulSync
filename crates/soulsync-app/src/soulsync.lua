@@ -100,7 +100,8 @@ end
 local known = {}    -- personality values seen so far
 local watched = {}  -- addresses where a Pokémon was found, checked often
 local watching = {}
-local reported = {} -- the newest ones, as stored in memory
+-- The newest ones: where they are, and their bytes as last seen there.
+local reported = {}
 -- What is in memory when the script starts is old: a first pass over the
 -- memory only takes note of it.
 local cursor, settled = RAM_START, false
@@ -112,7 +113,7 @@ local function notice(addr, pid)
     watched[#watched + 1] = addr
   end
   if settled then
-    reported[#reported + 1] = read(addr, MON)
+    reported[#reported + 1] = { addr = addr, pid = pid, data = read(addr, MON), present = true }
     if #reported > REPORTED then table.remove(reported, 1) end
     return true
   end
@@ -156,6 +157,24 @@ local function watch()
   return found
 end
 
+-- Follows the reported Pokémon while they stay where they were found: a
+-- wild Pokémon loses HP and gets a status during the battle.
+local function refresh()
+  for i = 1, #reported do
+    local r = reported[i]
+    r.present = memory.readdword(r.addr) == r.pid and is_pokemon(r.addr)
+    if r.present then r.data = read(r.addr, MON) end
+  end
+end
+
+local function report()
+  local parts = { "SSL3", read(party, WINDOW) }
+  for i = 1, #reported do
+    parts[#parts + 1] = string.char(reported[i].present and 1 or 0) .. reported[i].data
+  end
+  return table.concat(parts)
+end
+
 local function know_party()
   local count = memory.readdword(party + 4)
   for i = 0, count - 1 do
@@ -180,7 +199,8 @@ while true do
       if is_party(party) then
         know_party()
         if watch() then changed = true end
-        local data, now = "SSL2" .. read(party, WINDOW) .. table.concat(reported), os.time()
+        refresh()
+        local data, now = report(), os.time()
         -- Written again every few seconds so the app can tell the script runs.
         if changed or data ~= sent or now - sent_at >= 5 then
           if write(data) then sent, sent_at, changed = data, now, false end

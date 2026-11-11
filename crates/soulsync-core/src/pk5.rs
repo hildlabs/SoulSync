@@ -23,6 +23,31 @@ pub struct BattleStats {
     pub max_hp: u16,
 }
 
+/// A status condition, as far as it matters for catching.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Ailment {
+    Sleep,
+    Poison,
+    Burn,
+    Freeze,
+    Paralysis,
+}
+
+impl Ailment {
+    /// From the status word of a party Pokémon.
+    fn from_bits(status: u32) -> Option<Self> {
+        Some(match status {
+            s if s & 0x07 != 0 => Ailment::Sleep,
+            s if s & 0x88 != 0 => Ailment::Poison,
+            s if s & 0x10 != 0 => Ailment::Burn,
+            s if s & 0x20 != 0 => Ailment::Freeze,
+            s if s & 0x40 != 0 => Ailment::Paralysis,
+            _ => return None,
+        })
+    }
+}
+
 /// A Pokémon from a save file.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Pokemon {
@@ -41,6 +66,9 @@ pub struct Pokemon {
     pub place: Place,
     /// Present for party Pokémon only.
     pub battle: Option<BattleStats>,
+    /// Status condition of a party Pokémon.
+    #[serde(default)]
+    pub ailment: Option<Ailment>,
 }
 
 impl Pokemon {
@@ -136,6 +164,9 @@ pub fn parse(raw: &[u8], place: Place) -> Option<Pokemon> {
         met_location_name: dex::location(met_location).cloned(),
         met_level: d[0x84] & 0x7F,
         place,
+        ailment: battle
+            .as_ref()
+            .and_then(|_| Ailment::from_bits(u32_at(&d, 0x88))),
         battle,
     })
 }

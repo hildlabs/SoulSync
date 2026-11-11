@@ -152,6 +152,7 @@ impl Live {
                 .and_then(|m| self.locations.get(usize::from(m)).copied());
             *self.place.lock().unwrap() = place;
             changed |= self.encounters.observe(&snap, &report.seen, place);
+            snap.wild = report.wild(&snap).map(Box::new);
         } else if current {
             // Caught mid-write, most likely. A file that stays unreadable is
             // not a report; then the save alone counts.
@@ -284,12 +285,13 @@ mod tests {
             max_hp: 20,
         };
         // The party, the trainer of the empty save behind it, and map 1.
-        let mut report = b"SSL2".to_vec();
+        let mut report = b"SSL3".to_vec();
         report.resize(4 + 0x800, 0);
         report[4 + 4] = 1;
         report[4 + 8..4 + 228].copy_from_slice(&build_raw(7, 495, "", 4, 5, Some(&stats)));
         report[4 + 0x604..4 + 0x606].copy_from_slice(&[0xFF, 0xFF]);
         report[4 + 0x780] = 1;
+        report.push(1);
         report.extend(build_raw_ivs(9, 504, "", 0, 0, Some(&stats), 0x0123_4567));
         std::fs::write(&file, &report).unwrap();
         let at = |file: &Path, secs| {
@@ -308,6 +310,7 @@ mod tests {
         assert_eq!(snap.encounters.len(), 1);
         assert_eq!(snap.encounters[0].species, 504);
         assert_eq!(snap.encounters[0].met_location, 14);
+        assert_eq!(snap.wild.as_ref().unwrap().species, 504);
         assert_eq!(*live.place.lock().unwrap(), Some(14));
         // Saved after the script last wrote: the save is the truth, the
         // encounters stay.

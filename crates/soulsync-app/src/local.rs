@@ -715,7 +715,19 @@ mod tests {
         // Battles after the script has taken stock: one where the last one
         // was, one somewhere new, and a trainer's Pokémon.
         let foe = build_raw_ivs(53, 509, "", 0, 0, Some(&stats(7, 20)), 0);
-        for (name, raw) in [("A", wild(51, 504)), ("B", wild(52, 506)), ("C", foe)] {
+        // B a few turns into the battle: 6 HP left, asleep. The status word
+        // is at 0x88, encrypted with the rest of the battle stats.
+        let mut hurt = soulsync_core::crypto::decrypt(&wild(52, 506)).unwrap();
+        hurt[0x88] = 2;
+        hurt[0x8E] = 6;
+        let hurt = soulsync_core::crypto::encrypt(&hurt).unwrap();
+        let later = [
+            ("A", wild(51, 504)),
+            ("B", wild(52, 506)),
+            ("C", foe),
+            ("B2", hurt),
+        ];
+        for (name, raw) in later {
             globals.set(name, lua.create_string(&raw).unwrap()).unwrap();
         }
         let harness = r#"
@@ -738,6 +750,7 @@ mod tests {
             emu = { frameadvance = function()
               frames = frames + 1
               if frames == 300 then put(0x8000, A) put(0xC000, B) put(0xD000, C) end
+              if frames == 650 then put(0xC000, B2) end
               if frames > 700 then error("enough frames") end
             end }
             print = function() end
@@ -758,6 +771,11 @@ mod tests {
         // The leftover is not reported, the three new ones are.
         let pids: Vec<u8> = report.seen.iter().map(|raw| raw[0]).collect();
         assert_eq!(pids, [51, 52, 53]);
+        // The newest wild one, as it is at the end: hurt and asleep.
+        let facing = report.wild(&live).unwrap();
+        assert_eq!(facing.species, 506);
+        assert_eq!(facing.battle.as_ref().unwrap().hp, 6);
+        assert_eq!(facing.ailment, Some(soulsync_core::Ailment::Sleep));
         let mut encounters = Encounters::default();
         assert!(encounters.observe(&live, &report.seen, Some(20)));
         let list = encounters.of(&save.trainer);

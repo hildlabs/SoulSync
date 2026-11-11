@@ -73,6 +73,10 @@ pub struct SaveSnapshot {
     /// alone has none.
     #[serde(default)]
     pub fallen: Vec<Pokemon>,
+    /// The wild Pokémon the player is facing, or last faced, as the emulator
+    /// has it in memory right now.
+    #[serde(default)]
+    pub wild: Option<Box<Pokemon>>,
 }
 
 impl SaveSnapshot {
@@ -123,6 +127,7 @@ impl SaveSnapshot {
             boxes,
             encounters: self.encounters.clone(),
             fallen: self.fallen.clone(),
+            wild: None,
         };
         for old in &self.party {
             live.keep(old);
@@ -203,6 +208,7 @@ pub fn parse_b2w2(data: &[u8]) -> Result<SaveSnapshot, SaveError> {
         boxes,
         encounters: Vec::new(),
         fallen: Vec::new(),
+        wild: None,
     })
 }
 

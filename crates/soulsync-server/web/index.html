@@ -350,6 +350,9 @@ details.adv summary{cursor:pointer;font-size:13px;font-weight:500;color:var(--mu
 details.adv .field{margin-top:12px}
 .rblock .kv:last-of-type{border-bottom:0}
 .rblock .kv b{max-width:70%;white-space:nowrap}
+.clive{display:flex;align-items:center;gap:0;margin:8px 0 2px;padding:8px 10px;border-radius:8px;background:var(--raised);font-size:13px;min-width:0}
+.clive span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.clive small{margin-left:auto;padding-left:10px;color:var(--muted)}
 .dot{display:inline-block;width:8px;height:8px;margin-right:8px;border-radius:50%;background:var(--faint)}
 .dot.live{background:var(--ok)}.dot.error{background:var(--danger)}.dot.connecting{background:var(--warn)}
 .center-msg{padding:96px 16px;text-align:center;color:var(--muted)}
@@ -448,7 +451,7 @@ waitPlayer: "Waiting for player two", playerTwo: "Player two", notJoined: "not j
     setup: "Connect your game", step1: "Save in DeSmuME. The .dsv file is in its Battery folder.", step2: "Run this on each player’s computer:", step3: "Every in-game save updates this page.",
     aStep1: "Your partner starts SoulSync and chooses “Join a run”.", aStep2: "They enter this run code:", aStep3: g => `Under Server, they enter the same address as you: ${g}`, aLocal: "This run is only on this computer. To play together, set a run server in Settings and start a new run.",
     yourSave: "<save file>", yourName: "<your name>",
-    kCap: "Level cap", kSeed: "Shared seed", none: "none",
+    kCap: "Level cap", kSeed: "Shared seed", kSeedOf: n => `Seed ${n}`, ail: { sleep: "asleep", poison: "poisoned", burn: "burned", freeze: "frozen", paralysis: "paralysed" }, fSeed: "Same seed for both players", fSeedHelp: "Both randomize with one seed and get the same world. Usually each player has their own.", none: "none",
     evCaught: (p, m, l) => `<b>${p}</b> caught <b>${m}</b> in ${l}.`, evLinked: m => ` Linked with ${m}.`,
     evFainted: m => `<b>${m}</b> fainted.`, evLost: m => ` <span class="bad">Link with ${m} is lost.</span>`,
     evEvolved: (m, s) => `<b>${m}</b> evolved into ${s}`, evLevel: (m, n) => `<b>${m}</b> grew to Lv ${n}`,
@@ -499,7 +502,7 @@ waitPlayer: "Warte auf Spieler zwei", playerTwo: "Spieler zwei", notJoined: "noc
     setup: "Spiel verbinden", step1: "In DeSmuME speichern. Die .dsv-Datei liegt im Ordner Battery.", step2: "Auf dem Rechner jedes Spielers ausführen:", step3: "Jedes Speichern im Spiel aktualisiert diese Seite.",
     aStep1: "Dein Mitspieler startet SoulSync und wählt „Run beitreten“.", aStep2: "Dort gibt er diesen Run-Code ein:", aStep3: g => `Unter Server trägt er dieselbe Adresse ein wie du: ${g}`, aLocal: "Dieser Run liegt nur auf diesem Rechner. Für das Spiel zu zweit trag in den Einstellungen einen Run-Server ein und starte einen neuen Run.",
     yourSave: "<spielstand>", yourName: "<dein Name>",
-    kCap: "Level-Cap", kSeed: "Gemeinsamer Seed", none: "keins",
+    kCap: "Level-Cap", kSeed: "Gemeinsamer Seed", kSeedOf: n => `Seed ${n}`, ail: { sleep: "schläft", poison: "vergiftet", burn: "verbrannt", freeze: "eingefroren", paralysis: "paralysiert" }, fSeed: "Gleicher Seed für beide Spieler", fSeedHelp: "Beide randomisieren mit einem Seed und bekommen dieselbe Welt. Üblich ist ein eigener Seed pro Spieler.", none: "keins",
     evCaught: (p, m, l) => `<b>${p}</b> hat <b>${m}</b> gefangen (${l}).`, evLinked: m => ` Verbunden mit ${m}.`,
     evFainted: m => `<b>${m}</b> wurde besiegt.`, evLost: m => ` <span class="bad">Der Link mit ${m} ist verloren.</span>`,
     evEvolved: (m, s) => `<b>${m}</b> hat sich zu ${s} entwickelt`, evLevel: (m, n) => `<b>${m}</b> ist jetzt Lv ${n}`,
@@ -632,7 +635,7 @@ function renderStart() {
 }
 
 /* ---------- setup page (desktop app) */
-const setupUi = { tab: 1, rules: null, capOn: true, code: "", error: "" };
+const setupUi = { tab: 1, rules: null, capOn: true, sharedSeed: false, code: "", error: "" };
 function rulePicker(chosen, first = "") {
   return `<div class="field"><label>${t().pickRules}</label><div class="checks" id="f-rules">${first}${RULES.filter(id => id !== "cap").map(id => {
     const fixed = RULES_FIXED.includes(id);
@@ -673,7 +676,7 @@ function renderSetup() {
     <div class="pane" style="animation:none">${u.tab === 0
       ? `<div class="field"><label for="f-code">${t().code}</label><input id="f-code" class="mono" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="HYPNO-6811" value="${esc(u.code)}"><small>${t().codeHelp}</small></div>`
       : rulePicker(u.rules, capPicker(u.capOn, rom))}
-      <details class="adv" ${local.server ? "open" : ""}><summary>${t().advanced}</summary><div class="field"><label for="f-server">${t().fServer}</label><input id="f-server" autocomplete="off" spellcheck="false" placeholder="https://" value="${esc(local.server)}"><small>${t().fServerHelp}</small></div></details>
+      <details class="adv" ${local.server ? "open" : ""}><summary>${t().advanced}</summary><div class="field"><label for="f-server">${t().fServer}</label><input id="f-server" autocomplete="off" spellcheck="false" placeholder="https://" value="${esc(local.server)}"><small>${t().fServerHelp}</small></div>${u.tab === 1 ? `<div class="field"><label class="check"><input type="checkbox" id="f-seed" ${u.sharedSeed ? "checked" : ""}> ${t().fSeed}</label><small>${t().fSeedHelp}</small></div>` : ""}</details>
       <p class="err" id="err" ${u.error ? "" : "hidden"}>${esc(u.error)}</p>
       <button class="btn" type="submit">${u.tab === 0 ? t().startJoin : t().startNew}</button>
     </div>
@@ -683,6 +686,7 @@ function renderSetup() {
   const keep = () => {
     const cap = $("#f-cap"), code = $("#f-code");
     if (cap) { u.capOn = cap.checked; u.rules = readRules([]); }
+    if ($("#f-seed")) u.sharedSeed = $("#f-seed").checked;
     if (code) u.code = code.value;
   };
   const save_ = async patch => { keep(); const r = await localPost("set", patch); if (r.ok) { local = await r.json(); SRV = local.server || ""; } };
@@ -704,7 +708,7 @@ function renderSetup() {
     const fail = msg => { u.error = msg; renderSetup(); };
     const rom = local.rom, caps = u.tab === 1 && u.capOn ? rom && rom.ok && rom.caps && rom.caps.levels : [];
     if (!caps) return fail(t().capsNoRom);
-    const body = u.tab === 0 ? { code: u.code.trim() } : { settings: { caps, rules: RULES.filter(id => u.rules.includes(id) || (id === "cap" && caps.length)) } };
+    const body = u.tab === 0 ? { code: u.code.trim() } : { settings: { caps, shared_seed: u.sharedSeed, rules: RULES.filter(id => u.rules.includes(id) || (id === "cap" && caps.length)) } };
     if (u.tab === 0 && !body.code) return fail(t().eCode);
     $(".btn", form).disabled = true;
     const r = await localPost("start", body).catch(() => null);
@@ -1120,6 +1124,7 @@ function caughtCount() {
 function mountCatch() {
   const el = $("#catch"), u = catchUi;
   el.innerHTML = `<h2>${t().cTitle}<small id="crate"></small></h2>
+    <div class="clive" id="clive" hidden></div>
     <input class="cin" id="cin" type="text" autocomplete="off" spellcheck="false" placeholder="${t().cFind}" aria-label="${t().cFind}" value="${u.sp ? esc(u.sp[lang === "de" ? 1 : 0]) : ""}">
     <div class="clist" id="clist" hidden></div>
     <div class="crow"><span>${t().cHp}</span><input type="range" id="chp" min="1" max="100" value="${u.hp}" aria-label="${t().cHp}"><output id="chpo"></output></div>
@@ -1171,6 +1176,7 @@ function loadSpecies() {
 function updateCatch() {
   if (!$("#cres")) return;
   loadSpecies();
+  followWild();
   const u = catchUi, hp = u.hp;
   $("#chpo").textContent = hp + " %";
   $("#chp").style.setProperty("--hpc", `var(--${hp > 50 ? "ok" : hp > 20 ? "warn" : "danger"})`);
@@ -1186,6 +1192,41 @@ function updateCatch() {
     bar.style.width = pct + "%";
     bar.style.background = `var(--${pct >= 50 ? "ok" : pct >= 20 ? "warn" : "danger"})`;
   });
+}
+
+// One seed for both, or one per player.
+function seedRows() {
+  const mono = v => `<span class="mono" style="font-size:13px">${esc(v)}</span>`;
+  const seeds = state.seeds && state.seeds.length ? state.seeds : [state.seed];
+  if (state.settings.shared_seed || seeds.length < 2) return [[t().kSeed, mono(seeds[0])]];
+  return seeds.map((v, i) => [t().kSeedOf(esc(state.players[i] ? state.players[i].name : t().playerTwo)), mono(v)]);
+}
+
+// The wild Pokémon a player faces right now, from the Lua script: in the app
+// your own, otherwise whoever has one.
+function wildNow() {
+  const ps = state.players.filter(p => p.snapshot && p.snapshot.wild);
+  const p = (local && ps.find(p => p.name === local.name)) || ps[0];
+  return p ? { player: p.name, mon: p.snapshot.wild } : null;
+}
+
+// Keeps the catch chance on the wild Pokémon of the battle: species, HP and
+// status follow it. Between battles the fields are the viewer's again.
+function followWild() {
+  const u = catchUi, w = wildNow(), box = $("#clive");
+  if (!box) return;
+  box.hidden = !w;
+  if (!w) { u.live = null; return; }
+  const m = w.mon, b = m.battle || { hp: 1, max_hp: 1, level: "?" };
+  const sig = [m.pid, b.hp, b.max_hp, m.ailment, lang, u.list && u.list.length].join("|");
+  if (u.live === sig) return;
+  u.live = sig;
+  box.innerHTML = `<i class="dot live"></i><span><b>${esc(species(m))}</b> ${t().lv} ${b.level}  ·  ${b.hp}/${b.max_hp} ${t().cHp}${m.ailment ? "  ·  " + t().ail[m.ailment] : ""}</span><small>${esc(w.player)}</small>`;
+  const sp = (u.list || []).find(x => x[0] === (m.species_name && m.species_name.en));
+  if (sp) { u.sp = sp; $("#cin").value = sp[lang === "de" ? 1 : 0]; }
+  u.hp = Math.max(1, Math.min(100, Math.round(100 * b.hp / (b.max_hp || 1))));
+  $("#chp").value = u.hp;
+  u.status = !m.ailment ? 0 : m.ailment === "sleep" || m.ailment === "freeze" ? 2 : 1;
 }
 
 function gameOf(p) { const g = p && p.snapshot && p.snapshot.trainer.game; return g ? t().games[g] || g : null; }
@@ -1242,7 +1283,7 @@ function updateSetup() {
 
 function updateRail() {
   const cap = capNow();
-  $("#kv").innerHTML = [[t().kAttempt, state.attempt || 1], [t().kCap, cap != null ? cap : t().none], [t().kSeed, `<span class="mono" style="font-size:13px">${esc(state.seed)}</span>`]]
+  $("#kv").innerHTML = [[t().kAttempt, state.attempt || 1], [t().kCap, cap != null ? cap : t().none], ...seedRows()]
     .map(([k, v]) => `<div class="kv"><span>${k}</span><b>${v}</b></div>`).join("");
   updateFeed();
 }

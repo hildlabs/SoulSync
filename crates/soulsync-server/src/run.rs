@@ -1,6 +1,8 @@
 //! State of one run, independent of the network layer.
 
-use soulsync_core::protocol::{LogEntry, PlayerState, RunSettings, RunState, MAX_PLAYERS};
+use soulsync_core::protocol::{
+    player_seed, LogEntry, PlayerState, RunSettings, RunState, MAX_PLAYERS,
+};
 use soulsync_core::{diff, links, SaveSnapshot};
 use std::collections::VecDeque;
 
@@ -154,6 +156,9 @@ impl Run {
         RunState {
             code: self.code.clone(),
             seed: self.seed,
+            seeds: (0..MAX_PLAYERS)
+                .map(|seat| player_seed(self.seed, seat, self.settings.shared_seed))
+                .collect(),
             attempt: self.attempt,
             settings: self.settings.clone(),
             rom_data: self.has_rom_data(),
@@ -201,6 +206,7 @@ mod tests {
             boxes: vec![],
             encounters: vec![],
             fallen: vec![],
+            wild: None,
         }
     }
 
