@@ -976,6 +976,17 @@ mod tests {
             ("C", foe),
             ("B2", hurt),
         ];
+        // The game's working copy of B in the battle: it points to B and has
+        // the species, the most HP and the HP now, 3, then the level.
+        let mut battle = vec![0u8; 0x20];
+        battle[..4].copy_from_slice(&0x0200_C000u32.to_le_bytes());
+        battle[0x0C..0x0E].copy_from_slice(&506u16.to_le_bytes());
+        battle[0x0E..0x10].copy_from_slice(&60u16.to_le_bytes());
+        battle[0x10..0x12].copy_from_slice(&3u16.to_le_bytes());
+        battle[0x18] = 4;
+        globals
+            .set("BATTLE", lua.create_string(&battle).unwrap())
+            .unwrap();
         for (name, raw) in later {
             globals.set(name, lua.create_string(&raw).unwrap()).unwrap();
         }
@@ -999,8 +1010,8 @@ mod tests {
             emu = { frameadvance = function()
               frames = frames + 1
               if frames == 300 then put(0x8000, A) put(0xC000, B) put(0xD000, C) end
-              if frames == 650 then put(0xC000, B2) end
-              if frames > 700 then error("enough frames") end
+              if frames == 650 then put(0xC000, B2) put(0xE000, BATTLE) end
+              if frames > 1000 then error("enough frames") end
             end }
             print = function() end
         "#;
@@ -1029,7 +1040,9 @@ mod tests {
         // The newest wild one, as it is at the end: hurt and asleep.
         let facing = report.wild(&live).unwrap();
         assert_eq!(facing.species, 506);
-        assert_eq!(facing.battle.as_ref().unwrap().hp, 6);
+        // The HP of the battle's copy, not the 6 of the Pokémon itself.
+        assert_eq!(facing.battle.as_ref().unwrap().hp, 3);
+        assert_eq!(facing.battle.as_ref().unwrap().max_hp, 60);
         assert_eq!(facing.ailment, Some(soulsync_core::Ailment::Sleep));
         let mut encounters = Encounters::default();
         assert!(encounters.observe(&live, &report.seen, Some(20)));
