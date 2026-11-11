@@ -14,7 +14,7 @@ use axum::{Json, Router};
 use rand::Rng;
 use run::Run;
 use serde::Deserialize;
-use soulsync_core::protocol::{ClientMsg, NewRun, ServerMsg};
+use soulsync_core::protocol::{ClientMsg, NewRun, RunSettings, ServerMsg};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
@@ -29,9 +29,15 @@ struct Entry {
     tx: broadcast::Sender<String>,
 }
 
+/// Where the dashboard loads sprites from. `{id}` is the National Dex number.
+/// SoulSync ships no game graphics; set `SOULSYNC_SPRITES=off` to show none.
+const DEFAULT_SPRITES: &str =
+    "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/{id}.png";
+
 #[derive(Clone, Default)]
 pub struct AppState {
     runs: Arc<Mutex<HashMap<String, Entry>>>,
+    sprites: Option<String>,
 }
 
 impl AppState {
@@ -77,6 +83,10 @@ pub fn app(state: AppState) -> Router {
     Router::new()
         .route("/", get(index))
         .route("/run/{code}", get(index))
+        .route("/demo", get(index))
+        .route("/assets/demo.js", get(demo))
+        .route("/assets/fonts/{file}", get(font))
+        .route("/api/config", get(config))
         .route("/api/runs", post(create_run))
         .route("/api/runs/{code}", get(get_run))
         .route("/api/runs/{code}/ws", get(ws))
@@ -87,7 +97,55 @@ async fn index() -> Html<&'static str> {
     Html(INDEX)
 }
 
-async fn create_run(State(app): State<AppState>) -> Json<NewRun> {
+/// Scripted run for `/demo`, so the dashboard can be seen without a save.
+async fn demo() -> impl IntoResponse {
+    (
+        [(axum::http::header::CONTENT_TYPE, "text/javascript")],
+        include_str!("../web/demo.js"),
+    )
+}
+
+async fn font(Path(file): Path<String>) -> Response {
+    let bytes: &'static [u8] = match file.as_str() {
+        "Geist.woff2" => include_bytes!("../web/fonts/Geist.woff2"),
+        "GeistMono.woff2" => include_bytes!("../web/fonts/GeistMono.woff2"),
+        _ => return StatusCode::NOT_FOUND.into_response(),
+    };
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "font/woff2"),
+            (
+                axum::http::header::CACHE_CONTROL,
+                "public, max-age=31536000, immutable",
+            ),
+        ],
+        bytes,
+    )
+        .into_response()
+}
+
+async fn config(State(app): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!({ "sprites": app.sprites }))
+}
+
+async fn create_run(State(app): State<AppState>, body: axum::body::Bytes) -> Response {
+    let settings: RunSettings = if body.iter().all(u8::is_ascii_whitespace) {
+        RunSettings::default()
+    } else {
+        match serde_json::from_slice(&body) {
+            Ok(s) => s,
+            Err(e) => {
+                return (StatusCode::BAD_REQUEST, format!("invalid settings: {e}")).into_response()
+            }
+        }
+    };
+    if settings.caps.len() > 16 || settings.caps.iter().any(|&c| c == 0 || c > 100) {
+        return (
+            StatusCode::BAD_REQUEST,
+            "caps must be 1 to 100, at most 16 of them",
+        )
+            .into_response();
+    }
     let mut runs = app.runs.lock().unwrap();
     let code = new_code(&runs);
     let seed = rand::rng().random();
@@ -95,12 +153,12 @@ async fn create_run(State(app): State<AppState>) -> Json<NewRun> {
     runs.insert(
         code.clone(),
         Entry {
-            run: Run::new(code.clone(), seed),
+            run: Run::new(code.clone(), seed, settings),
             tx,
         },
     );
     tracing::info!(%code, "run created");
-    Json(NewRun { code, seed })
+    Json(NewRun { code, seed }).into_response()
 }
 
 async fn get_run(State(app): State<AppState>, Path(code): Path<String>) -> Response {
@@ -229,7 +287,16 @@ async fn main() {
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     let listener = tokio::net::TcpListener::bind(addr).await.expect("bind");
     tracing::info!("SoulSync server on http://localhost:{port}");
-    axum::serve(listener, app(AppState::default()))
+    let sprites = match std::env::var("SOULSYNC_SPRITES") {
+        Ok(v) if v.eq_ignore_ascii_case("off") || v.is_empty() => None,
+        Ok(v) => Some(v),
+        Err(_) => Some(DEFAULT_SPRITES.to_owned()),
+    };
+    let state = AppState {
+        sprites,
+        ..AppState::default()
+    };
+    axum::serve(listener, app(state))
         .with_graceful_shutdown(async {
             let _ = tokio::signal::ctrl_c().await;
         })
@@ -296,7 +363,7 @@ mod tests {
         let mut tcp = tokio::net::TcpStream::connect(addr).await.unwrap();
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
         tcp.write_all(
-            b"POST /api/runs HTTP/1.1\r\nHost: x\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            b"POST /api/runs HTTP/1.1\r\nHost: x\r\nContent-Length: 16\r\nConnection: close\r\n\r\n{\"caps\":[13,18]}",
         )
         .await
         .unwrap();
@@ -308,7 +375,9 @@ mod tests {
 
         let url = |q: &str| format!("ws://{addr}/api/runs/{}/ws{q}", run.code.to_lowercase());
         let (mut viewer, _) = tokio_tungstenite::connect_async(url("")).await.unwrap();
-        assert!(next_state(&mut viewer).await.players.is_empty());
+        let first = next_state(&mut viewer).await;
+        assert!(first.players.is_empty());
+        assert_eq!(first.settings.caps, vec![13, 18]);
 
         let (mut a, _) = tokio_tungstenite::connect_async(url("?player=Hannes"))
             .await

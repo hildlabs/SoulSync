@@ -29,6 +29,22 @@ pub enum ServerMsg {
     Error { message: String },
 }
 
+/// Settings chosen when a run is created.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RunSettings {
+    /// Level cap before each badge: `caps[n]` applies while a player has `n`
+    /// badges. Empty means no caps.
+    #[serde(default)]
+    pub caps: Vec<u8>,
+}
+
+impl RunSettings {
+    /// The level cap for a player with `badges` badges, if any.
+    pub fn cap(&self, badges: u8) -> Option<u8> {
+        self.caps.get(badges as usize).or(self.caps.last()).copied()
+    }
+}
+
 /// Response to creating a run.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NewRun {
@@ -42,6 +58,7 @@ pub struct NewRun {
 pub struct RunState {
     pub code: String,
     pub seed: u64,
+    pub settings: RunSettings,
     /// In join order.
     pub players: Vec<PlayerState>,
     /// Soul Link pairs, sides in the same order as `players`.
@@ -65,4 +82,20 @@ pub struct LogEntry {
     pub at: u64,
     pub player: String,
     pub event: Event,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn caps_follow_badges() {
+        let s = RunSettings {
+            caps: vec![13, 18, 24],
+        };
+        assert_eq!(s.cap(0), Some(13));
+        assert_eq!(s.cap(2), Some(24));
+        assert_eq!(s.cap(8), Some(24));
+        assert_eq!(RunSettings::default().cap(0), None);
+    }
 }

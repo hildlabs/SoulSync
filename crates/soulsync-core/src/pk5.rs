@@ -1,7 +1,7 @@
 //! Readable view of a decrypted generation 5 Pokémon record.
 
 use crate::crypto::{self, PARTY_SIZE, STORED_SIZE};
-use crate::dex;
+use crate::dex::{self, Type};
 use crate::lang::{Lang, Names};
 use serde::{Deserialize, Serialize};
 
@@ -31,6 +31,7 @@ pub struct Pokemon {
     pub pid: u32,
     pub species: u16,
     pub species_name: Option<Names>,
+    pub types: Vec<Type>,
     pub nickname: String,
     pub is_nicknamed: bool,
     pub is_egg: bool,
@@ -114,6 +115,9 @@ pub fn parse(raw: &[u8], place: Place) -> Option<Pokemon> {
         pid,
         species,
         species_name: dex::species(species).map(|s| s.name.clone()),
+        types: dex::species(species)
+            .map(|s| s.types.clone())
+            .unwrap_or_default(),
         nickname: read_string(&d[0x48..], 11),
         is_nicknamed: (iv >> 31) & 1 == 1,
         is_egg: (iv >> 30) & 1 == 1,

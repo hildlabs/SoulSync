@@ -1,6 +1,6 @@
 //! State of one run, independent of the network layer.
 
-use soulsync_core::protocol::{LogEntry, PlayerState, RunState, MAX_PLAYERS};
+use soulsync_core::protocol::{LogEntry, PlayerState, RunSettings, RunState, MAX_PLAYERS};
 use soulsync_core::{diff, links, SaveSnapshot};
 use std::collections::VecDeque;
 
@@ -19,6 +19,7 @@ struct Player {
 pub struct Run {
     pub code: String,
     pub seed: u64,
+    pub settings: RunSettings,
     players: Vec<Player>,
     log: VecDeque<LogEntry>,
 }
@@ -39,10 +40,11 @@ impl std::fmt::Display for JoinError {
 }
 
 impl Run {
-    pub fn new(code: String, seed: u64) -> Self {
+    pub fn new(code: String, seed: u64, settings: RunSettings) -> Self {
         Run {
             code,
             seed,
+            settings,
             players: Vec::new(),
             log: VecDeque::new(),
         }
@@ -112,6 +114,7 @@ impl Run {
         RunState {
             code: self.code.clone(),
             seed: self.seed,
+            settings: self.settings.clone(),
             players: self
                 .players
                 .iter()
@@ -157,7 +160,7 @@ mod tests {
 
     #[test]
     fn seats_and_reconnects() {
-        let mut r = Run::new("ZORUA-1234".into(), 7);
+        let mut r = Run::new("ZORUA-1234".into(), 7, RunSettings::default());
         assert_eq!(r.join(" "), Err(JoinError::BadName));
         r.join("Hannes").unwrap();
         r.join("Buddy").unwrap();
@@ -171,7 +174,7 @@ mod tests {
 
     #[test]
     fn updates_log_events_and_links() {
-        let mut r = Run::new("ZORUA-1234".into(), 7);
+        let mut r = Run::new("ZORUA-1234".into(), 7, RunSettings::default());
         r.join("Hannes").unwrap();
         r.join("Buddy").unwrap();
         assert_eq!(r.update("Hannes", snap(20), 1), 0);
