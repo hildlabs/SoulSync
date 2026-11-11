@@ -28,6 +28,14 @@ struct Config {
     server: String,
     /// The run this app is in.
     code: Option<String>,
+    /// The unmodified ROM that a fresh start randomizes anew.
+    original: Option<PathBuf>,
+    /// The randomizer's `.jar`.
+    randomizer: Option<PathBuf>,
+    /// The randomizer settings, an `.rnqs`.
+    preset: Option<PathBuf>,
+    /// The save every fresh start begins with, kept with the app's data.
+    template: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
@@ -63,6 +71,8 @@ struct Inner {
     update: Option<crate::update::Release>,
     /// How far the installation of it is, once asked for.
     progress: Option<crate::update::Progress>,
+    /// How far a fresh start of the game is, once asked for.
+    fresh: Option<crate::fresh::Progress>,
 }
 
 #[derive(Clone)]
@@ -163,6 +173,23 @@ fn find_desmume(save: &Path) -> Option<(&Path, u16)> {
         exes.sort();
         Some((dir, exes.iter().find_map(|e| exe_machine(e))?))
     })
+}
+
+/// The DeSmuME that plays `save`, to check on and to start.
+fn desmume_exe(save: &Path) -> Option<PathBuf> {
+    let (dir, _) = find_desmume(save)?;
+    let mut exes: Vec<PathBuf> = std::fs::read_dir(dir)
+        .ok()?
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| {
+            let name = p.file_name().unwrap_or_default().to_string_lossy();
+            let name = name.to_ascii_lowercase();
+            name.starts_with("desmume") && name.ends_with(".exe")
+        })
+        .collect();
+    exes.sort();
+    exes.into_iter().find(|e| exe_machine(e).is_some())
 }
 
 /// DeSmuME needs `lua51.dll` next to its `.exe` and does not bring it. Adds
@@ -402,6 +429,13 @@ impl Local {
                 "latest": inner.update.as_ref().map(|r| r.build),
                 "progress": inner.progress,
             }),
+            "fresh": serde_json::json!({
+                "original": c.original.as_deref().map(rom_info),
+                "randomizer": c.randomizer,
+                "preset": c.preset,
+                "template": c.template.as_deref().filter(|t| t.is_file()).map(save_info),
+                "progress": inner.fresh,
+            }),
             "dialogs": cfg!(any(windows, target_os = "macos")),
             "version": env!("CARGO_PKG_VERSION"),
         })
@@ -513,12 +547,15 @@ async fn state(State(local): State<Local>) -> Json<serde_json::Value> {
     Json(local.view())
 }
 
-#[derive(Deserialize)]
+#[derive(Default, Deserialize)]
 struct Set {
     name: Option<String>,
     rom: Option<String>,
     save: Option<String>,
     server: Option<String>,
+    original: Option<String>,
+    randomizer: Option<String>,
+    preset: Option<String>,
 }
 
 fn apply(config: &mut Config, set: Set) {
@@ -537,6 +574,15 @@ fn apply(config: &mut Config, set: Set) {
         if config.save.is_none() {
             config.save = config.rom.as_deref().and_then(guess_save);
         }
+    }
+    if let Some(original) = set.original {
+        config.original = path(original);
+    }
+    if let Some(randomizer) = set.randomizer {
+        config.randomizer = path(randomizer);
+    }
+    if let Some(preset) = set.preset {
+        config.preset = path(preset);
     }
     if let Some(server) = set.server {
         config.server = soulsync_client::base(&server).to_owned();
@@ -558,13 +604,24 @@ struct Pick {
     kind: String,
 }
 
+/// A file the Settings can ask for.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Kind {
+    Rom,
+    Save,
+    Original,
+    Randomizer,
+    Preset,
+}
+
 #[cfg(any(windows, target_os = "macos"))]
-fn dialog(rom: bool, start: Option<PathBuf>) -> Option<PathBuf> {
+fn dialog(kind: Kind, start: Option<PathBuf>) -> Option<PathBuf> {
     let mut d = rfd::FileDialog::new();
-    d = if rom {
-        d.add_filter("Nintendo DS ROM", &["nds"])
-    } else {
-        d.add_filter("Save", &["dsv", "sav"])
+    d = match kind {
+        Kind::Rom | Kind::Original => d.add_filter("Nintendo DS ROM", &["nds"]),
+        Kind::Save => d.add_filter("Save", &["dsv", "sav"]),
+        Kind::Randomizer => d.add_filter("Universal Pokémon Randomizer ZX", &["jar"]),
+        Kind::Preset => d.add_filter("Randomizer settings", &["rnqs"]),
     };
     if let Some(dir) = start.as_deref().and_then(Path::parent) {
         d = d.set_directory(dir);
@@ -573,42 +630,129 @@ fn dialog(rom: bool, start: Option<PathBuf>) -> Option<PathBuf> {
 }
 
 #[cfg(not(any(windows, target_os = "macos")))]
-fn dialog(_rom: bool, _start: Option<PathBuf>) -> Option<PathBuf> {
+fn dialog(_kind: Kind, _start: Option<PathBuf>) -> Option<PathBuf> {
     None
 }
 
 /// Opens the system's file dialog and stores the chosen file.
 async fn pick(State(local): State<Local>, Json(pick): Json<Pick>) -> Reply {
-    let rom = match pick.kind.as_str() {
-        "rom" => true,
-        "save" => false,
-        _ => return Err(bad("kind must be rom or save")),
+    let kind = match pick.kind.as_str() {
+        "rom" => Kind::Rom,
+        "save" => Kind::Save,
+        "original" => Kind::Original,
+        "randomizer" => Kind::Randomizer,
+        "preset" => Kind::Preset,
+        _ => return Err(bad("kind")),
     };
     let start = {
         let inner = local.inner.lock().unwrap();
         let c = &inner.config;
-        if rom {
-            c.rom.clone()
-        } else {
-            c.save.clone().or(c.rom.clone())
+        let rom = || c.rom.clone();
+        match kind {
+            Kind::Rom => rom(),
+            Kind::Save => c.save.clone().or_else(rom),
+            Kind::Original => c.original.clone().or_else(rom),
+            Kind::Randomizer => c.randomizer.clone().or_else(rom),
+            Kind::Preset => c.preset.clone().or(c.randomizer.clone()).or_else(rom),
         }
     };
-    let chosen = tokio::task::spawn_blocking(move || dialog(rom, start))
+    let chosen = tokio::task::spawn_blocking(move || dialog(kind, start))
         .await
         .ok()
         .flatten();
     if let Some(path) = chosen {
-        let path = path.to_string_lossy().into_owned();
+        let path = Some(path.to_string_lossy().into_owned());
+        let mut set = Set::default();
+        match kind {
+            Kind::Rom => set.rom = path,
+            Kind::Save => set.save = path,
+            Kind::Original => set.original = path,
+            Kind::Randomizer => set.randomizer = path,
+            Kind::Preset => set.preset = path,
+        }
         let mut inner = local.inner.lock().unwrap();
-        let set = Set {
-            name: None,
-            rom: rom.then(|| path.clone()),
-            save: (!rom).then_some(path),
-            server: None,
-        };
         apply(&mut inner.config, set);
         write_config(&inner.config);
     }
+    Ok(Json(local.view()))
+}
+
+/// Keeps the save as it is now as the one every fresh start begins with.
+async fn template(State(local): State<Local>) -> Reply {
+    let save = local.inner.lock().unwrap().config.save.clone();
+    let save = save
+        .filter(|s| load(s).is_ok())
+        .ok_or_else(|| bad("save"))?;
+    let kept = data_dir()
+        .ok_or_else(|| bad("data"))?
+        .join("start-save.dsv");
+    if let Some(dir) = kept.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    std::fs::copy(&save, &kept).map_err(|e| bad(e.to_string()))?;
+    {
+        let mut inner = local.inner.lock().unwrap();
+        inner.config.template = Some(kept);
+        write_config(&inner.config);
+    }
+    Ok(Json(local.view()))
+}
+
+/// Starts the game over: randomizes the ROM anew, puts the starting save in
+/// place and opens the game. The page follows the progress in the state.
+async fn fresh(State(local): State<Local>) -> Reply {
+    use crate::fresh::{Plan, Progress};
+    let plan = {
+        let mut inner = local.inner.lock().unwrap();
+        if inner.fresh == Some(Progress::Rolling) {
+            None
+        } else {
+            let c = &inner.config;
+            let need = |p: &Option<PathBuf>, what| p.clone().ok_or_else(|| bad(what));
+            let save = need(&c.save, "save")?;
+            let plan = Plan {
+                java: "java".into(),
+                randomizer: need(&c.randomizer, "randomizer")?,
+                preset: need(&c.preset, "preset")?,
+                original: need(&c.original, "original")?,
+                rom: need(&c.rom, "rom")?,
+                template: need(&c.template, "template")?,
+                encounters: data_dir().map(|d| d.join("encounters.json")),
+                emulator: desmume_exe(&save),
+                save,
+            };
+            inner.fresh = Some(Progress::Rolling);
+            Some(plan)
+        }
+    };
+    let Some(plan) = plan else {
+        return Ok(Json(local.view()));
+    };
+    // The sync reads the save and the ROM; it starts again on the new ones.
+    let syncing = local.inner.lock().unwrap().task.is_some();
+    local.stop();
+    let worker = local.clone();
+    tokio::spawn(async move {
+        let work = plan.clone();
+        let done = tokio::task::spawn_blocking(move || crate::fresh::run(&work)).await;
+        let progress = match done {
+            Ok(Ok(())) => {
+                if let Some(emulator) = &plan.emulator {
+                    crate::fresh::play(emulator, &plan.rom);
+                }
+                Progress::Done
+            }
+            Ok(Err((why, detail))) => Progress::Failed { why, detail },
+            Err(e) => Progress::Failed {
+                why: crate::fresh::Why::Write,
+                detail: Some(e.to_string()),
+            },
+        };
+        if syncing {
+            worker.start();
+        }
+        worker.inner.lock().unwrap().fresh = Some(progress);
+    });
     Ok(Json(local.view()))
 }
 
@@ -791,6 +935,8 @@ pub fn routes(server: soulsync_server::AppState, own: String) -> Router {
         .route("/api/local/leave", post(leave))
         .route("/api/local/update", post(update))
         .route("/api/local/forget", post(forget))
+        .route("/api/local/template", post(template))
+        .route("/api/local/fresh", post(fresh))
         .layer(axum::middleware::from_fn(guard))
         .with_state(local)
 }
@@ -893,6 +1039,7 @@ mod tests {
             rom: Some("\"C:\\Games\\SoulLink.nds\"".into()),
             save: None,
             server: Some("https://soulsync.example/".into()),
+            ..Set::default()
         };
         apply(&mut c, set);
         assert_eq!(c.name, "Hannes");
