@@ -23,13 +23,20 @@ mod desktop {
     use tao::dpi::LogicalSize;
     use tao::event::{Event, WindowEvent};
     use tao::event_loop::{ControlFlow, EventLoop};
+    #[cfg(windows)]
+    use tao::platform::windows::IconExtWindows;
+    #[cfg(windows)]
+    use tao::window::Icon;
     use tao::window::WindowBuilder;
     use wry::{WebContext, WebViewBuilder};
 
     pub fn show(url: &str) {
         let event_loop = EventLoop::new();
-        let window = WindowBuilder::new()
-            .with_title("SoulSync")
+        let window = WindowBuilder::new().with_title("SoulSync");
+        // The icon is the first resource of the program; see `build.rs`.
+        #[cfg(windows)]
+        let window = window.with_window_icon(Icon::from_resource(1, None).ok());
+        let window = window
             .with_inner_size(LogicalSize::new(1280.0, 800.0))
             .with_min_inner_size(LogicalSize::new(420.0, 560.0))
             .build(&event_loop);

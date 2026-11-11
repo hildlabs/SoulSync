@@ -85,6 +85,7 @@ pub fn app(state: AppState) -> Router {
         .route("/run/{code}", get(index))
         .route("/demo", get(index))
         .route("/assets/demo.js", get(demo))
+        .route("/assets/icon.svg", get(icon))
         .route("/assets/fonts/{file}", get(font))
         .route("/api/config", get(config))
         .route("/api/runs", post(create_run))
@@ -115,6 +116,13 @@ async fn demo() -> impl IntoResponse {
     (
         [(axum::http::header::CONTENT_TYPE, "text/javascript")],
         include_str!("../web/demo.js"),
+    )
+}
+
+async fn icon() -> impl IntoResponse {
+    (
+        [(axum::http::header::CONTENT_TYPE, "image/svg+xml")],
+        include_str!("../../../assets/soulsync-icon.svg"),
     )
 }
 
