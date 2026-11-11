@@ -20,7 +20,20 @@ use std::net::SocketAddr;
 const PORT: u16 = 4777;
 
 fn main() {
+    // The app has no console on Windows, so a crash would go unseen. What went
+    // wrong is kept next to the settings.
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        if let Some(dir) = local::data_dir() {
+            let _ = std::fs::create_dir_all(&dir);
+            let _ = std::fs::write(dir.join("crash.txt"), info.to_string());
+        }
+        default_hook(info);
+    }));
     let runtime = tokio::runtime::Runtime::new().expect("runtime");
+    // Resuming a run at start spawns its sync task from here, outside of any
+    // task, which needs the runtime entered.
+    let _in_runtime = runtime.enter();
     let addr = SocketAddr::from(([127, 0, 0, 1], PORT));
     let url = format!("http://127.0.0.1:{PORT}");
     // If the port is taken, SoulSync is most likely running already, and the
