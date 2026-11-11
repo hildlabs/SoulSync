@@ -69,8 +69,8 @@ fn status(p: &Pokemon, fallen: &[Pokemon], excused: bool) -> Status {
 /// sorted by location id. Players without a save yet are passed as `None`.
 ///
 /// A player without a Pokémon from a location where they met a wild one has
-/// missed that encounter. Neither a faint nor a missed encounter counts
-/// while a player has only their starter; see [`SaveSnapshot::only_starter`].
+/// missed that encounter. A faint does not count while a player has only
+/// their starter; see [`SaveSnapshot::only_starter`].
 pub fn links(players: &[Option<&SaveSnapshot>]) -> Vec<Link> {
     let mut by_loc: BTreeMap<u16, Vec<Option<Side>>> = BTreeMap::new();
     for (i, snap) in players.iter().enumerate() {
@@ -98,12 +98,7 @@ pub fn links(players: &[Option<&SaveSnapshot>]) -> Vec<Link> {
                 });
             }
         }
-        let begun = !snap.only_starter();
-        for wild in snap
-            .encounters
-            .iter()
-            .filter(|w| begun && !snap.owns(w.pid))
-        {
+        for wild in snap.encounters.iter().filter(|w| !snap.owns(w.pid)) {
             let sides = by_loc
                 .entry(wild.met_location)
                 .or_insert_with(|| vec![None; players.len()]);
@@ -232,9 +227,6 @@ mod tests {
         let l = links(&[Some(&first), None]);
         assert_eq!(l[0].sides[0].as_ref().unwrap().status, Status::Party);
         assert!(!l[0].is_dead());
-        // Nor is a wild Pokémon missed, like the one of the catching lesson.
-        first.encounters = vec![party(9, 504, 14, 12)];
-        assert_eq!(links(&[Some(&first), None]).len(), 1);
         // With a second Pokémon the run has begun.
         let begun = snap(vec![party(1, 495, 4, 0), party(2, 504, 14, 12)], vec![]);
         let l = links(&[Some(&begun), None]);
@@ -243,7 +235,7 @@ mod tests {
 
     #[test]
     fn a_missed_encounter_uses_the_location_up() {
-        let mut a = snap(vec![party(2, 495, 4, 30), party(4, 519, 4, 30)], vec![]);
+        let mut a = snap(vec![party(2, 495, 4, 30)], vec![]);
         a.encounters = vec![party(9, 504, 14, 12), party(2, 495, 4, 30)];
         let b = snap(vec![party(3, 498, 14, 30)], vec![]);
         let l = links(&[Some(&a), Some(&b)]);

@@ -87,8 +87,7 @@ impl SaveSnapshot {
 
     /// The player has nothing but their starter yet. The run begins with the
     /// first catch: a faint before it, like in the first fight against the
-    /// rival, does not count, and neither does a wild Pokémon that was not
-    /// caught, like the one the game shows how to catch with.
+    /// rival, does not count.
     pub fn only_starter(&self) -> bool {
         self.all_pokemon().count() <= 1
     }

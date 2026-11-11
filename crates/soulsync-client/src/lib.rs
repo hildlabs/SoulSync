@@ -274,18 +274,7 @@ mod tests {
         let (save, file) = (dir.join("game.dsv"), dir.join("live.bin"));
         let store = dir.join("encounters.json");
         std::fs::write(&save, vec![0u8; 0x80000]).unwrap();
-        let mut base = load(&save).unwrap();
-        // Two Pokémon in the boxes: the run has begun, so encounters count.
-        base.boxes = [(1, 16), (2, 17)]
-            .map(|(pid, location)| {
-                let raw = build_raw(pid, 504, "", location, 3, None);
-                soulsync_core::pk5::parse(
-                    &raw,
-                    soulsync_core::pk5::Place::Box { r#box: 0, slot: 0 },
-                )
-                .unwrap()
-            })
-            .to_vec();
+        let base = load(&save).unwrap();
         // Map 1 is in location 14.
         let mut live = Live::new(file.clone(), store.clone(), vec![0, 14]);
         assert_eq!(live.view(&base, &save), Some(base.clone()));
