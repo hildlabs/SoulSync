@@ -151,8 +151,11 @@ local cursor, settled = RAM_START, false
 -- During a battle the game works on its own copy of each Pokémon and
 -- leaves the one above as it was when the battle began. That copy starts
 -- with a pointer to the Pokémon it was made from, and has the species 12
--- bytes on, then the most HP and the HP now.
+-- bytes on, then the most HP and the HP now, and further on the status.
 local BATTLE_SPECIES, BATTLE_MAX, BATTLE_HP, BATTLE_LEVEL = 0x0C, 0x0E, 0x10, 0x18
+local BATTLE_STATUS = {
+  { 0x24, 0x01 }, { 0x30, 0x08 }, { 0x2C, 0x10 }, { 0x28, 0x20 }, { 0x20, 0x40 },
+}
 -- Most battle copies followed per Pokémon; the game keeps two.
 local COPIES = 4
 -- Checks for which a Pokémon's battle copy is looked for, about a minute.
@@ -181,6 +184,16 @@ local function battle_hp(addr, r)
   return hp
 end
 
+-- The status the battle copy at addr has, as the bits a Pokémon keeps it in.
+-- The copy has one number per condition, zero while the Pokémon is free of
+-- it: paralysis, sleep, freeze, burn, poison.
+local function battle_status(addr)
+  for i = 1, #BATTLE_STATUS do
+    if memory.readdword(addr + BATTLE_STATUS[i][1]) ~= 0 then return BATTLE_STATUS[i][2] end
+  end
+  return 0
+end
+
 -- Whether addr is a battle copy of a reported Pokémon; then it is followed.
 local function battle_copy(addr)
   local from = memory.readdword(addr)
@@ -194,21 +207,27 @@ local function battle_copy(addr)
   return true
 end
 
--- The Pokémon's bytes with the HP of its battle copies in place of its own,
--- so that whoever reads them sees the battle as it stands.
+-- The Pokémon's bytes with the HP and status of its battle copies in place
+-- of its own, so that whoever reads them sees the battle as it stands.
 local function with_battle_hp(r, data)
-  local hp = nil
+  local hp, status = nil, 0
   for i = #r.battle, 1, -1 do
     local now = battle_hp(r.battle[i], r)
     if not now then
       table.remove(r.battle, i)
-    elseif not hp or now < hp then
-      hp = now
+    else
+      if not hp or now < hp then hp = now end
+      if status == 0 then status = battle_status(r.battle[i]) end
     end
   end
   if not hp then return data end
-  local word = xor(hp, stat_key(r.pid, 4))
-  return data:sub(1, 0x8E) .. string.char(word % 256, floor(word / 256)) .. data:sub(0x91)
+  local hp_word = xor(hp, stat_key(r.pid, 4))
+  local status_word = xor(status, stat_key(r.pid, 1))
+  return data:sub(1, 0x88)
+    .. string.char(status_word % 256, floor(status_word / 256))
+    .. data:sub(0x8B, 0x8E)
+    .. string.char(hp_word % 256, floor(hp_word / 256))
+    .. data:sub(0x91)
 end
 
 local function notice(addr, pid)
