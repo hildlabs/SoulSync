@@ -6,3 +6,6 @@
 *.dst
 *.ds[0-9]
 *.log
+
+# Server settings of a deployment (domain, e-mail); never commit.
+deploy/.env
