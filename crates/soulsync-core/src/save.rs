@@ -48,6 +48,9 @@ impl std::error::Error for SaveError {}
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Trainer {
     pub name: String,
+    /// Trainer ID and secret ID. A new game has a new one.
+    #[serde(default)]
+    pub id: u32,
     pub badges: u8,
     /// Which game wrote the save, if it says so.
     #[serde(default)]
@@ -60,12 +63,31 @@ pub struct SaveSnapshot {
     pub trainer: Trainer,
     pub party: Vec<Pokemon>,
     pub boxes: Vec<Pokemon>,
+    /// Wild Pokémon the player met first in a location, seen live in the
+    /// emulator, with that location as `met_location`. Those the player does
+    /// not own were not caught. A save file alone has none.
+    #[serde(default)]
+    pub encounters: Vec<Pokemon>,
+    /// Pokémon that fainted at some point, as they were then. Fainted stays
+    /// fainted in a Soul Link, whatever a Pokémon Center does. A save file
+    /// alone has none.
+    #[serde(default)]
+    pub fallen: Vec<Pokemon>,
+    /// The wild Pokémon the player is facing, or last faced, as the emulator
+    /// has it in memory right now.
+    #[serde(default)]
+    pub wild: Option<Box<Pokemon>>,
 }
 
 impl SaveSnapshot {
     /// All Pokémon except eggs, party first.
     pub fn all_pokemon(&self) -> impl Iterator<Item = &Pokemon> {
         self.party.iter().chain(&self.boxes).filter(|p| !p.is_egg)
+    }
+
+    /// Whether the player has this Pokémon, eggs included.
+    pub fn owns(&self, pid: u32) -> bool {
+        self.party.iter().chain(&self.boxes).any(|p| p.pid == pid)
     }
 }
 
@@ -77,8 +99,7 @@ impl SaveSnapshot {
     /// party-format Pokémon. Returns `None` if it is not a valid party.
     ///
     /// A Pokémon that was in the saved party but is neither in the live party
-    /// nor in a saved box was deposited since the last save. It is listed in
-    /// the last box until the next save says where it went.
+    /// nor in a saved box was deposited since the last save; see [`Self::keep`].
     pub fn with_live_party(&self, block: &[u8]) -> Option<SaveSnapshot> {
         if block.len() != PARTY_BLOCK_LEN {
             return None;
@@ -94,37 +115,50 @@ impl SaveSnapshot {
             })
             .collect::<Option<Vec<_>>>()?;
         let in_party = |pid: u32| party.iter().any(|p| p.pid == pid);
-        let mut boxes: Vec<Pokemon> = self
+        let boxes: Vec<Pokemon> = self
             .boxes
             .iter()
             .filter(|p| !in_party(p.pid))
             .cloned()
             .collect();
+        let mut live = SaveSnapshot {
+            trainer: self.trainer.clone(),
+            party,
+            boxes,
+            encounters: self.encounters.clone(),
+            fallen: self.fallen.clone(),
+            wild: None,
+        };
+        for old in &self.party {
+            live.keep(old);
+        }
+        Some(live)
+    }
+
+    /// Lists a Pokémon that is known to be the player's but is in no place
+    /// this snapshot knows, in the last box, until the next save says where
+    /// it went. Does nothing if the player has it.
+    pub fn keep(&mut self, pokemon: &Pokemon) {
+        if self.owns(pokemon.pid) {
+            return;
+        }
         let last_box = BOX_COUNT as u8;
-        let mut free = (0..BOX_SLOTS as u8)
-            .filter(|&slot| {
-                let place = Place::Box {
-                    r#box: last_box,
-                    slot,
-                };
-                !self.boxes.iter().any(|p| p.place == place)
-            })
-            .collect::<Vec<_>>()
-            .into_iter();
-        for old in self.party.iter().filter(|p| !in_party(p.pid)) {
-            let Some(slot) = free.next() else { break };
-            let mut kept = old.clone();
+        let free = (0..BOX_SLOTS as u8).find(|&slot| {
+            let place = Place::Box {
+                r#box: last_box,
+                slot,
+            };
+            !self.boxes.iter().any(|p| p.place == place)
+        });
+        if let Some(slot) = free {
+            let mut kept = pokemon.clone();
             kept.place = Place::Box {
                 r#box: last_box,
                 slot,
             };
-            boxes.push(kept);
+            kept.battle = None;
+            self.boxes.push(kept);
         }
-        Some(SaveSnapshot {
-            trainer: self.trainer.clone(),
-            party,
-            boxes,
-        })
     }
 }
 
@@ -159,6 +193,12 @@ pub fn parse_b2w2(data: &[u8]) -> Result<SaveSnapshot, SaveError> {
         .collect();
     let trainer = Trainer {
         name: pk5::read_string(&b[TRAINER_BLOCK + 4..], 8),
+        id: u32::from_le_bytes([
+            b[TRAINER_BLOCK + 0x14],
+            b[TRAINER_BLOCK + 0x15],
+            b[TRAINER_BLOCK + 0x16],
+            b[TRAINER_BLOCK + 0x17],
+        ]),
         badges: b[BADGE_FLAGS].count_ones() as u8,
         game: Game::from_save_version(b[TRAINER_BLOCK + GAME_VERSION]),
     };
@@ -166,6 +206,9 @@ pub fn parse_b2w2(data: &[u8]) -> Result<SaveSnapshot, SaveError> {
         trainer,
         party,
         boxes,
+        encounters: Vec::new(),
+        fallen: Vec::new(),
+        wild: None,
     })
 }
 
@@ -214,6 +257,8 @@ mod tests {
             s[TRAINER_BLOCK + 4 + i * 2..TRAINER_BLOCK + 6 + i * 2]
                 .copy_from_slice(&u.to_le_bytes());
         }
+        s[TRAINER_BLOCK + 0x14..TRAINER_BLOCK + 0x18]
+            .copy_from_slice(&0x1234_5678u32.to_le_bytes());
         s[BADGE_FLAGS] = 0b0000_0011;
         s[TRAINER_BLOCK + GAME_VERSION] = 23;
         s
@@ -226,6 +271,7 @@ mod tests {
             snap.trainer,
             Trainer {
                 name: "Hannes".into(),
+                id: 0x1234_5678,
                 badges: 2,
                 game: Some(Game::Black2),
             }

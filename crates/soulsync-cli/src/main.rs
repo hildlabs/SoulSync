@@ -237,6 +237,9 @@ pub(crate) fn describe(e: &Event, lang: Lang, t: &Text) -> String {
             Place::Box { r#box, .. } => format!("{} {} {box}", pokemon.label(lang), t.ev_to_box),
         },
         Event::Gone { pokemon } => format!("{}: {}", t.ev_gone, pokemon.label(lang)),
+        Event::Encountered { pokemon } => {
+            format!("{}: {}", t.ev_encountered, pokemon.species_label(lang))
+        }
         Event::Badges { count } => format!("{}: {count}", t.ev_badges),
     }
 }

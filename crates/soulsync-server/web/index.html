@@ -350,6 +350,9 @@ details.adv summary{cursor:pointer;font-size:13px;font-weight:500;color:var(--mu
 details.adv .field{margin-top:12px}
 .rblock .kv:last-of-type{border-bottom:0}
 .rblock .kv b{max-width:70%;white-space:nowrap}
+.clive{display:flex;align-items:center;gap:0;margin:8px 0 2px;padding:8px 10px;border-radius:8px;background:var(--raised);font-size:13px;min-width:0}
+.clive span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.clive small{margin-left:auto;padding-left:10px;color:var(--muted)}
 .dot{display:inline-block;width:8px;height:8px;margin-right:8px;border-radius:50%;background:var(--faint)}
 .dot.live{background:var(--ok)}.dot.error{background:var(--danger)}.dot.connecting{background:var(--warn)}
 .center-msg{padding:96px 16px;text-align:center;color:var(--muted)}
@@ -424,7 +427,7 @@ const T = {
     theme: "Switch theme",
     tabs: { links: "Links", encounters: "Encounters", timeline: "Timeline", types: "Types", rules: "Rules", settings: "Settings" },
     area: "Area", status: "Status",
-    hint: { team: "linked and in play", boxed: "linked, both resting", open: "one catch is still missing", lost: "one fainted, both are out" },
+    hint: { team: "linked and in play", boxed: "linked, both resting", open: "one catch is still missing", lost: "fainted or not caught, both are out" },
     turn: n => `<b>${n}</b> is up`, partnerInTeam: "partner is in the team", and: "&",
     attempt: n => `Attempt ${n}`, kAttempt: "Attempt", kGame: "Game", gen: n => `Gen ${n}`,
     games: { black: "Black", white: "White", black2: "Black 2", white2: "White 2" },
@@ -448,11 +451,11 @@ waitPlayer: "Waiting for player two", playerTwo: "Player two", notJoined: "not j
     setup: "Connect your game", step1: "Save in DeSmuME. The .dsv file is in its Battery folder.", step2: "Run this on each player’s computer:", step3: "Every in-game save updates this page.",
     aStep1: "Your partner starts SoulSync and chooses “Join a run”.", aStep2: "They enter this run code:", aStep3: g => `Under Server, they enter the same address as you: ${g}`, aLocal: "This run is only on this computer. To play together, set a run server in Settings and start a new run.",
     yourSave: "<save file>", yourName: "<your name>",
-    kCap: "Level cap", kSeed: "Shared seed", none: "none",
+    kCap: "Level cap", kSeed: "Shared seed", kSeedOf: n => `Seed ${n}`, ail: { sleep: "asleep", poison: "poisoned", burn: "burned", freeze: "frozen", paralysis: "paralysed" }, fSeed: "Same seed for both players", fSeedHelp: "Both randomize with one seed and get the same world. Usually each player has their own.", none: "none",
     evCaught: (p, m, l) => `<b>${p}</b> caught <b>${m}</b> in ${l}.`, evLinked: m => ` Linked with ${m}.`,
     evFainted: m => `<b>${m}</b> fainted.`, evLost: m => ` <span class="bad">Link with ${m} is lost.</span>`,
     evEvolved: (m, s) => `<b>${m}</b> evolved into ${s}`, evLevel: (m, n) => `<b>${m}</b> grew to Lv ${n}`,
-    evParty: m => `<b>${m}</b> moved to the team`, evBox: (m, n) => `<b>${m}</b> moved to Box ${n}`, evGone: m => `<b>${m}</b> is gone`,
+    evParty: m => `<b>${m}</b> moved to the team`, evBox: (m, n) => `<b>${m}</b> moved to Box ${n}`, evGone: m => `<b>${m}</b> is gone`, evMet: (n, m, l) => `<b>${n}</b> met <b>${m}</b> first in ${l}.`, missed: "Not caught", locked: "Location used up", sPlace: "You are in", sPlaceNone: "unknown",
     evBadges: (p, n) => `<b>${p}</b> now has ${n === 1 ? "1 badge" : n + " badges"}`,
     startTitle: "Start a Soul Link", startLead: "Two players, one run. Every catch is linked to your partner’s catch from the same area.",
     setupTitle: "Set up SoulSync", setupLead: "Pick your game once. SoulSync then keeps it in sync and shows the dashboard.",
@@ -461,7 +464,7 @@ waitPlayer: "Waiting for player two", playerTwo: "Player two", notJoined: "not j
     saveOk: (n, b, p) => `Trainer ${n}  ·  ${b} badges  ·  ${p} Pokémon`, saveBad: "This save cannot be read. Pick the .dsv from DeSmuME’s Battery folder.",
     fServer: "Run server", fServerHelp: "Leave empty to keep the run on this computer only. To play with a partner, both enter the same server address.", advanced: "Server",
     startNew: "Start run", startJoin: "Join run", eName: "Enter your name.", eSave: "Pick a save that can be read first.", eCode: "No run with this code on the server.",
-    sLive: "Live from DeSmuME", sLiveOn: "connected", sLiveOff: "script not running", sLiveHint: "Without the script the dashboard updates when you save in-game. With it, it follows your party right away: in DeSmuME open Tools › Lua Scripting › New Lua Script Window, choose this file and press Run.", sLiveScript: "Script", sGame: "Your game", sRun: "Run", sSync: "Sync", sServer: "Server", sLocal: "this computer", sLeave: "Leave run", sLeaveSure: "Click again to leave", sLeaveHint: "Stops syncing and returns to the setup. The run stays on the server.",
+    sLive: "Live from DeSmuME", sLua: "Lua for DeSmuME", sLuaState: { present: "ready", installed: "set up, restart DeSmuME", missing: "DeSmuME not found" }, sLiveOn: "connected", sLiveOff: "script not running", sLiveHint: "Without the script the dashboard updates when you save in-game. With it, it follows your party and your encounters right away: in DeSmuME open Tools › Lua Scripting › New Lua Script Window, choose this file and press Run.", sLiveScript: "Script", sGame: "Your game", sRun: "Run", sSync: "Sync", sServer: "Server", sLocal: "this computer", sLeave: "Leave run", sLeaveSure: "Click again to leave", sLeaveHint: "Stops syncing and returns to the setup. The run stays on the server.",
     phase: { idle: "Not running", connecting: "Connecting", live: "Live, every in-game save is sent", error: "Stopped" },
     tabJoin: "Join a run", tabNew: "New run", code: "Run code", codeHelp: "Your partner sees this code after creating the run.", openRun: "Open run",
     caps: "Level caps", capsPh: "13, 18, 24, 30", capsHelp: "One level per gym, in order. Leave empty to play without caps.", create: "Create run",
@@ -475,7 +478,7 @@ waitPlayer: "Waiting for player two", playerTwo: "Player two", notJoined: "not j
     theme: "Farbschema wechseln",
     tabs: { links: "Links", encounters: "Begegnungen", timeline: "Verlauf", types: "Typen", rules: "Regeln", settings: "Einstellungen" },
     area: "Gebiet", status: "Status",
-    hint: { team: "verbunden und im Einsatz", boxed: "verbunden, beide in der Box", open: "ein Fang fehlt noch", lost: "eins besiegt, beide raus" },
+    hint: { team: "verbunden und im Einsatz", boxed: "verbunden, beide in der Box", open: "ein Fang fehlt noch", lost: "besiegt oder nicht gefangen, beide raus" },
     turn: n => `<b>${n}</b> ist dran`, partnerInTeam: "Partner ist im Team", and: "&",
     attempt: n => `Versuch ${n}`, kAttempt: "Versuch", kGame: "Spiel", gen: n => `Gen ${n}`,
     games: { black: "Schwarz", white: "Weiß", black2: "Schwarz 2", white2: "Weiß 2" },
@@ -499,11 +502,11 @@ waitPlayer: "Warte auf Spieler zwei", playerTwo: "Spieler zwei", notJoined: "noc
     setup: "Spiel verbinden", step1: "In DeSmuME speichern. Die .dsv-Datei liegt im Ordner Battery.", step2: "Auf dem Rechner jedes Spielers ausführen:", step3: "Jedes Speichern im Spiel aktualisiert diese Seite.",
     aStep1: "Dein Mitspieler startet SoulSync und wählt „Run beitreten“.", aStep2: "Dort gibt er diesen Run-Code ein:", aStep3: g => `Unter Server trägt er dieselbe Adresse ein wie du: ${g}`, aLocal: "Dieser Run liegt nur auf diesem Rechner. Für das Spiel zu zweit trag in den Einstellungen einen Run-Server ein und starte einen neuen Run.",
     yourSave: "<spielstand>", yourName: "<dein Name>",
-    kCap: "Level-Cap", kSeed: "Gemeinsamer Seed", none: "keins",
+    kCap: "Level-Cap", kSeed: "Gemeinsamer Seed", kSeedOf: n => `Seed ${n}`, ail: { sleep: "schläft", poison: "vergiftet", burn: "verbrannt", freeze: "eingefroren", paralysis: "paralysiert" }, fSeed: "Gleicher Seed für beide Spieler", fSeedHelp: "Beide randomisieren mit einem Seed und bekommen dieselbe Welt. Üblich ist ein eigener Seed pro Spieler.", none: "keins",
     evCaught: (p, m, l) => `<b>${p}</b> hat <b>${m}</b> gefangen (${l}).`, evLinked: m => ` Verbunden mit ${m}.`,
     evFainted: m => `<b>${m}</b> wurde besiegt.`, evLost: m => ` <span class="bad">Der Link mit ${m} ist verloren.</span>`,
     evEvolved: (m, s) => `<b>${m}</b> hat sich zu ${s} entwickelt`, evLevel: (m, n) => `<b>${m}</b> ist jetzt Lv ${n}`,
-    evParty: m => `<b>${m}</b> ist jetzt im Team`, evBox: (m, n) => `<b>${m}</b> liegt jetzt in Box ${n}`, evGone: m => `<b>${m}</b> ist weg`,
+    evParty: m => `<b>${m}</b> ist jetzt im Team`, evBox: (m, n) => `<b>${m}</b> liegt jetzt in Box ${n}`, evGone: m => `<b>${m}</b> ist weg`, evMet: (n, m, l) => `<b>${n}</b> trifft zuerst auf <b>${m}</b> (${l}).`, missed: "Nicht gefangen", locked: "Ort verbraucht", sPlace: "Du bist in", sPlaceNone: "unbekannt",
     evBadges: (p, n) => `<b>${p}</b> hat jetzt ${n} Orden`,
     startTitle: "Soul Link starten", startLead: "Zwei Spieler, ein Run. Jeder Fang ist mit dem Fang deines Partners aus demselben Gebiet verbunden.",
     setupTitle: "SoulSync einrichten", setupLead: "Wähle einmal dein Spiel aus. SoulSync hält es danach synchron und zeigt das Dashboard.",
@@ -512,7 +515,7 @@ waitPlayer: "Warte auf Spieler zwei", playerTwo: "Spieler zwei", notJoined: "noc
     saveOk: (n, b, p) => `Trainer ${n}  ·  ${b} Orden  ·  ${p} Pokémon`, saveBad: "Dieser Spielstand lässt sich nicht lesen. Wähle die .dsv aus dem Battery-Ordner von DeSmuME.",
     fServer: "Run-Server", fServerHelp: "Leer lassen, dann bleibt der Run nur auf diesem Rechner. Für das Spiel zu zweit tragen beide dieselbe Server-Adresse ein.", advanced: "Server",
     startNew: "Run starten", startJoin: "Run beitreten", eName: "Trag deinen Namen ein.", eSave: "Wähle zuerst einen lesbaren Spielstand.", eCode: "Auf dem Server gibt es keinen Run mit diesem Code.",
-    sLive: "Live aus DeSmuME", sLiveOn: "verbunden", sLiveOff: "Skript läuft nicht", sLiveHint: "Ohne das Skript aktualisiert sich das Dashboard, wenn du im Spiel speicherst. Mit ihm folgt es deinem Team sofort: in DeSmuME Tools › Lua Scripting › New Lua Script Window öffnen, diese Datei auswählen und Run drücken.", sLiveScript: "Skript", sGame: "Dein Spiel", sRun: "Run", sSync: "Sync", sServer: "Server", sLocal: "dieser Rechner", sLeave: "Run verlassen", sLeaveSure: "Zum Verlassen nochmal klicken", sLeaveHint: "Beendet den Sync und führt zurück zur Einrichtung. Der Run bleibt auf dem Server.",
+    sLive: "Live aus DeSmuME", sLua: "Lua für DeSmuME", sLuaState: { present: "bereit", installed: "eingerichtet, DeSmuME neu starten", missing: "DeSmuME nicht gefunden" }, sLiveOn: "verbunden", sLiveOff: "Skript läuft nicht", sLiveHint: "Ohne das Skript aktualisiert sich das Dashboard, wenn du im Spiel speicherst. Mit ihm folgt es deinem Team und deinen Begegnungen sofort: in DeSmuME Tools › Lua Scripting › New Lua Script Window öffnen, diese Datei auswählen und Run drücken.", sLiveScript: "Skript", sGame: "Dein Spiel", sRun: "Run", sSync: "Sync", sServer: "Server", sLocal: "dieser Rechner", sLeave: "Run verlassen", sLeaveSure: "Zum Verlassen nochmal klicken", sLeaveHint: "Beendet den Sync und führt zurück zur Einrichtung. Der Run bleibt auf dem Server.",
     phase: { idle: "Läuft nicht", connecting: "Verbinde", live: "Live, jedes Speichern im Spiel wird gesendet", error: "Gestoppt" },
     tabJoin: "Run beitreten", tabNew: "Neuer Run", code: "Run-Code", codeHelp: "Dein Partner sieht den Code, nachdem er den Run erstellt hat.", openRun: "Run öffnen",
     caps: "Level-Caps", capsPh: "13, 18, 24, 30", capsHelp: "Ein Level pro Arena, der Reihe nach. Leer lassen, um ohne Caps zu spielen.", create: "Run erstellen",
@@ -632,7 +635,7 @@ function renderStart() {
 }
 
 /* ---------- setup page (desktop app) */
-const setupUi = { tab: 1, rules: null, capOn: true, code: "", error: "" };
+const setupUi = { tab: 1, rules: null, capOn: true, sharedSeed: false, code: "", error: "" };
 function rulePicker(chosen, first = "") {
   return `<div class="field"><label>${t().pickRules}</label><div class="checks" id="f-rules">${first}${RULES.filter(id => id !== "cap").map(id => {
     const fixed = RULES_FIXED.includes(id);
@@ -673,7 +676,7 @@ function renderSetup() {
     <div class="pane" style="animation:none">${u.tab === 0
       ? `<div class="field"><label for="f-code">${t().code}</label><input id="f-code" class="mono" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="HYPNO-6811" value="${esc(u.code)}"><small>${t().codeHelp}</small></div>`
       : rulePicker(u.rules, capPicker(u.capOn, rom))}
-      <details class="adv" ${local.server ? "open" : ""}><summary>${t().advanced}</summary><div class="field"><label for="f-server">${t().fServer}</label><input id="f-server" autocomplete="off" spellcheck="false" placeholder="https://" value="${esc(local.server)}"><small>${t().fServerHelp}</small></div></details>
+      <details class="adv" ${local.server ? "open" : ""}><summary>${t().advanced}</summary><div class="field"><label for="f-server">${t().fServer}</label><input id="f-server" autocomplete="off" spellcheck="false" placeholder="https://" value="${esc(local.server)}"><small>${t().fServerHelp}</small></div>${u.tab === 1 ? `<div class="field"><label class="check"><input type="checkbox" id="f-seed" ${u.sharedSeed ? "checked" : ""}> ${t().fSeed}</label><small>${t().fSeedHelp}</small></div>` : ""}</details>
       <p class="err" id="err" ${u.error ? "" : "hidden"}>${esc(u.error)}</p>
       <button class="btn" type="submit">${u.tab === 0 ? t().startJoin : t().startNew}</button>
     </div>
@@ -683,6 +686,7 @@ function renderSetup() {
   const keep = () => {
     const cap = $("#f-cap"), code = $("#f-code");
     if (cap) { u.capOn = cap.checked; u.rules = readRules([]); }
+    if ($("#f-seed")) u.sharedSeed = $("#f-seed").checked;
     if (code) u.code = code.value;
   };
   const save_ = async patch => { keep(); const r = await localPost("set", patch); if (r.ok) { local = await r.json(); SRV = local.server || ""; } };
@@ -704,7 +708,7 @@ function renderSetup() {
     const fail = msg => { u.error = msg; renderSetup(); };
     const rom = local.rom, caps = u.tab === 1 && u.capOn ? rom && rom.ok && rom.caps && rom.caps.levels : [];
     if (!caps) return fail(t().capsNoRom);
-    const body = u.tab === 0 ? { code: u.code.trim() } : { settings: { caps, rules: RULES.filter(id => u.rules.includes(id) || (id === "cap" && caps.length)) } };
+    const body = u.tab === 0 ? { code: u.code.trim() } : { settings: { caps, shared_seed: u.sharedSeed, rules: RULES.filter(id => u.rules.includes(id) || (id === "cap" && caps.length)) } };
     if (u.tab === 0 && !body.code) return fail(t().eCode);
     $(".btn", form).disabled = true;
     const r = await localPost("start", body).catch(() => null);
@@ -767,7 +771,7 @@ function updateEncounters() {
   const cell = s => {
     if (!s) return `<span class="ecell none">–</span>`;
     const p = s.pokemon, b = p.battle;
-    return `<span class="ecell"><span class="slot sm">${spriteImg(p)}</span><span style="min-width:0"><b>${esc(label(p))}</b><small>${esc(p.is_nicknamed && p.nickname ? species(p) + " · " : "")}${b ? `${t().lv} ${b.level}` : t().box(p.place.box ?? "")}</small></span></span>`;
+    return `<span class="ecell"><span class="slot sm">${spriteImg(p)}</span><span style="min-width:0"><b>${esc(label(p))}</b><small>${esc(p.is_nicknamed && p.nickname ? species(p) + " · " : "")}${s.status === "missed" ? t().missed : b ? `${t().lv} ${b.level}` : t().box(p.place.box ?? "")}</small></span></span>`;
   };
   $("#enc").innerHTML = ms.length ? ms.map(m => `<div class="erow ${m.dead ? "lost" : ""}"><span class="eloc">${esc(locName(m.link))}</span>${cell(m.sides[0])}${cell(m.sides[1])}<span class="est ${m.sec}"><i></i>${t()[m.sec]}</span></div>`).join("") : `<p class="empty-list">${t().noLinks}</p>`;
 }
@@ -839,6 +843,8 @@ function updateSettings() {
     ])}</div><p>${t().sLeaveHint}</p><button type="button" class="btn2" id="leave">${t().sLeave}</button></section>`;
     if (local.live) html += `<section class="rblock"><h2>${t().sLive}</h2><div style="margin-top:6px">${kv([
       [t().sSync, `<i class="dot ${local.live.active ? "live" : "idle"}"></i>${local.live.active ? t().sLiveOn : t().sLiveOff}`],
+      [t().sLua, t().sLuaState[local.live.lua] || "–"],
+      ...(local.live.active ? [[t().sPlace, local.live.place ? esc(local.live.place[lang]) : t().sPlaceNone]] : []),
     ])}</div><p>${t().sLiveHint}</p><div class="cmd" id="liveScript"><code>${esc(local.live.script)}</code><button type="button">${t().copy}</button></div></section>`;
   }
   html += `<section class="rblock"><h2>${t().attempt(state.attempt || 1)}</h2><p>${t().rRetry}</p><button type="button" class="btn2" id="retry">${t().retry}</button></section>`;
@@ -869,7 +875,7 @@ function model() {
   const cap = capNow();
   return state.links.map(l => {
     const sides = [l.sides[0] || null, l.sides[1] || null];
-    const dead = sides.some(s => s && s.status === "fainted");
+    const dead = sides.some(s => s && (s.status === "fainted" || s.status === "missed"));
     const complete = sides.every(Boolean);
     const sec = dead ? "lost" : !complete ? "open" : sides.some(s => s.status === "party") ? "team" : "boxed";
     return { key: String(l.location), link: l, sides, dead, sec, cap };
@@ -884,7 +890,7 @@ function spriteImg(p) {
 
 function sideSig(m, i) {
   const s = m.sides[i];
-  if (!s) return ["empty", lang, state.players.map(p => p.name).join()].join("|");
+  if (!s) return ["empty", m.dead, lang, state.players.map(p => p.name).join()].join("|");
   const p = s.pokemon;
   const o = m.sides[i ? 0 : 1];
   return [p.pid, p.species, p.nickname, p.is_nicknamed, s.status, m.dead, p.place.kind, p.place.box, o && o.status, lang].join("|");
@@ -894,11 +900,11 @@ function sideHtml(m, i) {
   const s = m.sides[i];
   if (!s) {
     const other = state.players[i];
-    return `<div class="idg"><span class="wait">${other ? t().turn(esc(other.name)) : esc(t().waitPlayer)}</span><span class="slot empty"></span></div>`;
+    return `<div class="idg"><span class="wait">${m.dead ? esc(t().locked) : other ? t().turn(esc(other.name)) : esc(t().waitPlayer)}</span><span class="slot empty"></span></div>`;
   }
   const p = s.pokemon, b = p.battle;
   let stat;
-  if (m.dead) stat = s.status === "fainted" ? `<span class="note bad">${b ? t().faintedAt(b.level) : t().fainted}</span>` : `<span class="note">${t().lostWith}</span>`;
+  if (m.dead) stat = s.status === "missed" ? `<span class="note bad">${t().missed}</span>` : s.status === "fainted" ? `<span class="note bad">${b ? t().faintedAt(b.level) : t().fainted}</span>` : `<span class="note">${t().lostWith}</span>`;
   else if (!b) {
     const o = m.sides[i ? 0 : 1], split = o && o.status === "party";
     stat = `<span class="note ${split ? "warn" : ""}">${t().box(p.place.box ?? "")}${split ? "  ·  " + t().partnerInTeam : ""}</span>`;
@@ -964,15 +970,18 @@ function newTile() {
 }
 
 function patchTile(el, m) {
-  const [a, b] = m.sides.map(s => s.pokemon);
-  const fallen = m.sides.find(s => s.status === "fainted");
-  const sig = [a.pid, b.pid, a.species, b.species, a.nickname, b.nickname, m.sec, fallen && fallen.pokemon.pid, lang].join("|");
+  const [a, b] = m.sides.map(s => s && s.pokemon);
+  const fallen = m.sides.find(s => s && s.status === "fainted"), missed = m.sides.find(s => s && s.status === "missed");
+  const sig = [a && a.pid, b && b.pid, a && a.species, b && b.species, a && a.nickname, b && b.nickname, m.sec, fallen && fallen.pokemon.pid, missed && missed.pokemon.pid, lang].join("|");
   if (el._sig === sig) return;
   el._sig = sig;
   el.classList.toggle("lost", m.dead);
-  const sub = locName(m.link) + (fallen ? "  ·  " + t().evFainted(label(fallen.pokemon)).replace(/<[^>]+>/g, "").replace(/\.$/, "") : "");
-  el.innerHTML = `<span class="duo"><span class="slot sm">${spriteImg(a)}</span><u></u><span class="slot sm">${spriteImg(b)}</span></span><span class="tt"><b>${esc(label(a))} ${t().and} ${esc(label(b))}</b><small>${esc(sub)}</small></span>`;
-  el.title = `${species(a)} ${t().and} ${species(b)}`;
+  const why = fallen ? t().evFainted(label(fallen.pokemon)).replace(/<[^>]+>/g, "").replace(/\.$/, "") : missed ? `${species(missed.pokemon)} ${t().missed.toLowerCase()}` : "";
+  const sub = locName(m.link) + (why ? "  ·  " + why : "");
+  const slot = p => `<span class="slot sm${p ? "" : " empty"}">${p ? spriteImg(p) : ""}</span>`;
+  const names = [a, b].filter(Boolean);
+  el.innerHTML = `<span class="duo">${slot(a)}<u></u>${slot(b)}</span><span class="tt"><b>${names.map(p => esc(label(p))).join(` ${t().and} `)}</b><small>${esc(sub)}</small></span>`;
+  el.title = names.map(species).join(` ${t().and} `);
 }
 
 // Full rows where stats matter (open, team); compact tiles for box and lost.
@@ -1115,6 +1124,7 @@ function caughtCount() {
 function mountCatch() {
   const el = $("#catch"), u = catchUi;
   el.innerHTML = `<h2>${t().cTitle}<small id="crate"></small></h2>
+    <div class="clive" id="clive" hidden></div>
     <input class="cin" id="cin" type="text" autocomplete="off" spellcheck="false" placeholder="${t().cFind}" aria-label="${t().cFind}" value="${u.sp ? esc(u.sp[lang === "de" ? 1 : 0]) : ""}">
     <div class="clist" id="clist" hidden></div>
     <div class="crow"><span>${t().cHp}</span><input type="range" id="chp" min="1" max="100" value="${u.hp}" aria-label="${t().cHp}"><output id="chpo"></output></div>
@@ -1166,6 +1176,7 @@ function loadSpecies() {
 function updateCatch() {
   if (!$("#cres")) return;
   loadSpecies();
+  followWild();
   const u = catchUi, hp = u.hp;
   $("#chpo").textContent = hp + " %";
   $("#chp").style.setProperty("--hpc", `var(--${hp > 50 ? "ok" : hp > 20 ? "warn" : "danger"})`);
@@ -1181,6 +1192,41 @@ function updateCatch() {
     bar.style.width = pct + "%";
     bar.style.background = `var(--${pct >= 50 ? "ok" : pct >= 20 ? "warn" : "danger"})`;
   });
+}
+
+// One seed for both, or one per player.
+function seedRows() {
+  const mono = v => `<span class="mono" style="font-size:13px">${esc(v)}</span>`;
+  const seeds = state.seeds && state.seeds.length ? state.seeds : [state.seed];
+  if (state.settings.shared_seed || seeds.length < 2) return [[t().kSeed, mono(seeds[0])]];
+  return seeds.map((v, i) => [t().kSeedOf(esc(state.players[i] ? state.players[i].name : t().playerTwo)), mono(v)]);
+}
+
+// The wild Pokémon a player faces right now, from the Lua script: in the app
+// your own, otherwise whoever has one.
+function wildNow() {
+  const ps = state.players.filter(p => p.snapshot && p.snapshot.wild);
+  const p = (local && ps.find(p => p.name === local.name)) || ps[0];
+  return p ? { player: p.name, mon: p.snapshot.wild } : null;
+}
+
+// Keeps the catch chance on the wild Pokémon of the battle: species, HP and
+// status follow it. Between battles the fields are the viewer's again.
+function followWild() {
+  const u = catchUi, w = wildNow(), box = $("#clive");
+  if (!box) return;
+  box.hidden = !w;
+  if (!w) { u.live = null; return; }
+  const m = w.mon, b = m.battle || { hp: 1, max_hp: 1, level: "?" };
+  const sig = [m.pid, b.hp, b.max_hp, m.ailment, lang, u.list && u.list.length].join("|");
+  if (u.live === sig) return;
+  u.live = sig;
+  box.innerHTML = `<i class="dot live"></i><span><b>${esc(species(m))}</b> ${t().lv} ${b.level}  ·  ${b.hp}/${b.max_hp} ${t().cHp}${m.ailment ? "  ·  " + t().ail[m.ailment] : ""}</span><small>${esc(w.player)}</small>`;
+  const sp = (u.list || []).find(x => x[0] === (m.species_name && m.species_name.en));
+  if (sp) { u.sp = sp; $("#cin").value = sp[lang === "de" ? 1 : 0]; }
+  u.hp = Math.max(1, Math.min(100, Math.round(100 * b.hp / (b.max_hp || 1))));
+  $("#chp").value = u.hp;
+  u.status = !m.ailment ? 0 : m.ailment === "sleep" || m.ailment === "freeze" ? 2 : 1;
 }
 
 function gameOf(p) { const g = p && p.snapshot && p.snapshot.trainer.game; return g ? t().games[g] || g : null; }
@@ -1237,7 +1283,7 @@ function updateSetup() {
 
 function updateRail() {
   const cap = capNow();
-  $("#kv").innerHTML = [[t().kAttempt, state.attempt || 1], [t().kCap, cap != null ? cap : t().none], [t().kSeed, `<span class="mono" style="font-size:13px">${esc(state.seed)}</span>`]]
+  $("#kv").innerHTML = [[t().kAttempt, state.attempt || 1], [t().kCap, cap != null ? cap : t().none], ...seedRows()]
     .map(([k, v]) => `<div class="kv"><span>${k}</span><b>${v}</b></div>`).join("");
   updateFeed();
 }
@@ -1258,6 +1304,7 @@ function eventHtml(e) {
     case "level_up": return x.evLevel(m, p.battle ? p.battle.level : "?");
     case "moved": return p.place.kind === "party" ? x.evParty(m) : x.evBox(m, p.place.box);
     case "gone": return x.evGone(m);
+    case "encountered": return x.evMet(esc(e.player), esc(species(p)), esc(nameOf(p.met_location_name, "#" + p.met_location)));
     case "badges": return x.evBadges(esc(e.player), ev.count);
     default: return esc(ev.type);
   }

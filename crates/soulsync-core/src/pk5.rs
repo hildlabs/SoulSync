@@ -23,6 +23,31 @@ pub struct BattleStats {
     pub max_hp: u16,
 }
 
+/// A status condition, as far as it matters for catching.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Ailment {
+    Sleep,
+    Poison,
+    Burn,
+    Freeze,
+    Paralysis,
+}
+
+impl Ailment {
+    /// From the status word of a party Pokémon.
+    fn from_bits(status: u32) -> Option<Self> {
+        Some(match status {
+            s if s & 0x07 != 0 => Ailment::Sleep,
+            s if s & 0x88 != 0 => Ailment::Poison,
+            s if s & 0x10 != 0 => Ailment::Burn,
+            s if s & 0x20 != 0 => Ailment::Freeze,
+            s if s & 0x40 != 0 => Ailment::Paralysis,
+            _ => return None,
+        })
+    }
+}
+
 /// A Pokémon from a save file.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Pokemon {
@@ -41,6 +66,9 @@ pub struct Pokemon {
     pub place: Place,
     /// Present for party Pokémon only.
     pub battle: Option<BattleStats>,
+    /// Status condition of a party Pokémon.
+    #[serde(default)]
+    pub ailment: Option<Ailment>,
 }
 
 impl Pokemon {
@@ -88,6 +116,17 @@ pub(crate) fn read_string(d: &[u8], max_chars: usize) -> String {
     String::from_utf16_lossy(&units)
 }
 
+/// Reads a Pokémon found in the game's memory and tells whether it is a wild
+/// one. Trainers' Pokémon have the same value in all six IVs, which a wild
+/// Pokémon practically never has; eggs are not wild either.
+pub fn parse_wild(raw: &[u8]) -> Option<Pokemon> {
+    let d = crypto::decrypt(raw)?;
+    let iv = u32_at(&d, 0x38);
+    let first = iv & 31;
+    let trainer = (1..6).all(|i| (iv >> (5 * i)) & 31 == first);
+    parse(raw, Place::Party { slot: 0 }).filter(|p| !trainer && !p.is_egg)
+}
+
 /// Decrypts and reads a record. Empty slots, corrupt data (bad checksum) and
 /// invalid species give `None`.
 pub fn parse(raw: &[u8], place: Place) -> Option<Pokemon> {
@@ -125,6 +164,9 @@ pub fn parse(raw: &[u8], place: Place) -> Option<Pokemon> {
         met_location_name: dex::location(met_location).cloned(),
         met_level: d[0x84] & 0x7F,
         place,
+        ailment: battle
+            .as_ref()
+            .and_then(|_| Ailment::from_bits(u32_at(&d, 0x88))),
         battle,
     })
 }
@@ -139,6 +181,20 @@ pub fn build_raw(
     met_level: u8,
     battle: Option<&BattleStats>,
 ) -> Vec<u8> {
+    build_raw_ivs(pid, species, nickname, met_location, met_level, battle, 0)
+}
+
+/// Like [`build_raw`], with the six IVs (five bits each, HP first).
+#[doc(hidden)]
+pub fn build_raw_ivs(
+    pid: u32,
+    species: u16,
+    nickname: &str,
+    met_location: u16,
+    met_level: u8,
+    battle: Option<&BattleStats>,
+    ivs: u32,
+) -> Vec<u8> {
     let mut p = vec![
         0u8;
         if battle.is_some() {
@@ -149,6 +205,7 @@ pub fn build_raw(
     ];
     p[0..4].copy_from_slice(&pid.to_le_bytes());
     p[0x08..0x0A].copy_from_slice(&species.to_le_bytes());
+    p[0x38..0x3C].copy_from_slice(&(ivs & 0x3FFF_FFFF).to_le_bytes());
     if !nickname.is_empty() {
         p[0x3B] |= 0x80; // nickname flag (bit 31 of the IV word)
     }

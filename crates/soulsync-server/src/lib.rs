@@ -345,7 +345,8 @@ impl AppState {
         settings.validate()?;
         let mut runs = self.runs.lock().unwrap();
         let code = new_code(&runs);
-        let seed = rand::rng().random();
+        // 53 bits: exact as a JavaScript number.
+        let seed = rand::rng().random::<u64>() >> 11;
         let (tx, _) = broadcast::channel(64);
         runs.insert(
             code.clone(),
@@ -382,11 +383,15 @@ mod tests {
         SaveSnapshot {
             trainer: Trainer {
                 name: "x".into(),
+                id: 0,
                 badges: 0,
                 game: None,
             },
             party: vec![p],
             boxes: vec![],
+            encounters: vec![],
+            fallen: vec![],
+            wild: None,
         }
     }
 

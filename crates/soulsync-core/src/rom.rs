@@ -10,6 +10,10 @@ use std::io::{self, Read, Seek, SeekFrom};
 
 /// Species data of Black, White, Black 2 and White 2.
 const PERSONAL: &str = "a/0/1/6";
+/// The map headers, one file with a record per map.
+const MAPS: &str = "a/0/1/2";
+const MAP_HEADER: usize = 48;
+const MAP_LOCATION: usize = 26;
 /// Offset of the catch rate in a species entry.
 const CATCH_RATE: usize = 8;
 const SPECIES: usize = 649;
@@ -138,6 +142,22 @@ fn narc_entries(narc: &[u8]) -> Option<Vec<&[u8]>> {
             data.get(u32_at(narc, at)? as usize..u32_at(narc, at + 4)? as usize)
         })
         .collect()
+}
+
+/// The location of every map, by map id: the index of the location's name,
+/// which is also what a Pokémon caught there gets as met location.
+pub fn read_map_locations<R: Read + Seek>(rom: &mut R) -> Result<Vec<u16>, RomError> {
+    let narc = read_file(rom, MAPS)?;
+    let table = narc_entries(&narc)
+        .and_then(|e| e.first().copied())
+        .ok_or(RomError::Layout("map table"))?;
+    if table.is_empty() || table.len() % MAP_HEADER != 0 {
+        return Err(RomError::Layout("map table"));
+    }
+    Ok(table
+        .chunks(MAP_HEADER)
+        .map(|h| u16::from(h[MAP_LOCATION]))
+        .collect())
 }
 
 /// Catch rates as the ROM has them, by National Dex number: index 0 is
@@ -321,6 +341,21 @@ mod tests {
         out.extend(fat);
         out.extend(data);
         out
+    }
+
+    #[test]
+    fn reads_map_locations() {
+        let mut table = vec![0u8; 3 * MAP_HEADER];
+        table[MAP_LOCATION] = 4;
+        table[MAP_HEADER + MAP_LOCATION] = 14;
+        table[2 * MAP_HEADER + MAP_LOCATION] = 14;
+        let image = rom(&[("a/0/1/2", narc(&[table]))]);
+        assert_eq!(
+            read_map_locations(&mut Cursor::new(image)).unwrap(),
+            vec![4, 14, 14]
+        );
+        let image = rom(&[("a/0/1/2", narc(&[vec![0u8; 50]]))]);
+        assert!(read_map_locations(&mut Cursor::new(image)).is_err());
     }
 
     #[test]

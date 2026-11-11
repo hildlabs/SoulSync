@@ -43,6 +43,10 @@ pub struct RunSettings {
     /// show. Empty means the dashboard's default set.
     #[serde(default)]
     pub rules: Vec<String>,
+    /// Both players randomize with the same seed and so get the same world.
+    /// Usually each player has their own.
+    #[serde(default)]
+    pub shared_seed: bool,
 }
 
 impl RunSettings {
@@ -70,8 +74,23 @@ impl RunSettings {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NewRun {
     pub code: String,
-    /// Shared seed for the randomizer, so both players get the same world.
+    /// The run's seed, from which each player's randomizer seed comes; see
+    /// [`player_seed`].
     pub seed: u64,
+}
+
+/// The randomizer seed of the player in seat `seat` (0 or 1). With a shared
+/// seed it is the run's seed for everyone. Seeds stay below 2^53 so that
+/// dashboards, which read them as JavaScript numbers, show them exactly.
+pub fn player_seed(run_seed: u64, seat: usize, shared: bool) -> u64 {
+    if shared || seat == 0 {
+        return run_seed;
+    }
+    // SplitMix64, one step per seat.
+    let mut z = run_seed.wrapping_add(0x9E37_79B9_7F4A_7C15u64.wrapping_mul(seat as u64));
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    (z ^ (z >> 31)) >> 11
 }
 
 /// Everything a dashboard needs to show a run.
@@ -79,6 +98,9 @@ pub struct NewRun {
 pub struct RunState {
     pub code: String,
     pub seed: u64,
+    /// Each seat's randomizer seed, in join order; see [`player_seed`].
+    #[serde(default)]
+    pub seeds: Vec<u64>,
     /// Which try this is, starting at 1. Goes up when the players start over.
     pub attempt: u32,
     pub settings: RunSettings,
@@ -125,5 +147,16 @@ mod tests {
         assert_eq!(s.cap(2), Some(24));
         assert_eq!(s.cap(8), Some(24));
         assert_eq!(RunSettings::default().cap(0), None);
+    }
+
+    #[test]
+    fn players_get_their_own_seed_unless_shared() {
+        let run = 1 << 52;
+        assert_eq!(player_seed(run, 0, false), run);
+        let second = player_seed(run, 1, false);
+        assert_ne!(second, run);
+        assert!(second < 1 << 53);
+        assert_eq!(player_seed(run, 1, false), second);
+        assert_eq!(player_seed(run, 1, true), run);
     }
 }

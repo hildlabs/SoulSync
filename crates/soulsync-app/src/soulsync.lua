@@ -1,28 +1,35 @@
 -- SoulSync live link for DeSmuME (Pokémon Black 2 / White 2).
 --
 -- Load it in DeSmuME under Tools > Lua Scripting > New Lua Script Window.
--- While it runs, it copies the party the game has in memory to a file that
--- the SoulSync app reads, so the dashboard follows without saving in-game.
+-- While it runs, it copies what the game has in memory to a file that the
+-- SoulSync app reads, so the dashboard follows without saving in-game:
+-- your party, where you are, and the Pokémon you meet in battles.
 -- SoulSync writes this file itself; changes are overwritten.
 
 local OUT = [[@OUT@]]
 
 local RAM_START, RAM_END = 0x02000000, 0x02400000
 local MON, HEADER, SLOTS = 220, 8, 6
-local LEN = HEADER + SLOTS * MON
--- Bytes of memory searched per frame while the party is not found.
-local CHUNK = 0x10000
+-- Bytes copied from the party block on: the party, then the trainer and the
+-- player's position, which follow it.
+local WINDOW = 0x800
+-- Bytes of memory searched per frame.
+local PARTY_CHUNK, CHUNK = 0x10000, 0x4000
+-- Most Pokémon from battles kept in the report, and most places watched.
+local REPORTED, WATCHED = 8, 800
 
 local floor = math.floor
 
 local function xor16(a, b)
-  local r, bit = 0, 1
+  local r, place = 0, 1
   for _ = 1, 16 do
-    if a % 2 ~= b % 2 then r = r + bit end
-    a, b, bit = floor(a / 2), floor(b / 2), bit * 2
+    if a % 2 ~= b % 2 then r = r + place end
+    a, b, place = floor(a / 2), floor(b / 2), place * 2
   end
   return r
 end
+-- DeSmuME brings its own, faster one.
+local xor = (bit and bit.bxor) or XOR or xor16
 
 -- The game's random number generator, which also encrypts Pokémon.
 local function advance(seed)
@@ -37,7 +44,7 @@ local function is_pokemon(addr)
   local seed, total = sum, 0
   for o = 8, 134, 2 do
     seed = advance(seed)
-    total = (total + xor16(memory.readword(addr + o), floor(seed / 65536))) % 65536
+    total = (total + xor(memory.readword(addr + o), floor(seed / 65536))) % 65536
   end
   return total == sum
 end
@@ -53,30 +60,12 @@ local function is_party(addr)
   return true
 end
 
-local cursor = RAM_START
-
--- Searches the next piece of memory. Returns the party's address if found.
-local function search()
-  local last = RAM_END - LEN
-  local stop = math.min(cursor + CHUNK, last)
-  for addr = cursor, stop - 4, 4 do
-    local count = memory.readdword(addr + 4)
-    if count >= 1 and count <= SLOTS and is_party(addr) then
-      cursor = RAM_START
-      return addr
-    end
-  end
-  cursor = stop >= last and RAM_START or stop
-end
-
-local function read(addr)
+local function read(addr, len)
   local parts = {}
-  for o = 0, LEN - 1, 8 do
+  for o = 0, len - 1, 4 do
     parts[#parts + 1] = string.char(
       memory.readbyte(addr + o), memory.readbyte(addr + o + 1),
-      memory.readbyte(addr + o + 2), memory.readbyte(addr + o + 3),
-      memory.readbyte(addr + o + 4), memory.readbyte(addr + o + 5),
-      memory.readbyte(addr + o + 6), memory.readbyte(addr + o + 7))
+      memory.readbyte(addr + o + 2), memory.readbyte(addr + o + 3))
   end
   return table.concat(parts)
 end
@@ -89,24 +78,137 @@ local function write(data)
   return true
 end
 
+local party, party_cursor = nil, RAM_START
+
+-- Searches the next piece of memory for the party block.
+local function find_party()
+  local last = RAM_END - WINDOW
+  local stop = math.min(party_cursor + PARTY_CHUNK, last)
+  for addr = party_cursor, stop - 4, 4 do
+    local count = memory.readdword(addr + 4)
+    if count >= 1 and count <= SLOTS and is_party(addr) then
+      party_cursor = RAM_START
+      return addr
+    end
+  end
+  party_cursor = stop >= last and RAM_START or stop
+end
+
+-- Pokémon besides the party. The game keeps the opponent of a battle in
+-- memory like one of yours, so every Pokémon that turns up while the script
+-- runs is reported, and the app tells wild ones from the rest.
+local known = {}    -- personality values seen so far
+local watched = {}  -- addresses where a Pokémon was found, checked often
+local watching = {}
+-- The newest ones: where they are, and their bytes as last seen there.
+local reported = {}
+-- What is in memory when the script starts is old: a first pass over the
+-- memory only takes note of it.
+local cursor, settled = RAM_START, false
+
+local function notice(addr, pid)
+  known[pid] = true
+  if not watching[addr] and #watched < WATCHED then
+    watching[addr] = true
+    watched[#watched + 1] = addr
+  end
+  if settled then
+    reported[#reported + 1] = { addr = addr, pid = pid, data = read(addr, MON), present = true }
+    if #reported > REPORTED then table.remove(reported, 1) end
+    return true
+  end
+end
+
+-- A Pokémon's second field is zero and its checksum is not, which rules out
+-- most of the memory cheaply.
+local function new_pokemon(addr)
+  local mid = memory.readdword(addr + 4)
+  if mid == 0 or mid % 65536 ~= 0 then return end
+  local pid = memory.readdword(addr)
+  if pid ~= 0 and not known[pid] and is_pokemon(addr) then return pid end
+end
+
+local function sweep()
+  local last = RAM_END - MON
+  local stop = math.min(cursor + CHUNK, last)
+  local found = false
+  for addr = cursor, stop - 4, 4 do
+    local pid = new_pokemon(addr)
+    if pid and notice(addr, pid) then found = true end
+  end
+  if stop >= last then
+    cursor = RAM_START
+    if not settled then
+      settled = true
+      print("SoulSync: connected, the dashboard follows your game live.")
+    end
+  else
+    cursor = stop
+  end
+  return found
+end
+
+local function watch()
+  local found = false
+  for i = 1, #watched do
+    local pid = new_pokemon(watched[i])
+    if pid and notice(watched[i], pid) then found = true end
+  end
+  return found
+end
+
+-- Follows the reported Pokémon while they stay where they were found: a
+-- wild Pokémon loses HP and gets a status during the battle.
+local function refresh()
+  for i = 1, #reported do
+    local r = reported[i]
+    r.present = memory.readdword(r.addr) == r.pid and is_pokemon(r.addr)
+    if r.present then r.data = read(r.addr, MON) end
+  end
+end
+
+local function report()
+  local parts = { "SSL3", read(party, WINDOW) }
+  for i = 1, #reported do
+    parts[#parts + 1] = string.char(reported[i].present and 1 or 0) .. reported[i].data
+  end
+  return table.concat(parts)
+end
+
+local function know_party()
+  local count = memory.readdword(party + 4)
+  for i = 0, count - 1 do
+    known[memory.readdword(party + HEADER + i * MON)] = true
+  end
+end
+
 print("SoulSync: looking for your party ...")
 
-local party, sent, sent_at, frame = nil, nil, 0, 0
+local sent, sent_at, frame, changed = nil, 0, 0, false
 while true do
   frame = frame + 1
   if not party then
-    party = search()
-    if party then print("SoulSync: connected, the dashboard follows your party live.") end
-  elseif frame % 30 == 0 then
-    if is_party(party) then
-      local data, now = read(party), os.time()
-      -- Written again every few seconds so the app can tell the script runs.
-      if data ~= sent or now - sent_at >= 5 then
-        if write(data) then sent, sent_at = data, now end
+    party = find_party()
+    if party then
+      know_party()
+      print("SoulSync: party found, taking stock of the memory ...")
+    end
+  else
+    if sweep() then changed = true end
+    if frame % 30 == 0 then
+      if is_party(party) then
+        know_party()
+        if watch() then changed = true end
+        refresh()
+        local data, now = report(), os.time()
+        -- Written again every few seconds so the app can tell the script runs.
+        if changed or data ~= sent or now - sent_at >= 5 then
+          if write(data) then sent, sent_at, changed = data, now, false end
+        end
+      else
+        party = nil
+        print("SoulSync: party lost (reset or loading), looking again ...")
       end
-    else
-      party = nil
-      print("SoulSync: party lost (reset or loading), looking again ...")
     end
   end
   emu.frameadvance()
