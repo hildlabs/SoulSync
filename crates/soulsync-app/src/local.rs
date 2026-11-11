@@ -984,6 +984,9 @@ mod tests {
         battle[0x0E..0x10].copy_from_slice(&60u16.to_le_bytes());
         battle[0x10..0x12].copy_from_slice(&3u16.to_le_bytes());
         battle[0x18] = 4;
+        // Poisoned in the battle; B itself says asleep.
+        battle = [battle, vec![0u8; 0x20]].concat();
+        battle[0x30] = 1;
         globals
             .set("BATTLE", lua.create_string(&battle).unwrap())
             .unwrap();
@@ -1037,13 +1040,13 @@ mod tests {
         // The leftover is not reported, the three new ones are.
         let pids: Vec<u8> = report.seen.iter().map(|raw| raw[0]).collect();
         assert_eq!(pids, [51, 52, 53]);
-        // The newest wild one, as it is at the end: hurt and asleep.
+        // The newest wild one, as the battle has it at the end.
         let facing = report.wild(&live).unwrap();
         assert_eq!(facing.species, 506);
         // The HP of the battle's copy, not the 6 of the Pokémon itself.
         assert_eq!(facing.battle.as_ref().unwrap().hp, 3);
         assert_eq!(facing.battle.as_ref().unwrap().max_hp, 60);
-        assert_eq!(facing.ailment, Some(soulsync_core::Ailment::Sleep));
+        assert_eq!(facing.ailment, Some(soulsync_core::Ailment::Poison));
         let mut encounters = Encounters::default();
         assert!(encounters.observe(&live, &report.seen, Some(20)));
         let list = encounters.of(&save.trainer);
