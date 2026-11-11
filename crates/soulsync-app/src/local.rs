@@ -553,12 +553,7 @@ mod tests {
     fn live_script_exports_the_party() {
         use soulsync_core::pk5::{build_raw, BattleStats};
         use soulsync_core::{parse_b2w2, PARTY_BLOCK_LEN};
-        use std::process::Command;
 
-        if Command::new("lua5.1").arg("-v").output().is_err() {
-            eprintln!("lua5.1 is not installed, skipping");
-            return;
-        }
         let dir = std::env::temp_dir().join(format!("soulsync-lua-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let stats = |level, hp| BattleStats {
@@ -583,11 +578,14 @@ mod tests {
         for (i, raw) in mons.iter().enumerate() {
             ram[at + 8 + i * 220..at + 8 + (i + 1) * 220].copy_from_slice(raw);
         }
-        let (ram_path, out) = (dir.join("ram.bin"), dir.join("party.bin"));
-        std::fs::write(&ram_path, &ram).unwrap();
-        std::fs::write(dir.join("soulsync.lua"), live_script(&out)).unwrap();
+        let out = dir.join("party.bin");
+        // Lua 5.1 is what DeSmuME runs.
+        let lua = mlua::Lua::new();
+        lua.globals()
+            .set("RAM", lua.create_string(&ram).unwrap())
+            .unwrap();
         let harness = r#"
-            local f = assert(io.open(arg[1], "rb")); local ram = f:read("*a"); f:close()
+            local ram = RAM
             local function byte(a)
               local o = a - 0x02000000
               return o >= 0 and o < #ram and ram:byte(o + 1) or 0
@@ -602,23 +600,13 @@ mod tests {
             local frames = 0
             emu = { frameadvance = function()
               frames = frames + 1
-              if frames > 200 then os.exit(0) end
+              if frames > 200 then error("enough frames") end
             end }
             print = function() end
-            dofile(arg[2])
         "#;
-        std::fs::write(dir.join("harness.lua"), harness).unwrap();
-        let run = Command::new("lua5.1")
-            .arg(dir.join("harness.lua"))
-            .arg(&ram_path)
-            .arg(dir.join("soulsync.lua"))
-            .output()
-            .unwrap();
-        assert!(
-            run.status.success(),
-            "{}",
-            String::from_utf8_lossy(&run.stderr)
-        );
+        lua.load(harness).exec().unwrap();
+        let stopped = lua.load(live_script(&out)).exec().unwrap_err();
+        assert!(stopped.to_string().contains("enough frames"), "{stopped}");
         let block = std::fs::read(&out).unwrap();
         assert_eq!(block.len(), PARTY_BLOCK_LEN);
         assert_eq!(block, ram[at..at + PARTY_BLOCK_LEN]);
