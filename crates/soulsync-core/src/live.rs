@@ -135,7 +135,8 @@ impl Encounters {
     ///
     /// A wild Pokémon counts if it is the first in its location: no other
     /// encounter there and no Pokémon from there. Trainers' Pokémon never
-    /// count.
+    /// count, and neither does anything met before the player's first catch;
+    /// see [`SaveSnapshot::only_starter`].
     pub fn observe(
         &mut self,
         snapshot: &SaveSnapshot,
@@ -164,7 +165,9 @@ impl Encounters {
             changed = true;
             let taken = self.list.iter().any(|p| p.met_location == location)
                 || snapshot.all_pokemon().any(|p| p.met_location == location);
-            if !taken {
+            // Before the first catch nothing is missed: the game shows how to
+            // catch with a wild Pokémon that cannot be the player's.
+            if !taken && !snapshot.only_starter() {
                 wild.met_location = location;
                 wild.met_location_name = dex::location(location).cloned();
                 self.list.push(wild);
@@ -203,11 +206,12 @@ impl Encounters {
             }
         }
         if snapshot.only_starter() {
-            // Before the first catch a faint does not count, and one that was
-            // noted before this rule existed is forgotten.
-            let before = self.fallen.len();
+            // Before the first catch neither a faint nor a missed encounter
+            // counts, and what was noted before this rule existed is forgotten.
+            let before = self.fallen.len() + self.list.len();
             self.fallen.retain(|f| !snapshot.owns(f.pid));
-            changed |= self.fallen.len() != before;
+            self.list.clear();
+            changed |= self.fallen.len() + self.list.len() != before;
         } else {
             for p in snapshot.party.iter().filter(|p| p.is_fainted()) {
                 if !self.fallen.iter().any(|f| f.pid == p.pid) {
@@ -255,7 +259,12 @@ mod tests {
         SaveSnapshot {
             trainer: trainer(),
             party,
-            boxes: vec![],
+            // Something caught already: the run has begun.
+            boxes: vec![pk5::parse(
+                &build_raw(0xB0B0, 519, "", 99, 3, None),
+                Place::Box { r#box: 0, slot: 0 },
+            )
+            .unwrap()],
             encounters: vec![],
             fallen: vec![],
             wild: None,
@@ -366,7 +375,7 @@ mod tests {
         let mut boxed = snapshot(vec![snap.party[0].clone()]);
         e.complete(&mut boxed, true);
         assert!(boxed.owns(30));
-        assert_eq!(boxed.boxes[0].place, Place::Box { r#box: 24, slot: 0 });
+        assert_eq!(boxed.boxes[1].place, Place::Box { r#box: 24, slot: 0 });
         // After a save the save decides who is there.
         e.saved();
         let mut saved = snapshot(vec![snap.party[0].clone()]);
@@ -374,13 +383,17 @@ mod tests {
         assert!(!saved.owns(30));
         assert_eq!(saved.fallen[0].pid, 30);
 
-        // A faint noted while the starter was all there was is forgotten.
+        // What was noted while the starter was all there was is forgotten.
         let mut alone = Encounters::default();
         alone.of(&trainer());
         alone.fallen = vec![mon(30, 0)];
-        let mut first = snapshot(vec![mon(30, 0)]);
+        alone.list = vec![mon(31, 20)];
+        let mut first = SaveSnapshot {
+            boxes: vec![],
+            ..snapshot(vec![mon(30, 0)])
+        };
         assert!(alone.complete(&mut first, true));
-        assert!(first.fallen.is_empty());
+        assert!(first.fallen.is_empty() && first.encounters.is_empty());
 
         // A new game starts over.
         let again = Trainer {
