@@ -60,7 +60,16 @@ pub fn sync(
         };
         loop {
             eprintln!("{}", t.connecting.replace("{url}", &url));
-            match session(&url, &path, catch_rates.as_deref(), &mut last, &mut report).await {
+            match session(
+                &url,
+                &path,
+                None,
+                catch_rates.as_deref(),
+                &mut last,
+                &mut report,
+            )
+            .await
+            {
                 Ok(End::Refused(msg)) => return Err(format!("{}: {msg}", t.server_error).into()),
                 Ok(End::Lost) => backoff = 1,
                 Err(e) => eprintln!("{}: {e}", t.error),

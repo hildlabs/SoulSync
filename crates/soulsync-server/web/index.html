@@ -461,7 +461,7 @@ waitPlayer: "Waiting for player two", playerTwo: "Player two", notJoined: "not j
     saveOk: (n, b, p) => `Trainer ${n}  ·  ${b} badges  ·  ${p} Pokémon`, saveBad: "This save cannot be read. Pick the .dsv from DeSmuME’s Battery folder.",
     fServer: "Run server", fServerHelp: "Leave empty to keep the run on this computer only. To play with a partner, both enter the same server address.", advanced: "Server",
     startNew: "Start run", startJoin: "Join run", eName: "Enter your name.", eSave: "Pick a save that can be read first.", eCode: "No run with this code on the server.",
-    sGame: "Your game", sRun: "Run", sSync: "Sync", sServer: "Server", sLocal: "this computer", sLeave: "Leave run", sLeaveSure: "Click again to leave", sLeaveHint: "Stops syncing and returns to the setup. The run stays on the server.",
+    sLive: "Live from DeSmuME", sLiveOn: "connected", sLiveOff: "script not running", sLiveHint: "Without the script the dashboard updates when you save in-game. With it, it follows your party right away: in DeSmuME open Tools › Lua Scripting › New Lua Script Window, choose this file and press Run.", sLiveScript: "Script", sGame: "Your game", sRun: "Run", sSync: "Sync", sServer: "Server", sLocal: "this computer", sLeave: "Leave run", sLeaveSure: "Click again to leave", sLeaveHint: "Stops syncing and returns to the setup. The run stays on the server.",
     phase: { idle: "Not running", connecting: "Connecting", live: "Live, every in-game save is sent", error: "Stopped" },
     tabJoin: "Join a run", tabNew: "New run", code: "Run code", codeHelp: "Your partner sees this code after creating the run.", openRun: "Open run",
     caps: "Level caps", capsPh: "13, 18, 24, 30", capsHelp: "One level per gym, in order. Leave empty to play without caps.", create: "Create run",
@@ -512,7 +512,7 @@ waitPlayer: "Warte auf Spieler zwei", playerTwo: "Spieler zwei", notJoined: "noc
     saveOk: (n, b, p) => `Trainer ${n}  ·  ${b} Orden  ·  ${p} Pokémon`, saveBad: "Dieser Spielstand lässt sich nicht lesen. Wähle die .dsv aus dem Battery-Ordner von DeSmuME.",
     fServer: "Run-Server", fServerHelp: "Leer lassen, dann bleibt der Run nur auf diesem Rechner. Für das Spiel zu zweit tragen beide dieselbe Server-Adresse ein.", advanced: "Server",
     startNew: "Run starten", startJoin: "Run beitreten", eName: "Trag deinen Namen ein.", eSave: "Wähle zuerst einen lesbaren Spielstand.", eCode: "Auf dem Server gibt es keinen Run mit diesem Code.",
-    sGame: "Dein Spiel", sRun: "Run", sSync: "Sync", sServer: "Server", sLocal: "dieser Rechner", sLeave: "Run verlassen", sLeaveSure: "Zum Verlassen nochmal klicken", sLeaveHint: "Beendet den Sync und führt zurück zur Einrichtung. Der Run bleibt auf dem Server.",
+    sLive: "Live aus DeSmuME", sLiveOn: "verbunden", sLiveOff: "Skript läuft nicht", sLiveHint: "Ohne das Skript aktualisiert sich das Dashboard, wenn du im Spiel speicherst. Mit ihm folgt es deinem Team sofort: in DeSmuME Tools › Lua Scripting › New Lua Script Window öffnen, diese Datei auswählen und Run drücken.", sLiveScript: "Skript", sGame: "Dein Spiel", sRun: "Run", sSync: "Sync", sServer: "Server", sLocal: "dieser Rechner", sLeave: "Run verlassen", sLeaveSure: "Zum Verlassen nochmal klicken", sLeaveHint: "Beendet den Sync und führt zurück zur Einrichtung. Der Run bleibt auf dem Server.",
     phase: { idle: "Läuft nicht", connecting: "Verbinde", live: "Live, jedes Speichern im Spiel wird gesendet", error: "Gestoppt" },
     tabJoin: "Run beitreten", tabNew: "Neuer Run", code: "Run-Code", codeHelp: "Dein Partner sieht den Code, nachdem er den Run erstellt hat.", openRun: "Run öffnen",
     caps: "Level-Caps", capsPh: "13, 18, 24, 30", capsHelp: "Ein Level pro Arena, der Reihe nach. Leer lassen, um ohne Caps zu spielen.", create: "Run erstellen",
@@ -837,12 +837,17 @@ function updateSettings() {
       [t().sSync, `<i class="dot ${local.phase}"></i>${t().phase[local.phase] || local.phase}${local.message ? `  ·  ${esc(local.message)}` : ""}`],
       [t().sServer, local.server ? esc(local.server) : t().sLocal],
     ])}</div><p>${t().sLeaveHint}</p><button type="button" class="btn2" id="leave">${t().sLeave}</button></section>`;
+    if (local.live) html += `<section class="rblock"><h2>${t().sLive}</h2><div style="margin-top:6px">${kv([
+      [t().sSync, `<i class="dot ${local.live.active ? "live" : "idle"}"></i>${local.live.active ? t().sLiveOn : t().sLiveOff}`],
+    ])}</div><p>${t().sLiveHint}</p><div class="cmd" id="liveScript"><code>${esc(local.live.script)}</code><button type="button">${t().copy}</button></div></section>`;
   }
   html += `<section class="rblock"><h2>${t().attempt(state.attempt || 1)}</h2><p>${t().rRetry}</p><button type="button" class="btn2" id="retry">${t().retry}</button></section>`;
   if (!local) html += `<section class="rblock"><h2>${t().setup}</h2><ol class="steps"><li>${t().step1}</li><li>${t().step2}<div class="cmd"><code>${esc(syncCmd())}</code><button type="button">${t().copy}</button></div></li><li>${t().step3}</li></ol></section>`;
   el.innerHTML = html;
-  const cmd = $(".cmd button", el);
+  const cmd = $(".cmd:not(#liveScript) button", el);
   if (cmd) cmd.onclick = e => copyText(syncCmd(), e.currentTarget);
+  const script = $("#liveScript button", el);
+  if (script) script.onclick = e => copyText(local.live.script, e.currentTarget);
   confirmButton($("#retry"), t().retry, t().retrySure, btn => {
     btn.disabled = true;
     if (window.SoulSyncDemoRestart) { window.SoulSyncDemoRestart(); btn.disabled = false; btn.classList.remove("arm"); btn.textContent = t().retry; }

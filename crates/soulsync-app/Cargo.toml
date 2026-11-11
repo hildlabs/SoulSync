@@ -28,3 +28,6 @@ wry = "0.48.1"
 
 [build-dependencies]
 winresource = "0.1"
+
+[dev-dependencies]
+mlua = { version = "0.9.9", features = ["lua51", "vendored"] }

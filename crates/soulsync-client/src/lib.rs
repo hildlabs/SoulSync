@@ -84,11 +84,25 @@ fn text(msg: &ClientMsg) -> Message {
     Message::Text(serde_json::to_string(msg).expect("serializable").into())
 }
 
+/// What to show for the save `base`: with the party DeSmuME has in memory,
+/// as the SoulSync Lua script wrote it to `live`, unless the save is newer.
+/// `None` while the script is in the middle of writing; try again.
+fn live_view(base: &SaveSnapshot, save: &Path, live: &Path) -> Option<SaveSnapshot> {
+    match (modified(live), modified(save)) {
+        (Some(l), Some(s)) if l >= s => base.with_live_party(&std::fs::read(live).ok()?),
+        _ => Some(base.clone()),
+    }
+}
+
 /// One connection to a run: sends the save at `path` now and again whenever
 /// the file changes, until the connection ends.
+///
+/// With `live`, the party the emulator has in memory replaces the saved one
+/// as soon as the Lua script reports it, so nobody has to save in-game.
 pub async fn session(
     url: &str,
     path: &Path,
+    live: Option<&Path>,
     catch_rates: Option<&[u8]>,
     last: &mut SaveSnapshot,
     on: &mut (dyn FnMut(Update) + Send),
@@ -107,19 +121,37 @@ pub async fn session(
         .await?;
     }
     on(Update::Connected);
-    let mut stamp = modified(path);
+    // What the save file says, without the live party.
+    let mut base = load(path).unwrap_or_else(|_| last.clone());
+    let mut stamp = None;
+    let mut live_stamp = None;
     let mut tick = tokio::time::interval(Duration::from_secs(1));
     loop {
         tokio::select! {
             _ = tick.tick() => {
                 let now = modified(path);
-                if now == stamp {
+                let live_now = live.and_then(modified);
+                if now == stamp && live_now == live_stamp {
                     continue;
                 }
-                stamp = now;
-                // DeSmuME does not write the file atomically.
-                tokio::time::sleep(Duration::from_millis(300)).await;
-                let Ok(snap) = load(path) else { stamp = None; continue };
+                if now != stamp {
+                    // DeSmuME does not write the file atomically.
+                    tokio::time::sleep(Duration::from_millis(300)).await;
+                    match load(path) {
+                        Ok(snap) => base = snap,
+                        Err(_) => continue,
+                    }
+                    stamp = now;
+                }
+                let snap = match live {
+                    Some(live) => live_view(&base, path, live),
+                    None => Some(base.clone()),
+                };
+                let Some(snap) = snap else { continue };
+                live_stamp = live_now;
+                if snap == *last {
+                    continue;
+                }
                 let events = diff(last, &snap);
                 ws.send(snapshot(&snap)).await?;
                 on(Update::Sent(&events));
@@ -153,5 +185,48 @@ mod tests {
             ws_url("http://localhost:3000", "A-1", "Bö"),
             "ws://localhost:3000/api/runs/A-1/ws?player=B%C3%B6"
         );
+    }
+
+    #[test]
+    fn live_party_counts_until_the_next_save() {
+        use soulsync_core::pk5::{build_raw, BattleStats};
+        use soulsync_core::PARTY_BLOCK_LEN;
+
+        let dir = std::env::temp_dir().join(format!("soulsync-live-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let (save, live) = (dir.join("game.dsv"), dir.join("live-party.bin"));
+        std::fs::write(&save, vec![0u8; 0x80000]).unwrap();
+        let base = load(&save).unwrap();
+        assert_eq!(live_view(&base, &save, &live), Some(base.clone()));
+
+        let stats = BattleStats {
+            level: 5,
+            hp: 20,
+            max_hp: 20,
+        };
+        let mut block = vec![0u8; PARTY_BLOCK_LEN];
+        block[4] = 1;
+        block[8..228].copy_from_slice(&build_raw(7, 495, "", 14, 5, Some(&stats)));
+        std::fs::write(&live, &block).unwrap();
+        let at = |file: &Path, secs| {
+            let t = SystemTime::UNIX_EPOCH + Duration::from_secs(secs);
+            std::fs::File::options()
+                .write(true)
+                .open(file)
+                .unwrap()
+                .set_modified(t)
+                .unwrap();
+        };
+        at(&save, 1_000);
+        at(&live, 1_005);
+        assert_eq!(live_view(&base, &save, &live).unwrap().party.len(), 1);
+        // Saved after the script last wrote: the save is the truth.
+        at(&save, 1_010);
+        assert_eq!(live_view(&base, &save, &live), Some(base.clone()));
+        // A half-written file is ignored.
+        std::fs::write(&live, &block[..500]).unwrap();
+        at(&live, 1_020);
+        assert_eq!(live_view(&base, &save, &live), None);
+        std::fs::remove_dir_all(dir).unwrap();
     }
 }

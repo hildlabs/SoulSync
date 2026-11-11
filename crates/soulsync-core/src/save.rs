@@ -19,6 +19,8 @@ const TRAINER_BLOCK: usize = 0x19400;
 const BADGE_FLAGS: usize = 0x21104;
 /// Offset of the game version byte inside the trainer block.
 const GAME_VERSION: usize = 0x1F;
+/// Length of the party block: an eight-byte header and six Pokémon.
+pub const PARTY_BLOCK_LEN: usize = 8 + 6 * PARTY_SIZE;
 
 /// Why a save file could not be read.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -64,6 +66,65 @@ impl SaveSnapshot {
     /// All Pokémon except eggs, party first.
     pub fn all_pokemon(&self) -> impl Iterator<Item = &Pokemon> {
         self.party.iter().chain(&self.boxes).filter(|p| !p.is_egg)
+    }
+}
+
+impl SaveSnapshot {
+    /// The same save with the party an emulator has in memory right now.
+    ///
+    /// `block` is the party block as the game keeps it in RAM, in the layout
+    /// of the save file: four bytes, the number of Pokémon, then six
+    /// party-format Pokémon. Returns `None` if it is not a valid party.
+    ///
+    /// A Pokémon that was in the saved party but is neither in the live party
+    /// nor in a saved box was deposited since the last save. It is listed in
+    /// the last box until the next save says where it went.
+    pub fn with_live_party(&self, block: &[u8]) -> Option<SaveSnapshot> {
+        if block.len() != PARTY_BLOCK_LEN {
+            return None;
+        }
+        let count = u32::from_le_bytes([block[4], block[5], block[6], block[7]]) as usize;
+        if !(1..=6).contains(&count) {
+            return None;
+        }
+        let party = (0..count)
+            .map(|i| {
+                let o = 8 + i * PARTY_SIZE;
+                pk5::parse(&block[o..o + PARTY_SIZE], Place::Party { slot: i as u8 })
+            })
+            .collect::<Option<Vec<_>>>()?;
+        let in_party = |pid: u32| party.iter().any(|p| p.pid == pid);
+        let mut boxes: Vec<Pokemon> = self
+            .boxes
+            .iter()
+            .filter(|p| !in_party(p.pid))
+            .cloned()
+            .collect();
+        let last_box = BOX_COUNT as u8;
+        let mut free = (0..BOX_SLOTS as u8)
+            .filter(|&slot| {
+                let place = Place::Box {
+                    r#box: last_box,
+                    slot,
+                };
+                !self.boxes.iter().any(|p| p.place == place)
+            })
+            .collect::<Vec<_>>()
+            .into_iter();
+        for old in self.party.iter().filter(|p| !in_party(p.pid)) {
+            let Some(slot) = free.next() else { break };
+            let mut kept = old.clone();
+            kept.place = Place::Box {
+                r#box: last_box,
+                slot,
+            };
+            boxes.push(kept);
+        }
+        Some(SaveSnapshot {
+            trainer: self.trainer.clone(),
+            party,
+            boxes,
+        })
     }
 }
 
@@ -184,5 +245,75 @@ mod tests {
         let mut s = vec![0u8; SAVE_SIZE];
         s[PARTY_BLOCK + 4] = 9;
         assert_eq!(parse_b2w2(&s), Err(SaveError::NotB2W2));
+    }
+
+    #[test]
+    fn live_party_replaces_the_saved_one() {
+        let save = synthetic_save();
+        let snap = parse_b2w2(&save).unwrap();
+        // In memory: Blubb went to the PC, Trick came out of its box and a
+        // new catch joined.
+        let mons = [
+            build_raw(
+                0x1111_2222,
+                488,
+                "Mondi",
+                14,
+                5,
+                Some(&BattleStats {
+                    level: 24,
+                    hp: 0,
+                    max_hp: 74,
+                }),
+            ),
+            build_raw(
+                0x5555_6666,
+                570,
+                "Trick",
+                17,
+                18,
+                Some(&BattleStats {
+                    level: 18,
+                    hp: 40,
+                    max_hp: 40,
+                }),
+            ),
+            build_raw(
+                0x7777_8888,
+                519,
+                "",
+                20,
+                12,
+                Some(&BattleStats {
+                    level: 12,
+                    hp: 30,
+                    max_hp: 30,
+                }),
+            ),
+        ];
+        let mut block = vec![0u8; PARTY_BLOCK_LEN];
+        block[4] = mons.len() as u8;
+        for (i, raw) in mons.iter().enumerate() {
+            block[8 + i * PARTY_SIZE..8 + (i + 1) * PARTY_SIZE].copy_from_slice(raw);
+        }
+        let live = snap.with_live_party(&block).unwrap();
+        assert_eq!(live.trainer, snap.trainer);
+        assert_eq!(live.party.len(), 3);
+        assert!(live.party[0].is_fainted());
+        assert_eq!(live.party[1].place, Place::Party { slot: 1 });
+        assert_eq!(live.boxes.len(), 1);
+        assert_eq!(live.boxes[0].pid, 0x3333_4444);
+        assert_eq!(live.boxes[0].place, Place::Box { r#box: 24, slot: 0 });
+        assert_eq!(live.all_pokemon().count(), 4);
+
+        // The block as the save has it changes nothing.
+        let same = &save[PARTY_BLOCK..PARTY_BLOCK + PARTY_BLOCK_LEN];
+        assert_eq!(snap.with_live_party(same), Some(snap.clone()));
+
+        // Garbage is refused.
+        block[8 + 20] ^= 0xFF;
+        assert_eq!(snap.with_live_party(&block), None);
+        assert_eq!(snap.with_live_party(&[0u8; PARTY_BLOCK_LEN]), None);
+        assert_eq!(snap.with_live_party(&block[..100]), None);
     }
 }
