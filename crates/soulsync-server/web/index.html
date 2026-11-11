@@ -168,6 +168,8 @@ main{display:flex;flex-direction:column;min-height:0}
 .hpn{font-size:12px;min-width:38px}
 .side.b .hpn{text-align:right}
 .note.bad{color:var(--danger)}
+.forget{margin-left:auto;flex:none;font:inherit;font-size:11px;padding:3px 8px;border-radius:6px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer}
+.forget:hover,.forget.sure{color:var(--danger);border-color:var(--danger)}
 .note.warn{color:var(--warn)}
 .wait b{font-weight:500;color:var(--c)}
 .row:not(.lost)[data-b="0"] .seg.b{animation:march .9s linear infinite}
@@ -477,7 +479,7 @@ waitPlayer: n => `Waiting for player ${n}`, playerN: n => `Player ${n}`, fPlayer
     evCaught: (p, m, l) => `<b>${p}</b> caught <b>${m}</b> in ${l}.`, evLinked: m => ` Linked with ${m}.`,
     evFainted: m => `<b>${m}</b> fainted.`, evLost: m => ` <span class="bad">Link with ${m} is lost.</span>`,
     evEvolved: (m, s) => `<b>${m}</b> evolved into ${s}`, evLevel: (m, n) => `<b>${m}</b> grew to Lv ${n}`,
-    evParty: m => `<b>${m}</b> moved to the team`, evBox: (m, n) => `<b>${m}</b> moved to Box ${n}`, evGone: m => `<b>${m}</b> is gone`, evMet: (n, m, l) => `<b>${n}</b> met <b>${m}</b> first in ${l}.`, missed: "Not caught", locked: "Location used up", sPlace: "You are in", sPlaceNone: "unknown",
+    evParty: m => `<b>${m}</b> moved to the team`, evBox: (m, n) => `<b>${m}</b> moved to Box ${n}`, evGone: m => `<b>${m}</b> is gone`, evMet: (n, m, l) => `<b>${n}</b> met <b>${m}</b> first in ${l}.`, missed: "Not caught", forget: "Remove", forgetSure: "Really remove?", forgetTip: "Remove this encounter if it was recorded by mistake", locked: "Location used up", sPlace: "You are in", sPlaceNone: "unknown",
     evBadges: (p, n) => `<b>${p}</b> now has ${n === 1 ? "1 badge" : n + " badges"}`,
     startTitle: "Start a Soul Link", startLead: "Two to four players, one run. Every catch is linked to the others’ catches from the same area.",
     setupTitle: "Set up SoulSync", setupLead: "Pick your game once. SoulSync then keeps it in sync and shows the dashboard.",
@@ -528,7 +530,7 @@ waitPlayer: n => `Warte auf Spieler ${n}`, playerN: n => `Spieler ${n}`, fPlayer
     evCaught: (p, m, l) => `<b>${p}</b> hat <b>${m}</b> gefangen (${l}).`, evLinked: m => ` Verbunden mit ${m}.`,
     evFainted: m => `<b>${m}</b> wurde besiegt.`, evLost: m => ` <span class="bad">Der Link mit ${m} ist verloren.</span>`,
     evEvolved: (m, s) => `<b>${m}</b> hat sich zu ${s} entwickelt`, evLevel: (m, n) => `<b>${m}</b> ist jetzt Lv ${n}`,
-    evParty: m => `<b>${m}</b> ist jetzt im Team`, evBox: (m, n) => `<b>${m}</b> liegt jetzt in Box ${n}`, evGone: m => `<b>${m}</b> ist weg`, evMet: (n, m, l) => `<b>${n}</b> trifft zuerst auf <b>${m}</b> (${l}).`, missed: "Nicht gefangen", locked: "Ort verbraucht", sPlace: "Du bist in", sPlaceNone: "unbekannt",
+    evParty: m => `<b>${m}</b> ist jetzt im Team`, evBox: (m, n) => `<b>${m}</b> liegt jetzt in Box ${n}`, evGone: m => `<b>${m}</b> ist weg`, evMet: (n, m, l) => `<b>${n}</b> trifft zuerst auf <b>${m}</b> (${l}).`, missed: "Nicht gefangen", forget: "Entfernen", forgetSure: "Wirklich entfernen?", forgetTip: "Begegnung entfernen, wenn sie versehentlich erfasst wurde", locked: "Ort verbraucht", sPlace: "Du bist in", sPlaceNone: "unbekannt",
     evBadges: (p, n) => `<b>${p}</b> hat jetzt ${n} Orden`,
     startTitle: "Soul Link starten", startLead: "Zwei bis vier Spieler, ein Run. Jeder Fang ist mit den Fängen der anderen aus demselben Gebiet verbunden.",
     setupTitle: "SoulSync einrichten", setupLead: "Wähle einmal dein Spiel aus. SoulSync hält es danach synchron und zeigt das Dashboard.",
@@ -823,13 +825,25 @@ function showView() {
   const h = $("#title"); if (h) h.textContent = t().tabs[view];
 }
 
+let forgetArmed = null;
+document.addEventListener("click", async e => {
+  const btn = e.target.closest && e.target.closest("[data-forget]");
+  if (!btn) { if (forgetArmed !== null) { forgetArmed = null; if ($("#enc")) updateEncounters(); } return; }
+  const pid = Number(btn.dataset.forget);
+  if (forgetArmed !== pid) { forgetArmed = pid; updateEncounters(); return; }
+  forgetArmed = null; btn.disabled = true;
+  await localPost("forget", { pid }).catch(() => null);
+});
+
 function updateEncounters() {
   const ms = model();
   $("#ehead").innerHTML = `<span>${t().area}</span>${seatList().map(i => `<span><i style="background:${col(i)}"></i>${esc(seatName(i))}</span>`).join("")}<span>${t().status}</span>`;
-  const cell = s => {
+  const cell = (s, i) => {
     if (!s) return `<span class="ecell none">–</span>`;
     const p = s.pokemon, b = p.battle;
-    return `<span class="ecell"><span class="slot sm">${spriteImg(p)}</span><span style="min-width:0"><b>${esc(label(p))}</b><small>${esc(p.is_nicknamed && p.nickname ? species(p) + " · " : "")}${s.status === "missed" ? t().missed : b ? `${t().lv} ${b.level}` : t().box(p.place.box ?? "")}</small></span></span>`;
+    const mine = local && s.status === "missed" && state.players[i] && state.players[i].name === local.name;
+    const drop = mine ? `<button class="forget${forgetArmed === p.pid ? " sure" : ""}" data-forget="${p.pid}" title="${esc(t().forgetTip)}">${forgetArmed === p.pid ? esc(t().forgetSure) : esc(t().forget)}</button>` : "";
+    return `<span class="ecell"><span class="slot sm">${spriteImg(p)}</span><span style="min-width:0"><b>${esc(label(p))}</b><small>${esc(p.is_nicknamed && p.nickname ? species(p) + " · " : "")}${s.status === "missed" ? t().missed : b ? `${t().lv} ${b.level}` : t().box(p.place.box ?? "")}</small></span>${drop}</span>`;
   };
   $("#enc").innerHTML = ms.length ? ms.map(m => `<div class="erow ${m.dead ? "lost" : ""}"><span class="eloc">${esc(locName(m.link))}</span>${m.sides.map(cell).join("")}<span class="est ${m.sec}"><i></i>${t()[m.sec]}</span></div>`).join("") : `<p class="empty-list">${t().noLinks}</p>`;
 }

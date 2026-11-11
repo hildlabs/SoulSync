@@ -7,6 +7,8 @@
 -- SoulSync writes this file itself; changes are overwritten.
 
 local OUT = [[@OUT@]]
+-- Written by the app: the ID of the trainer whose save it syncs.
+local TRAINER = (OUT:gsub("[^\\/]+$", "live-trainer.txt"))
 
 local RAM_START, RAM_END = 0x02000000, 0x02400000
 local MON, HEADER, SLOTS = 220, 8, 6
@@ -78,6 +80,28 @@ local function write(data)
   return true
 end
 
+-- The trainer the app syncs, if it said so.
+local trainer_id = nil
+
+local function read_trainer()
+  local file = io.open(TRAINER, "r")
+  if not file then return nil end
+  local id = tonumber(file:read("*l") or "")
+  file:close()
+  return id
+end
+
+-- Whether the trainer's data follows the party block at addr, as it does in
+-- the game's own save data. An opponent's party is laid out like the
+-- player's; only this tells them apart.
+local function has_trainer(addr)
+  if not trainer_id then return true end
+  for t = HEADER + SLOTS * MON, WINDOW - 0x18, 4 do
+    if memory.readdword(addr + t + 0x14) == trainer_id then return true end
+  end
+  return false
+end
+
 local party, party_cursor = nil, RAM_START
 
 -- Searches the next piece of memory for the party block.
@@ -86,7 +110,7 @@ local function find_party()
   local stop = math.min(party_cursor + PARTY_CHUNK, last)
   for addr = party_cursor, stop - 4, 4 do
     local count = memory.readdword(addr + 4)
-    if count >= 1 and count <= SLOTS and is_party(addr) then
+    if count >= 1 and count <= SLOTS and is_party(addr) and has_trainer(addr) then
       party_cursor = RAM_START
       return addr
     end
@@ -184,9 +208,20 @@ end
 
 print("SoulSync: looking for your party ...")
 
-local sent, sent_at, frame, changed = nil, 0, 0, false
+-- Checks in a row at which the party did not read as one. While the game
+-- rearranges it, as when Pokémon go to a box, it does not for a moment.
+local MISSES = 20
+
+local sent, sent_at, frame, changed, misses = nil, 0, 0, false, 0
+trainer_id = read_trainer()
 while true do
   frame = frame + 1
+  if frame % 300 == 0 then
+    local id = read_trainer()
+    if id ~= trainer_id then
+      trainer_id, party, party_cursor = id, nil, RAM_START
+    end
+  end
   if not party then
     party = find_party()
     if party then
@@ -196,7 +231,11 @@ while true do
   else
     if sweep() then changed = true end
     if frame % 30 == 0 then
-      if is_party(party) then
+      if not has_trainer(party) then
+        party, misses = nil, 0
+        print("SoulSync: party lost (reset or loading), looking again ...")
+      elseif is_party(party) then
+        misses = 0
         know_party()
         if watch() then changed = true end
         refresh()
@@ -206,8 +245,11 @@ while true do
           if write(data) then sent, sent_at, changed = data, now, false end
         end
       else
-        party = nil
-        print("SoulSync: party lost (reset or loading), looking again ...")
+        misses = misses + 1
+        if misses >= MISSES then
+          party, misses = nil, 0
+          print("SoulSync: party lost (reset or loading), looking again ...")
+        end
       end
     end
   end

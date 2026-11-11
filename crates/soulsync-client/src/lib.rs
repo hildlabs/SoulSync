@@ -99,8 +99,12 @@ pub struct Live {
     saved_at: Option<SystemTime>,
     /// Reports in a row that could not be read.
     unreadable: u8,
+    /// The trainer the script was last told to look for.
+    told: Option<u32>,
     /// The location the player is in, for whoever wants to show it.
     pub place: Arc<Mutex<Option<u16>>>,
+    /// Encounters to take back, by PID, from whoever noticed a wrong one.
+    pub forget: Arc<Mutex<Vec<u32>>>,
 }
 
 impl Live {
@@ -116,7 +120,25 @@ impl Live {
             encounters,
             saved_at: None,
             unreadable: 0,
+            told: None,
             place: Arc::default(),
+            forget: Arc::default(),
+        }
+    }
+
+    /// Whether there is something to do although no file changed.
+    fn has_work(&self) -> bool {
+        !self.forget.lock().unwrap().is_empty()
+    }
+
+    /// Tells the script whose party to look for. Opponents' parties are in
+    /// memory too.
+    fn tell(&mut self, trainer: u32) {
+        if self.told != Some(trainer) {
+            let file = self.file.with_file_name("live-trainer.txt");
+            if std::fs::write(file, trainer.to_string()).is_ok() {
+                self.told = Some(trainer);
+            }
         }
     }
 
@@ -125,14 +147,21 @@ impl Live {
     /// `None` while the script is in the middle of writing; try again.
     fn view(&mut self, base: &SaveSnapshot, save: &Path) -> Option<SaveSnapshot> {
         let mut snap = base.clone();
+        self.tell(base.trainer.id);
         let current =
             matches!((modified(&self.file), modified(save)), (Some(l), Some(s)) if l >= s);
         let data = current.then(|| std::fs::read(&self.file).ok()).flatten();
         let report = data.as_deref().and_then(LiveReport::parse);
+        // A report about somebody else's party says nothing about this game.
+        let foreign = report.as_ref().is_some_and(|r| !r.is_of(&base.trainer));
         let live = report
             .as_ref()
+            .filter(|_| !foreign)
             .and_then(|r| Some((r, base.with_live_party(r.party())?)));
         let mut changed = false;
+        for pid in self.forget.lock().unwrap().drain(..) {
+            changed |= self.encounters.forget(pid);
+        }
         let saved_at = modified(save);
         if self.saved_at != saved_at {
             // Not on the first look: what was unsaved before a restart of the
@@ -153,7 +182,7 @@ impl Live {
             *self.place.lock().unwrap() = place;
             changed |= self.encounters.observe(&snap, &report.seen, place);
             snap.wild = report.wild(&snap).map(Box::new);
-        } else if current {
+        } else if current && !foreign {
             // Caught mid-write, most likely. A file that stays unreadable is
             // not a report; then the save alone counts.
             self.unreadable = self.unreadable.saturating_add(1);
@@ -209,7 +238,8 @@ pub async fn session(
             _ = tick.tick() => {
                 let now = modified(path);
                 let live_now = live.as_ref().and_then(|l| modified(&l.file));
-                if now == stamp && live_now == live_stamp {
+                let work = live.as_ref().is_some_and(|l| l.has_work());
+                if now == stamp && live_now == live_stamp && !work {
                     continue;
                 }
                 if now != stamp {
@@ -312,6 +342,21 @@ mod tests {
         assert_eq!(snap.encounters[0].met_location, 14);
         assert_eq!(snap.wild.as_ref().unwrap().species, 504);
         assert_eq!(*live.place.lock().unwrap(), Some(14));
+        // The script was told whose party to look for.
+        let told = std::fs::read_to_string(dir.join("live-trainer.txt")).unwrap();
+        assert_eq!(told, base.trainer.id.to_string());
+        // A report of a party without this trainer behind it, like an
+        // opponent's, says nothing about this game.
+        let mut foreign = report.clone();
+        foreign[4 + 0x604..4 + 0x606].copy_from_slice(&[0, 0]);
+        foreign[4 + 8 + 0x40] ^= 1;
+        std::fs::write(&file, &foreign).unwrap();
+        at(&file, 1_006);
+        let snap = live.view(&base, &save).unwrap();
+        assert!(snap.party.is_empty() && snap.wild.is_none());
+        std::fs::write(&file, &report).unwrap();
+        at(&file, 1_007);
+        assert_eq!(live.view(&base, &save).unwrap().party.len(), 1);
         // Saved after the script last wrote: the save is the truth, the
         // encounters stay.
         at(&save, 1_010);
@@ -321,6 +366,12 @@ mod tests {
         // They survive a restart of the app.
         let mut again = Live::new(file.clone(), store, vec![0, 14]);
         assert_eq!(again.view(&base, &save).unwrap().encounters.len(), 1);
+        // Until the player takes one back as noted by mistake.
+        again.forget.lock().unwrap().push(9);
+        assert!(again.has_work());
+        assert!(again.view(&base, &save).unwrap().encounters.is_empty());
+        let mut third = Live::new(file.clone(), dir.join("encounters.json"), vec![0, 14]);
+        assert!(third.view(&base, &save).unwrap().encounters.is_empty());
         // A half-written report is tried again, then given up on.
         std::fs::write(&file, &report[..500]).unwrap();
         at(&file, 1_020);
