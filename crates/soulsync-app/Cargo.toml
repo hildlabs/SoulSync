@@ -23,3 +23,5 @@ open = "5"
 
 [target.'cfg(any(windows, target_os = "macos"))'.dependencies]
 rfd = { version = "0.15", default-features = false }
+tao = "0.36.0"
+wry = "0.48.1"

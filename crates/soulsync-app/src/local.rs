@@ -55,12 +55,16 @@ struct Local {
     own: String,
 }
 
-fn config_path() -> Option<PathBuf> {
-    let dir = std::env::var_os("SOULSYNC_CONFIG_DIR")
+/// Where the app keeps its settings.
+pub fn data_dir() -> Option<PathBuf> {
+    std::env::var_os("SOULSYNC_CONFIG_DIR")
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("APPDATA").map(|d| PathBuf::from(d).join("SoulSync")))
-        .or_else(|| std::env::var_os("HOME").map(|d| PathBuf::from(d).join(".config/soulsync")))?;
-    Some(dir.join("config.json"))
+        .or_else(|| std::env::var_os("HOME").map(|d| PathBuf::from(d).join(".config/soulsync")))
+}
+
+fn config_path() -> Option<PathBuf> {
+    Some(data_dir()?.join("config.json"))
 }
 
 fn read_config() -> Config {
