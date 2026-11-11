@@ -39,9 +39,27 @@ pub struct RunSettings {
     /// badges. Empty means no caps.
     #[serde(default)]
     pub caps: Vec<u8>,
+    /// Ids of the house rules the players agreed on, for the dashboard to
+    /// show. Empty means the dashboard's default set.
+    #[serde(default)]
+    pub rules: Vec<String>,
 }
 
 impl RunSettings {
+    /// Checks limits before a server accepts the settings.
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.caps.len() > 16 || self.caps.iter().any(|&c| c == 0 || c > 100) {
+            return Err("caps must be 1 to 100, at most 16 of them");
+        }
+        let id = |r: &String| {
+            !r.is_empty() && r.len() <= 24 && r.bytes().all(|b| b.is_ascii_lowercase() || b == b'_')
+        };
+        if self.rules.len() > 32 || !self.rules.iter().all(id) {
+            return Err("rules must be short lowercase ids, at most 32 of them");
+        }
+        Ok(())
+    }
+
     /// The level cap for a player with `badges` badges, if any.
     pub fn cap(&self, badges: u8) -> Option<u8> {
         self.caps.get(badges as usize).or(self.caps.last()).copied()
@@ -101,6 +119,7 @@ mod tests {
     fn caps_follow_badges() {
         let s = RunSettings {
             caps: vec![13, 18, 24],
+            ..RunSettings::default()
         };
         assert_eq!(s.cap(0), Some(13));
         assert_eq!(s.cap(2), Some(24));

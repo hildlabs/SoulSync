@@ -1,0 +1,26 @@
+# A public SoulSync run server with HTTPS.
+#
+#   SOULSYNC_DOMAIN=soulsync.example.org docker compose up -d --build
+#
+# The domain must point to this machine, and ports 80 and 443 must be open.
+services:
+  server:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SOULSYNC_DOMAIN: ${SOULSYNC_DOMAIN:?set SOULSYNC_DOMAIN to the server's domain}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+
+volumes:
+  caddy_data:
