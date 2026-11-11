@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/soulsync-core", "crates/soulsync-cli"]
+members = ["crates/soulsync-core", "crates/soulsync-cli", "crates/soulsync-server"]
 
 [workspace.package]
 version = "0.1.0"

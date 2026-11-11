@@ -1,4 +1,4 @@
-//! Species names, types and location names (Black 2 / White 2).
+//! Species names, types, catch rates and location names (Black 2 / White 2).
 
 use crate::lang::Names;
 use std::sync::OnceLock;
@@ -11,10 +11,12 @@ pub struct Species {
     pub types: Vec<Type>,
     /// Shared id of an evolution family.
     pub family: u16,
+    /// Catch rate of the unmodified games. A player's ROM may differ.
+    pub catch_rate: u8,
 }
 
 /// The 17 types of generation 5.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Type {
     Normal,
@@ -67,15 +69,16 @@ impl Type {
 fn species_table() -> &'static [Species] {
     static T: OnceLock<Vec<Species>> = OnceLock::new();
     T.get_or_init(|| {
-        let raw: Vec<(String, String, i64, i64, u16)> =
+        let raw: Vec<(String, String, i64, i64, u16, u8)> =
             serde_json::from_str(include_str!("../data/species.json")).expect("species.json");
         raw.into_iter()
             .zip(1u16..)
-            .map(|((en, de, t1, t2, family), id)| Species {
+            .map(|((en, de, t1, t2, family, catch_rate), id)| Species {
                 id,
                 name: Names { en, de },
                 types: [t1, t2].into_iter().filter_map(Type::from_index).collect(),
                 family,
+                catch_rate,
             })
             .collect()
     })
@@ -114,6 +117,7 @@ mod tests {
         assert_eq!(s.name.en, "Bulbasaur");
         assert_eq!(s.name.de, "Bisasam");
         assert_eq!(s.types, vec![Type::Grass, Type::Poison]);
+        assert_eq!(s.catch_rate, 45);
         assert_eq!(species(649).unwrap().name.en, "Genesect");
         assert!(species(0).is_none());
         assert!(species(650).is_none());

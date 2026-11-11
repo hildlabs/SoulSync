@@ -6,10 +6,10 @@
 
 use crate::pk5::{Place, Pokemon};
 use crate::save::SaveSnapshot;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Event {
     /// A Pokémon appeared (caught, gifted, hatched).
@@ -94,6 +94,7 @@ mod tests {
             trainer: Trainer {
                 name: "Hannes".into(),
                 badges,
+                game: None,
             },
             party,
             boxes,

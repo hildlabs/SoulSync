@@ -1,10 +1,10 @@
 //! Display languages.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 /// Languages SoulSync can display.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Lang {
     #[default]
@@ -37,7 +37,7 @@ impl FromStr for Lang {
 }
 
 /// A name in every supported language.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Names {
     pub en: String,
     pub de: String,

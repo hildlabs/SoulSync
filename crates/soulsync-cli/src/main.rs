@@ -1,6 +1,7 @@
 //! `soulsync`: read and watch Pokémon save files.
 
 mod i18n;
+mod sync;
 
 use i18n::{text, Text};
 use soulsync_core::{diff, parse_b2w2, Event, Lang, Place, Pokemon, SaveSnapshot};
@@ -11,6 +12,10 @@ use std::time::{Duration, SystemTime};
 struct Opts {
     json: bool,
     lang: Lang,
+    server: String,
+    code: Option<String>,
+    name: Option<String>,
+    rom: Option<PathBuf>,
 }
 
 fn env_lang() -> Lang {
@@ -28,6 +33,11 @@ fn main() -> ExitCode {
     let mut opts = Opts {
         json: false,
         lang: env_lang(),
+        server: std::env::var("SOULSYNC_SERVER")
+            .unwrap_or_else(|_| sync::DEFAULT_SERVER.to_owned()),
+        code: None,
+        name: None,
+        rom: None,
     };
     while let Some(a) = args.next() {
         match a.as_str() {
@@ -40,6 +50,15 @@ fn main() -> ExitCode {
                 }
                 None => pos.push(a),
             },
+            "--server" | "--code" | "--name" | "--rom" => match args.next() {
+                Some(v) => match a.as_str() {
+                    "--server" => opts.server = v,
+                    "--code" => opts.code = Some(v),
+                    "--rom" => opts.rom = Some(PathBuf::from(v)),
+                    _ => opts.name = Some(v),
+                },
+                None => pos.push(a),
+            },
             _ => pos.push(a),
         }
     }
@@ -47,6 +66,17 @@ fn main() -> ExitCode {
     let result = match (pos.first().map(String::as_str), pos.get(1)) {
         (Some("inspect"), Some(p)) => inspect(Path::new(p), &opts),
         (Some("watch"), Some(p)) => watch(PathBuf::from(p), &opts),
+        (Some("rom"), Some(p)) => rom(Path::new(p), &opts),
+        (Some("new"), None) => sync::new_run(&opts.server, t),
+        (Some("sync"), Some(p)) if opts.code.is_some() && opts.name.is_some() => sync::sync(
+            PathBuf::from(p),
+            &opts.server,
+            opts.code.as_deref().unwrap_or_default(),
+            opts.name.as_deref().unwrap_or_default(),
+            opts.rom.as_deref().and_then(|p| catch_rates(p, t)),
+            opts.lang,
+            t,
+        ),
         _ => {
             eprintln!("{}", t.usage);
             return ExitCode::from(2);
@@ -61,11 +91,69 @@ fn main() -> ExitCode {
     }
 }
 
-type Res<T = ()> = Result<T, Box<dyn std::error::Error>>;
+pub(crate) type Res<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
-fn load(path: &Path) -> Res<SaveSnapshot> {
+pub(crate) fn load(path: &Path) -> Res<SaveSnapshot> {
     let data = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
     Ok(parse_b2w2(&data)?)
+}
+
+/// Reads the catch rates from a ROM and says how many differ from the
+/// original game. `None`, with a note, if the ROM cannot be read.
+fn catch_rates(path: &Path, t: &Text) -> Option<Vec<u8>> {
+    let rates = std::fs::File::open(path)
+        .map_err(soulsync_core::RomError::Io)
+        .and_then(|mut f| soulsync_core::read_catch_rates(&mut f));
+    match rates {
+        Ok(rates) => {
+            let changed = (1u16..)
+                .zip(&rates)
+                .filter(|(id, r)| {
+                    soulsync_core::dex::species(*id).map(|s| s.catch_rate) != Some(**r)
+                })
+                .count();
+            eprintln!(
+                "{}",
+                t.rom_rates
+                    .replace("{changed}", &changed.to_string())
+                    .replace("{total}", &rates.len().to_string())
+            );
+            Some(rates)
+        }
+        Err(e) => {
+            eprintln!("{} ({e})", t.rom_rates_failed);
+            None
+        }
+    }
+}
+
+/// Tells which game a ROM is and checks that its catch rates can be read.
+fn rom(path: &Path, o: &Opts) -> Res {
+    use std::io::Read;
+    let mut header = [0u8; soulsync_core::ROM_HEADER_LEN];
+    std::fs::File::open(path)
+        .and_then(|mut f| f.read_exact(&mut header))
+        .map_err(|e| format!("{}: {e}", path.display()))?;
+    let t = text(o.lang);
+    let info = soulsync_core::read_rom_header(&header).ok_or(t.rom_unknown)?;
+    if o.json {
+        println!("{}", serde_json::to_string_pretty(&info)?);
+        return Ok(());
+    }
+    if info.game.is_some() {
+        catch_rates(path, t);
+    }
+    match info.game {
+        Some(g) => println!(
+            "Pokémon {} · {} {} · {}",
+            g.label(o.lang),
+            t.generation,
+            g.generation(),
+            info.code
+        ),
+        None => println!("{} · {} ({})", info.title, info.code, t.rom_unsupported),
+    }
+    Ok(())
 }
 
 fn inspect(path: &Path, o: &Opts) -> Res {
@@ -75,8 +163,13 @@ fn inspect(path: &Path, o: &Opts) -> Res {
         return Ok(());
     }
     let t = text(o.lang);
+    let game = snap
+        .trainer
+        .game
+        .map(|g| format!(" · Pokémon {}", g.label(o.lang)))
+        .unwrap_or_default();
     println!(
-        "{} {} · {} {}",
+        "{} {} · {} {}{game}",
         t.trainer, snap.trainer.name, snap.trainer.badges, t.badges
     );
     println!("\n{} ({})", t.party, snap.party.len());
@@ -123,7 +216,7 @@ fn line(p: &Pokemon, lang: Lang, t: &Text) -> String {
     format!("{place:<12} {name}{stats} · {} {met}{egg}", t.met)
 }
 
-fn describe(e: &Event, lang: Lang, t: &Text) -> String {
+pub(crate) fn describe(e: &Event, lang: Lang, t: &Text) -> String {
     match e {
         Event::Caught { pokemon } => format!("{}: {}", t.ev_caught, line(pokemon, lang, t)),
         Event::Fainted { pokemon } => format!("{}: {}", t.ev_fainted, pokemon.label(lang)),
@@ -148,7 +241,7 @@ fn describe(e: &Event, lang: Lang, t: &Text) -> String {
     }
 }
 
-fn modified(path: &Path) -> Option<SystemTime> {
+pub(crate) fn modified(path: &Path) -> Option<SystemTime> {
     std::fs::metadata(path).and_then(|m| m.modified()).ok()
 }
 

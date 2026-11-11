@@ -5,7 +5,7 @@ SoulSync reads game state **from the outside** (save files, then DeSmuME Lua) in
 | Stage | Scope | Outcome |
 | --- | --- | --- |
 | 1. Foundation | Rust workspace, generation 5 save parser, CLI | `soulsync inspect` reads a real save ✅ |
-| 2. Sync on save | Run server with run codes and WebSocket, save watcher, web dashboard | Saving in-game updates both players' dashboards |
+| 2. Sync on save | Run server with run codes and WebSocket, save watcher, web dashboard | Saving in-game updates both players' dashboards ✅ (runs are kept in memory for now) |
 | 3. Live | DeSmuME Lua script (party, boxes, map, battle state, bag), rule engine | Encounters and deaths show up within seconds |
 | 4. Run setup | Randomizer with a shared seed, ROM check, starter-kit save editor, DeSmuME launcher | One click from run code to playing |
 | 5. Installer | Desktop app (Tauri) for Windows, then macOS/Linux, public default server | One file to send to your partner |
@@ -23,4 +23,4 @@ SoulSync reads game state **from the outside** (save files, then DeSmuME Lua) in
 
 - Does Universal Pokémon Randomizer ZX 4.6.1 accept a seed on the command line? (UPR FVX does, with `-z`.)
 - RAM addresses for the Lua script across game languages.
-- Hosting for the public server.
+- Hosting for the public server, and persisting runs across restarts.

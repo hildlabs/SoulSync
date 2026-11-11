@@ -1,12 +1,12 @@
 //! Readable view of a decrypted generation 5 Pokémon record.
 
 use crate::crypto::{self, PARTY_SIZE, STORED_SIZE};
-use crate::dex;
+use crate::dex::{self, Type};
 use crate::lang::{Lang, Names};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Where a Pokémon sits in the save.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum Place {
     /// Party slot 0..6.
@@ -16,7 +16,7 @@ pub enum Place {
 }
 
 /// Battle stats, stored for party Pokémon only.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BattleStats {
     pub level: u8,
     pub hp: u16,
@@ -24,13 +24,14 @@ pub struct BattleStats {
 }
 
 /// A Pokémon from a save file.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Pokemon {
     /// Personality value, unique per Pokémon. SoulSync uses it to recognise a
     /// Pokémon across evolutions and nickname changes.
     pub pid: u32,
     pub species: u16,
     pub species_name: Option<Names>,
+    pub types: Vec<Type>,
     pub nickname: String,
     pub is_nicknamed: bool,
     pub is_egg: bool,
@@ -114,6 +115,9 @@ pub fn parse(raw: &[u8], place: Place) -> Option<Pokemon> {
         pid,
         species,
         species_name: dex::species(species).map(|s| s.name.clone()),
+        types: dex::species(species)
+            .map(|s| s.types.clone())
+            .unwrap_or_default(),
         nickname: read_string(&d[0x48..], 11),
         is_nicknamed: (iv >> 31) & 1 == 1,
         is_egg: (iv >> 30) & 1 == 1,

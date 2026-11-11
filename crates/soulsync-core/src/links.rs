@@ -1,0 +1,168 @@
+//! Soul Link pairs: the two players' Pokémon from the same location.
+
+use crate::dex;
+use crate::lang::Names;
+use crate::pk5::Pokemon;
+use crate::save::SaveSnapshot;
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+
+/// What happened to one side of a link.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Status {
+    /// In the party and able to fight.
+    Party,
+    /// In a PC box.
+    Boxed,
+    /// In the party with 0 HP.
+    Fainted,
+}
+
+/// One player's side of a link.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Side {
+    pub pokemon: Pokemon,
+    pub status: Status,
+}
+
+/// A location and the Pokémon each player got there.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Link {
+    pub location: u16,
+    pub location_name: Option<Names>,
+    /// Indexed like the players passed to [`links`].
+    pub sides: Vec<Option<Side>>,
+}
+
+impl Link {
+    /// Both players have a Pokémon here.
+    pub fn is_complete(&self) -> bool {
+        self.sides.iter().all(Option::is_some)
+    }
+
+    /// Any side has fainted, so the whole link is dead.
+    pub fn is_dead(&self) -> bool {
+        self.sides
+            .iter()
+            .flatten()
+            .any(|s| s.status == Status::Fainted)
+    }
+}
+
+fn status(p: &Pokemon) -> Status {
+    if p.is_fainted() {
+        Status::Fainted
+    } else if p.battle.is_some() {
+        Status::Party
+    } else {
+        Status::Boxed
+    }
+}
+
+/// Pairs up the players' Pokémon by met location. Per player and location only
+/// the first Pokémon counts (party before boxes); eggs are ignored. Links are
+/// sorted by location id. Players without a save yet are passed as `None`.
+pub fn links(players: &[Option<&SaveSnapshot>]) -> Vec<Link> {
+    let mut by_loc: BTreeMap<u16, Vec<Option<Side>>> = BTreeMap::new();
+    for (i, snap) in players.iter().enumerate() {
+        let Some(snap) = snap else { continue };
+        for p in snap.all_pokemon() {
+            let sides = by_loc
+                .entry(p.met_location)
+                .or_insert_with(|| vec![None; players.len()]);
+            if sides[i].is_none() {
+                sides[i] = Some(Side {
+                    pokemon: p.clone(),
+                    status: status(p),
+                });
+            }
+        }
+    }
+    by_loc
+        .into_iter()
+        .map(|(location, sides)| Link {
+            location,
+            location_name: dex::location(location).cloned(),
+            sides,
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::pk5::{build_raw, parse, BattleStats, Place};
+    use crate::save::Trainer;
+
+    fn party(pid: u32, species: u16, loc: u16, hp: u16) -> Pokemon {
+        let b = BattleStats {
+            level: 10,
+            hp,
+            max_hp: 30,
+        };
+        parse(
+            &build_raw(pid, species, "", loc, 5, Some(&b)),
+            Place::Party { slot: 0 },
+        )
+        .unwrap()
+    }
+
+    fn boxed(pid: u32, species: u16, loc: u16) -> Pokemon {
+        parse(
+            &build_raw(pid, species, "", loc, 5, None),
+            Place::Box { r#box: 1, slot: 0 },
+        )
+        .unwrap()
+    }
+
+    fn snap(party: Vec<Pokemon>, boxes: Vec<Pokemon>) -> SaveSnapshot {
+        SaveSnapshot {
+            trainer: Trainer {
+                name: "x".into(),
+                badges: 0,
+                game: None,
+            },
+            party,
+            boxes,
+        }
+    }
+
+    #[test]
+    fn pairs_by_location() {
+        let a = snap(
+            vec![party(1, 375, 117, 20), party(2, 25, 14, 0)],
+            vec![boxed(3, 1, 15), boxed(4, 4, 15)],
+        );
+        let b = snap(vec![party(10, 60, 117, 20)], vec![boxed(11, 7, 14)]);
+        let l = links(&[Some(&a), Some(&b)]);
+        assert_eq!(
+            l.iter().map(|l| l.location).collect::<Vec<_>>(),
+            vec![14, 15, 117]
+        );
+
+        let r1 = &l[0];
+        assert!(r1.is_complete() && r1.is_dead());
+        assert_eq!(r1.sides[1].as_ref().unwrap().status, Status::Boxed);
+
+        let r2 = &l[1];
+        assert!(!r2.is_complete());
+        assert_eq!(
+            r2.sides[0].as_ref().unwrap().pokemon.pid,
+            3,
+            "first Pokémon per location counts"
+        );
+
+        let start = &l[2];
+        assert!(start.is_complete() && !start.is_dead());
+        assert_eq!(start.location_name.as_ref().unwrap().en, "Aspertia City");
+    }
+
+    #[test]
+    fn missing_player() {
+        let a = snap(vec![party(1, 375, 117, 20)], vec![]);
+        let l = links(&[Some(&a), None]);
+        assert_eq!(l.len(), 1);
+        assert!(l[0].sides[1].is_none());
+    }
+}

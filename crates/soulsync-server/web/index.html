@@ -1,0 +1,1147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SoulSync</title>
+<style>
+@font-face{font-family:Geist;src:url(/assets/fonts/Geist.woff2) format("woff2");font-weight:100 900;font-display:swap}
+@font-face{font-family:"Geist Mono";src:url(/assets/fonts/GeistMono.woff2) format("woff2");font-weight:100 900;font-display:swap}
+
+:root{
+  color-scheme:dark;
+  --bg:#0D0F13;--surface:#14171D;--raised:#1D2129;--line:#272C36;
+  --text:#EDEFF3;--muted:#9CA3B0;--faint:#7A8292;
+  --a:#FF8D4D;--b:#56C2F0;--ok:#5FD38D;--danger:#F2617A;
+  --inverse:#EDEFF3;--inverse-text:#0D0F13;--band:#191C23;--warn:#F2B544;
+  --out:cubic-bezier(.22,1,.36,1);--spring:cubic-bezier(.34,1.56,.64,1);
+}
+@media (prefers-color-scheme:light){:root:not([data-theme=dark]){
+  color-scheme:light;
+  --bg:#F5F4F0;--surface:#FFFFFF;--raised:#EDEBE5;--line:#E2DFD8;
+  --text:#16181D;--muted:#5A606C;--faint:#858A94;
+  --a:#C9500F;--b:#0A76AD;--ok:#1B8A4A;--danger:#C22B48;
+  --inverse:#16181D;--inverse-text:#FFFFFF;--band:#F7F6F2;--warn:#A86400;
+}}
+:root[data-theme=light]{
+  color-scheme:light;
+  --bg:#F5F4F0;--surface:#FFFFFF;--raised:#EDEBE5;--line:#E2DFD8;
+  --text:#16181D;--muted:#5A606C;--faint:#858A94;
+  --a:#C9500F;--b:#0A76AD;--ok:#1B8A4A;--danger:#C22B48;
+  --inverse:#16181D;--inverse-text:#FFFFFF;--band:#F7F6F2;--warn:#A86400;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+html,body{height:100%}
+#app{display:flex;flex-direction:column;height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 Geist,system-ui,sans-serif;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;}
+h1,h2,h3,p,ol{margin:0;padding:0}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0;padding:0}
+::selection{background:var(--b);color:var(--bg)}
+:focus-visible{outline:2px solid var(--text);outline-offset:2px;border-radius:6px}
+.mono{font-family:"Geist Mono",ui-monospace,monospace;font-weight:500}
+[hidden]{display:none!important}
+
+/* ---------- top bar */
+.top{flex:none;height:56px;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 32px;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600;letter-spacing:-.01em;color:inherit;text-decoration:none}
+.mark{position:relative;width:24px;height:14px}
+.mark i{position:absolute;top:0;width:14px;height:14px;border-radius:50%;border:2px solid var(--a)}
+.mark i+i{left:10px;border-color:var(--b)}
+.top-l{display:flex;align-items:center;gap:32px;min-width:0}
+.nav{display:flex;gap:4px}
+.nav button{padding:6px 12px;border-radius:8px;font-weight:500;color:var(--muted);transition:color .15s,background .2s,transform .12s var(--out)}
+.nav button:hover{color:var(--text)}
+.nav button[aria-current=page]{background:var(--raised);color:var(--text)}
+.top-r{display:flex;align-items:center;gap:16px;min-width:0}
+.status{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);white-space:nowrap}
+.status i{position:relative;width:8px;height:8px;border-radius:50%;background:var(--faint);transition:background .3s}
+.status.live i{background:var(--ok)}
+.status.live i::after{content:"";position:absolute;inset:0;border-radius:50%;background:var(--ok);animation:ping 2.4s var(--out) infinite}
+.status.bad i{background:var(--danger)}
+.chip{display:flex;align-items:center;gap:10px;height:32px;padding:0 10px;border:1px solid var(--line);border-radius:8px;font-size:13px}
+.chip button{color:var(--muted);font-weight:500;transition:color .15s}
+.chip button:hover{color:var(--text)}
+.pair{display:flex;height:32px;padding:3px;border:1px solid var(--line);border-radius:8px}
+.pair button{padding:0 8px;border-radius:5px;font-size:13px;font-weight:500;color:var(--muted);transition:color .15s,background .15s,transform .12s var(--out)}
+.pair button[aria-pressed=true]{background:var(--raised);color:var(--text)}
+.icon-btn{display:grid;place-items:center;width:32px;height:32px;border:1px solid var(--line);border-radius:8px;color:var(--muted);transition:color .15s,transform .12s var(--out)}
+.icon-btn:hover{color:var(--text)}
+.icon-btn svg{transition:transform .5s var(--out)}
+.icon-btn:active svg{transform:rotate(40deg)}
+button:active{transform:scale(.97)}
+
+/* ---------- run layout */
+.body{flex:1;min-height:0;width:100%;display:grid;grid-template-columns:minmax(0,1fr) 300px;grid-template-rows:minmax(0,1fr);gap:48px;max-width:1440px;margin:0 auto;padding:28px 40px 32px}
+main{display:flex;flex-direction:column;min-height:0}
+.view{flex:1;min-height:0;display:flex;flex-direction:column;animation:fade .3s var(--out) both}
+.scroll{flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+.head{flex:none;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:20px}
+.head h1{font-size:28px;line-height:1.2;font-weight:600;letter-spacing:-.02em}
+.sum{font-size:14px;color:var(--muted);white-space:pre}
+.sum b{font-weight:400;color:var(--text)}
+.sum .bad{color:var(--danger)}
+.panel{display:flex;flex-direction:column;min-height:0;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.players,.row{display:grid;grid-template-columns:minmax(0,1fr) 250px minmax(0,1fr);align-items:center;padding:0 24px}
+.players{flex:none;padding-block:18px;border-bottom:1px solid var(--line)}
+.pl{display:flex;align-items:center;justify-content:space-between;gap:16px;min-width:0}
+.pl.b,.pl.b .pl-n div,.pl.b .pl-b{flex-direction:row-reverse}
+.pl.b .pl-n{text-align:right}
+.pl-n{min-width:0}
+.pl-n div{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:600;letter-spacing:-.01em}
+.pl-n em{font-size:13px;font-weight:400;font-style:normal;letter-spacing:0;color:var(--muted);white-space:nowrap}
+.pl-n i{flex:none;width:10px;height:10px;border-radius:50%;background:var(--c);transition:opacity .3s}
+.pl.off .pl-n i{opacity:.35}
+.pl-n small{display:block;margin-top:2px;font-size:13px;color:var(--muted);white-space:pre;overflow:hidden;text-overflow:ellipsis}
+.pl-b{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);white-space:nowrap}
+.badges{display:flex;gap:5px}
+.badges i{width:8px;height:8px;border-radius:50%;background:var(--line);transition:background .3s}
+.badges i.on{background:var(--c)}
+.badges i.pop{animation:pop .6s var(--spring)}
+.cap{text-align:center;font-size:13px;color:var(--muted)}
+.cap b{display:block;font-size:15px;font-weight:600;letter-spacing:-.01em;color:var(--text)}
+.game{font-size:13px;color:var(--muted);white-space:nowrap}
+
+.sec{padding-bottom:8px}
+.sec h3{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:10px;margin-bottom:6px;padding:9px 24px;background:var(--band);border-bottom:1px solid var(--line);font-size:13px;font-weight:600}
+.sec+.sec h3,.sec~.sec h3{border-top:1px solid var(--line)}
+.sec h3 em{font-style:normal;font-weight:400;color:var(--faint)}
+.sec h3 small{margin-left:auto;font-size:13px;font-weight:400;color:var(--muted)}
+.glyph{display:flex;align-items:center;gap:2px}
+.glyph i{width:7px;height:7px;border-radius:50%;background:var(--a)}
+.glyph i:last-child{background:var(--b)}
+.glyph u{width:9px;height:2px;border-radius:1px;background:var(--muted)}
+.sec[data-sec=boxed] .glyph i{opacity:.55}
+.sec[data-sec=open] .glyph i:last-child{background:none;box-shadow:inset 0 0 0 1.5px var(--faint)}
+.sec[data-sec=open] .glyph u,.sec[data-sec=lost] .glyph u{background:radial-gradient(circle,var(--faint) 1px,transparent 1.2px) 0 50%/4px 2px repeat-x}
+.sec[data-sec=lost] .glyph i{background:var(--faint)}
+.sec[data-sec=lost] h3 span{color:var(--danger)}
+.row{height:60px}
+.row.enter{animation:rise .5s var(--out) both;animation-delay:calc(var(--i,0)*40ms)}
+
+.side{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0}
+.side.b,.side.b .idg,.side.b .stat{flex-direction:row-reverse}
+.side.swap>*{animation:fade .35s var(--out) both}
+.idg{display:flex;align-items:center;gap:14px;min-width:0;margin-left:auto}
+.side.b .idg{margin-left:0;margin-right:auto}
+.names{min-width:0;text-align:right}
+.side.b .names{text-align:left}
+.names b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.names b{font-size:15px;font-weight:500;line-height:1.3;transition:color .4s}
+.tys{display:flex;justify-content:flex-end;gap:4px;margin-top:3px;min-height:18px}
+.side.b .tys{justify-content:flex-start}
+.ty{padding:0 7px;border-radius:999px;font-size:11.5px;line-height:18px;font-weight:500;white-space:nowrap;background:color-mix(in srgb,var(--tc) 22%,var(--surface));color:color-mix(in srgb,var(--tc) 38%,var(--text));transition:background .4s,color .4s}
+.slot{position:relative;flex:none;display:grid;place-items:center;width:44px;height:44px;border-radius:10px;background:var(--raised);overflow:hidden}
+.slot img{max-width:none;position:absolute;left:50%;top:50%;width:60px;height:60px;margin:-30px 0 0 -30px;image-rendering:pixelated;transition:filter .5s,opacity .5s}
+.slot.empty{background:none;border:1px dashed var(--line)}
+.slot.pulse::after{content:"";position:absolute;inset:0;border-radius:10px;box-shadow:inset 0 0 0 2px var(--c);animation:flash .9s var(--out) both}
+.wait{font-size:14px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stat{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);white-space:nowrap}
+.lv{display:flex;gap:4px}
+.lv b{font-weight:500;color:var(--text);transition:color .3s}
+.lv.over b{color:var(--danger)}
+.roll{position:relative;display:inline-block;overflow:hidden;height:1.5em;line-height:1.5em;vertical-align:bottom}
+.roll span{display:block}
+.roll .out{position:absolute;inset:0 auto auto 0;animation:roll-out .45s var(--out) both}
+.roll .in{animation:roll-in .45s var(--out) both}
+.hp{position:relative;width:56px;height:4px;border-radius:2px;background:var(--line);overflow:hidden}
+.hp i{position:absolute;inset:0;border-radius:2px;transform-origin:left;transform:scaleX(var(--r,0))}
+.hp .ghost{background:var(--text);opacity:.35;transition:transform .7s var(--out) .35s}
+.hp .fill{background:var(--ok);transition:transform .3s var(--out),background .3s}
+.hp.low .fill{background:var(--danger)}
+.hpn{font-size:12px;min-width:38px}
+.side.b .hpn{text-align:right}
+.note.bad{color:var(--danger)}
+.note.warn{color:var(--warn)}
+.wait b{font-weight:500;color:var(--c)}
+.row:not(.lost)[data-b="0"] .seg.b{animation:march .9s linear infinite}
+.row:not(.lost)[data-a="0"] .seg.a{animation:march .9s linear infinite reverse}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:2px 20px;padding:2px 24px 4px}
+.tile{display:flex;align-items:center;gap:12px;min-width:0;height:48px}
+.tile.enter{animation:rise .5s var(--out) both}
+.duo{flex:none;display:flex;align-items:center}
+.duo u{width:10px;height:2px;background:linear-gradient(90deg,var(--a) 50%,var(--b) 50%)}
+.tt{min-width:0}
+.tt b,.tt small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tt b{font-weight:500;line-height:1.3}
+.tt small{font-size:13px;line-height:1.35;color:var(--muted)}
+.tile.lost .duo u{background:radial-gradient(circle,var(--faint) 1px,transparent 1.2px) 0 50%/4px 2px repeat-x}
+.tile.lost .slot img{filter:grayscale(1);opacity:.45}
+.tile.lost .tt b{color:var(--muted)}
+.row.leaving{transition:opacity .35s var(--out) .9s;opacity:0}
+
+/* the tether: a dotted base with a solid line drawn over it from each sprite */
+.tether{display:flex;align-items:center;gap:8px;padding:0 4px;min-width:0}
+.seg{position:relative;flex:1;min-width:8px;height:2px;background:radial-gradient(circle,var(--line) 1px,transparent 1.2px) 0 50%/8px 2px repeat-x}
+.seg::before{content:"";position:absolute;inset:0;border-radius:1px;background:var(--a);transform:scaleX(0);transform-origin:left;transition:transform .55s var(--out)}
+.seg.b::before{background:var(--b);transform-origin:right}
+.row[data-a="1"] .seg.a::before,.row[data-b="1"] .seg.b::before{transform:scaleX(1)}
+.row.enter .seg::before{transition-delay:calc(var(--i,0)*40ms + .15s)}
+.loc{flex:none;max-width:170px;padding:4px 12px;border:1px solid transparent;border-radius:999px;background:var(--raised);font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .4s,color .4s,border-color .4s}
+.loc.pop{animation:pop .55s var(--spring)}
+.row.lost .loc{background:transparent;border-color:var(--line);color:var(--faint);text-decoration:line-through}
+.row.lost .loc.snap{animation:snap .5s var(--out)}
+.row.lost .names b{color:var(--muted)}
+.row.lost .ty{background:var(--raised);color:var(--faint)}
+.row.lost .slot img{filter:grayscale(1);opacity:.45}
+
+.empty-list{padding:28px 24px 34px;color:var(--muted)}
+.setup{padding:22px 24px 26px}
+.setup h3{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.setup ol{margin:10px 0 0;padding-left:18px;color:var(--muted)}
+.setup li{padding:3px 0}
+.cmd{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px;padding:10px 12px;border-radius:8px;background:var(--raised);color:var(--text);font-size:12.5px;overflow-x:auto}
+.cmd code{font-family:"Geist Mono",ui-monospace,monospace;white-space:nowrap}
+.cmd button{flex:none;font-size:13px;font-weight:500;color:var(--muted)}
+
+/* ---------- rail */
+.rail{display:flex;flex-direction:column;gap:26px;padding-top:6px;min-width:0;min-height:0}
+.rail section{flex:none}
+.rail section:last-child{flex:1;min-height:0;display:flex;flex-direction:column}
+.rail h2{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.kv{display:flex;justify-content:space-between;gap:16px;padding:8px 0;border-bottom:1px solid var(--line)}
+.kv span{color:var(--muted)}
+.kv b{font-weight:400;text-align:right;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.feed{flex:1;min-height:0;margin-top:16px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+.ev{display:grid;grid-template-rows:1fr;transition:grid-template-rows .45s var(--out)}
+.ev>div{overflow:hidden;display:grid;grid-template-columns:46px minmax(0,1fr);gap:12px;line-height:21px;transition:opacity .4s var(--out) .1s,transform .45s var(--out) .1s}
+.ev>div>*{padding-bottom:16px}
+.ev time{font-size:13px;color:var(--faint)}
+.ev b{font-weight:500}
+.ev .bad{color:var(--danger)}
+.ev.new{grid-template-rows:0fr}
+.ev.new>div{opacity:0;transform:translateY(-6px)}
+#kv{margin-top:4px}
+.catch{position:relative}
+.catch h2{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.catch h2 small{font-size:12px;font-weight:400;letter-spacing:0;color:var(--muted);white-space:nowrap}
+.cin{width:100%;height:36px;margin-top:12px;padding:0 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);outline:0;transition:border-color .15s}
+.cin:focus{border-color:var(--muted)}
+.cin::placeholder{color:var(--faint)}
+.clist{position:absolute;z-index:5;left:0;right:0;margin-top:4px;padding:4px;border:1px solid var(--line);border-radius:10px;background:var(--surface);box-shadow:0 12px 32px rgba(0,0,0,.28)}
+.clist button{display:flex;justify-content:space-between;width:100%;padding:6px 8px;border-radius:6px;text-align:left}
+.clist button small{color:var(--muted)}
+.clist button.cur,.clist button:hover{background:var(--raised)}
+.crow{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:13px;color:var(--muted)}
+.crow>span:first-child{flex:none;width:44px}
+.crow input[type=range]{flex:1;min-width:0;height:18px;margin:0;accent-color:var(--hpc,var(--ok))}
+.crow output{flex:none;width:40px;text-align:right;color:var(--text)}
+.seg3{flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:2px;padding:2px;border:1px solid var(--line);border-radius:8px}
+.seg3 button{height:24px;border-radius:5px;font-size:12px;font-weight:500;color:var(--muted);white-space:nowrap;transition:background .15s,color .15s}
+.seg3 button[aria-pressed=true]{background:var(--raised);color:var(--text)}
+.crow label{display:flex;align-items:center;gap:8px;cursor:pointer}
+.crow input[type=checkbox]{margin:0;accent-color:var(--text)}
+.cres{margin-top:12px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 12px;align-items:baseline;font-size:13px}
+.cres span small{color:var(--faint);margin-left:6px}
+.cres b{font-weight:600;font-size:14px;text-align:right}
+.cres u{grid-column:1/-1;height:3px;margin-bottom:3px;border-radius:2px;background:var(--raised);text-decoration:none;overflow:hidden}
+.cres u i{display:block;height:100%;border-radius:2px;background:var(--ok);transition:width .45s var(--out),background .3s}
+.cres.off{opacity:.35}
+.feed-empty{margin-top:14px;color:var(--muted)}
+
+/* ---------- encounters, timeline, rules */
+.thead,.erow{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.2fr) minmax(0,1.2fr) 110px;align-items:center;gap:16px;padding:0 24px}
+.thead{flex:none;height:40px;background:var(--band);border-bottom:1px solid var(--line);font-size:13px;font-weight:600}
+.thead i{display:inline-block;width:8px;height:8px;margin-right:8px;border-radius:50%}
+.erow{height:52px;border-bottom:1px solid var(--line)}
+.erow:last-child{border-bottom:0}
+.eloc{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ecell{display:flex;align-items:center;gap:12px;min-width:0}
+.ecell b,.ecell small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ecell b{font-weight:500;line-height:1.3}
+.ecell small{font-size:13px;color:var(--muted);line-height:1.3}
+.ecell.none{color:var(--faint)}
+.slot.sm{width:34px;height:34px;border-radius:8px}
+.slot.sm img{width:46px;height:46px;margin:-23px 0 0 -23px}
+.est{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.est i{width:8px;height:8px;border-radius:50%;background:var(--ok)}
+.est.boxed i{background:var(--muted)}
+.est.open i{background:none;box-shadow:inset 0 0 0 1.5px var(--faint)}
+.est.lost{color:var(--danger)}.est.lost i{background:var(--danger)}
+.erow.lost .slot img{filter:grayscale(1);opacity:.45}
+.erow.lost .ecell b{color:var(--muted)}
+.trow{display:grid;grid-template-columns:52px 8px minmax(0,1fr);align-items:baseline;gap:14px;padding:11px 24px;border-bottom:1px solid var(--line)}
+.trow:last-child{border-bottom:0}
+.trow time{font-size:13px;color:var(--faint)}
+.trow i{width:8px;height:8px;border-radius:50%}
+.trow b{font-weight:500}
+.trow .bad{color:var(--danger)}
+.rules{display:flex;flex-direction:column;gap:16px;padding-right:4px}
+.rblock{padding:20px 24px 22px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+.rblock h2{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.rblock>p{margin-top:8px;color:var(--muted);max-width:60ch}
+.caps{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.capc{min-width:64px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;transition:background .3s,border-color .3s}
+.capc small{display:block;font-size:12px;color:var(--muted)}
+.capc b{font-size:18px;font-weight:600;letter-spacing:-.01em}
+.capc.done{opacity:.45}
+.capc.now{background:var(--raised);border-color:var(--text)}
+.rlist{margin-top:6px;list-style:none}
+.rlist li{display:grid;grid-template-columns:200px minmax(0,1fr);gap:16px;padding:11px 0;border-bottom:1px solid var(--line)}
+.rlist li:last-child{border-bottom:0;padding-bottom:0}
+.rlist b{font-weight:500}
+.rlist span{color:var(--muted)}
+.rblock ol.steps{margin:10px 0 0;padding-left:18px;color:var(--muted)}
+.rblock ol.steps li{padding:3px 0}
+
+.btn2{height:36px;margin-top:14px;padding:0 14px;border:1px solid var(--line);border-radius:8px;font-weight:500;transition:color .2s,border-color .2s,transform .12s var(--out)}
+.btn2.arm{border-color:var(--danger);color:var(--danger)}
+.types{padding:18px 24px 22px}
+.types>p{color:var(--muted)}
+.tgrid{display:grid;grid-template-columns:112px repeat(17,minmax(26px,1fr));grid-template-rows:40px repeat(17,30px);gap:2px;max-width:1000px;margin-top:14px;font-size:12.5px}
+.tgrid i{flex:none;width:8px;height:8px;border-radius:50%;background:var(--tc)}
+.tleg{display:flex;flex-wrap:wrap;gap:6px 22px;margin-top:14px;font-size:13px;color:var(--muted)}
+.tleg span{display:flex;align-items:center;gap:8px}
+.tleg b{display:inline-flex;align-items:center;justify-content:center;width:26px;height:20px;border-radius:4px;font-size:12px;font-weight:600;color:var(--text)}
+.tleg .se{background:color-mix(in srgb,var(--ok) 26%,var(--band))}
+.tleg .nve{background:color-mix(in srgb,var(--danger) 22%,var(--band));color:var(--muted)}
+.tleg .no{background:var(--text);color:var(--bg)}
+.tgrid>*{display:flex;align-items:center;justify-content:center;min-height:0;border-radius:4px;transition:background .15s,color .15s,opacity .25s,box-shadow .15s}
+.tgrid button:active{transform:none}
+.tgrid .rh{justify-content:flex-start;gap:8px;padding-left:8px;font-size:13px;font-weight:500}
+.tgrid .ch{flex-direction:column;gap:3px;color:var(--muted);font-weight:500}
+.tgrid .tc{background:var(--band)}
+.tgrid .se{background:color-mix(in srgb,var(--ok) 26%,var(--band));font-weight:600}
+.tgrid .nve{background:color-mix(in srgb,var(--danger) 22%,var(--band));color:var(--muted)}
+.tgrid .no{background:var(--text);color:var(--bg);font-weight:600}
+.tgrid .hi.rh,.tgrid .hi.ch,.tgrid .sel{background:var(--raised);color:var(--text)}
+.tgrid .tc.hi{box-shadow:inset 0 0 0 1px var(--line)}
+.tgrid .tc{cursor:pointer}
+.tgrid.focus .tc:not(.on){opacity:.28}
+.tgrid.focus .rh:not(.sel),.tgrid.focus .ch:not(.sel){opacity:.45}
+.tgrid .tc.x{box-shadow:inset 0 0 0 1.5px var(--text)}
+
+/* ---------- start */
+.stage{flex:1;overflow-y:auto;display:flex;justify-content:center;align-items:flex-start;padding:56px 16px 80px}
+.form{width:100%;max-width:420px;display:flex;flex-direction:column;gap:28px}
+.form h1{font-size:32px;line-height:1.15;font-weight:600;letter-spacing:-.025em}
+.form .lead{margin-top:10px;font-size:15px;line-height:23px;color:var(--muted)}
+.tabs{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.tabs::before{content:"";position:absolute;top:4px;bottom:4px;left:4px;width:calc(50% - 6px);border-radius:7px;background:var(--raised);transition:transform .35s var(--out)}
+.tabs[data-i="1"]::before{transform:translateX(calc(100% + 4px))}
+.tabs button{position:relative;padding:8px 12px;border-radius:7px;font-weight:500;color:var(--muted);transition:color .2s}
+.tabs button[aria-selected=true]{color:var(--text)}
+.pane{display:flex;flex-direction:column;gap:20px;animation:fade .35s var(--out) both}
+.field label{display:block;margin-bottom:8px;font-size:13px;font-weight:500}
+.field input{width:100%;height:46px;padding:0 14px;background:var(--surface);border:1px solid var(--line);border-radius:10px;font-size:15px;outline:0;transition:border-color .15s}
+.field input::placeholder{color:var(--faint)}
+.field input:focus{border-color:var(--text)}
+.field small{display:block;margin-top:8px;font-size:13px;line-height:19px;color:var(--muted)}
+.btn{height:46px;border-radius:10px;background:var(--inverse);color:var(--inverse-text);font-size:15px;font-weight:500;transition:transform .12s var(--out),opacity .15s}
+.btn:disabled{opacity:.6}
+.err{color:var(--danger);font-size:13px}
+.center-msg{padding:96px 16px;text-align:center;color:var(--muted)}
+
+@keyframes rise{from{opacity:0;transform:translateY(8px)}}
+@keyframes fade{from{opacity:0}}
+@keyframes pop{0%{transform:scale(.7)}60%{transform:scale(1.12)}100%{transform:scale(1)}}
+@keyframes snap{0%,100%{transform:none}20%{transform:translateX(-3px)}45%{transform:translateX(3px)}70%{transform:translateX(-1.5px)}}
+@keyframes flash{0%{opacity:0;transform:scale(.8)}30%{opacity:1;transform:none}100%{opacity:0}}
+@keyframes ping{0%{transform:none;opacity:.5}70%,100%{transform:scale(2.6);opacity:0}}
+@keyframes roll-out{to{transform:translateY(-100%);opacity:0}}
+@keyframes march{to{background-position:8px 50%}}
+@keyframes roll-in{from{transform:translateY(100%);opacity:0}}
+
+@media (max-width:1040px){
+  html,body,#app{height:auto}
+  #app{display:block}
+  .body{display:block;padding:28px 20px 48px}
+  .rail{margin-top:40px}
+  .scroll,.feed{overflow:visible}
+  .types{overflow-x:auto}
+  .types .tgrid{min-width:580px;grid-template-rows:40px repeat(17,26px)}
+  .view,.panel{display:block}
+  .nav{overflow-x:auto}
+}
+@media (max-width:760px){
+  .top{padding:0 12px;gap:8px;height:auto;flex-wrap:wrap;padding-block:10px}
+  .top-l{gap:12px;order:2;width:100%}
+  .thead,.erow{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);padding-inline:12px;gap:8px}
+  .thead>:last-child,.est,.ecell small{display:none}
+  .erow{height:auto;padding-block:8px}
+  .ecell{flex-direction:column;align-items:flex-start;gap:4px}
+  .rlist li{grid-template-columns:minmax(0,1fr);gap:2px}
+  .trow{padding-inline:12px}
+  .top-r{gap:8px}
+  .brand{font-size:0;gap:0}
+  .chip{white-space:nowrap}
+  .status span{display:none}
+  .players{align-items:start}
+  .pl,.pl.b{flex-direction:column;align-items:flex-start;gap:8px}
+  .pl.b{align-items:flex-end}
+  .body{padding:24px 12px 40px}
+  .players,.row{grid-template-columns:minmax(0,1fr) 110px minmax(0,1fr);padding-inline:12px}
+  .sec h3{padding-inline:12px}
+  .stat,.pl-b span,.cap>:not(b),.top .game{display:none}
+  .cap{font-size:13px}
+  .pl-n{max-width:100%;min-width:0}
+  .pl-n small{white-space:normal}
+  .pl-n div{flex-wrap:wrap;row-gap:4px}
+  .row{height:auto;padding-block:8px}
+  .idg,.side.b .idg{flex-direction:column-reverse;gap:6px;margin:0 auto}
+  .names,.side.b .names{text-align:center}
+  .tys,.side.b .tys{justify-content:center;flex-wrap:wrap}
+  .loc{max-width:100%;padding-inline:8px}
+  .seg{display:none}
+  .tether{justify-content:center}
+  .wait{white-space:normal;text-align:center;font-size:13px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;transition-duration:.01ms!important;transition-delay:0s!important}
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+"use strict";
+const T = {
+  en: {
+    links: "Links", run: "Run", activity: "Activity", copy: "Copy", copied: "Copied",
+    live2: "Both players live", live1: "1 of 2 players live", live0: "Waiting for players", offline: "Reconnecting", missing: "Run not found",
+    theme: "Switch theme",
+    tabs: { links: "Links", encounters: "Encounters", timeline: "Timeline", types: "Types", rules: "Rules" },
+    area: "Area", status: "Status",
+    hint: { team: "linked and in play", boxed: "linked, both resting", open: "one catch is still missing", lost: "one fainted, both are out" },
+    turn: n => `<b>${n}</b> is up`, partnerInTeam: "partner is in the team", and: "&",
+    attempt: n => `Attempt ${n}`, kAttempt: "Attempt", kGame: "Game", gen: n => `Gen ${n}`,
+    games: { black: "Black", white: "White", black2: "Black 2", white2: "White 2" },
+    rRetry: "Wiped? Start the next attempt. Links and timeline are cleared, the code stays.", retry: "Start next attempt", retrySure: "Click again to confirm",
+    tLead: "Rows attack, columns defend. Click a type to highlight it.", tSe: "super effective", tNve: "not very effective", tNo: "no effect",
+    cTitle: "Catch chance", cFind: "Wild Pokémon…", cHp: "HP", cStatus: "Status", cNone: "None", cMinor: "PAR PSN BRN", cMajor: "SLP FRZ", cGrass: "Dark grass", cRate: r => `Catch rate ${r}`, cRom: "from your ROM", cStd: "original value",
+    balls: [["Poké Ball", ""], ["Great Ball", ""], ["Ultra Ball", ""], ["Quick Ball", "turn 1"], ["Dusk Ball", "cave or night"]],
+    rCaps: "Level caps", rNoCaps: "This run has no level caps.", rCapsHint: "The highlighted cap applies until both players have the next badge.", gym: n => `Gym ${n}`,
+    rRules: "Soul Link rules", rNote: "SoulSync tracks links, levels and losses. The other rules are on your honour for now.",
+    rList: [["First encounter only", "In each area you may catch only the first Pokémon you meet."], ["Same area, linked", "Your catch and your partner’s catch from the same area form a link."], ["Shared fate", "If one of them faints, its partner is lost too."], ["Together or not at all", "Linked partners are in the team together or in the box together."], ["Failed catch", "If one of you fails the catch, the area is closed for both."], ["Level cap", "No Pokémon may be above the strongest Pokémon of the next gym leader."]],
+    team: "Team", boxed: "Boxed", open: "Open", lost: "Lost",
+    sum: (l, o, x) => [`<b>${l} linked</b>`, `${o} open`, x ? `<span class="bad">${x} lost</span>` : `0 lost`].join("  ·  "),
+    badges: n => n === 1 ? "1 badge" : `${n} badges`, cap: n => `Level cap ${n}`,
+    saved: "saved", never: "no save yet", away: "offline",
+    ago: s => s < 10 ? "just now" : s < 60 ? `${Math.floor(s)} s ago` : s < 3600 ? `${Math.floor(s / 60)} min ago` : `${Math.floor(s / 3600)} h ago`,
+    short: s => s < 45 ? "now" : s < 3600 ? `${Math.max(1, Math.round(s / 60))} min` : s < 86400 ? `${Math.floor(s / 3600)} h` : `${Math.floor(s / 86400)} d`,
+    lv: "Lv", box: n => `Box ${n}`, fainted: "Fainted", faintedAt: n => `Fainted at Lv ${n}`, lostWith: "Lost with the link",
+waitPlayer: "Waiting for player two", playerTwo: "Player two", notJoined: "not joined yet",
+    noLinks: "No catches yet. Links show up here after the first save.", noEvents: "Nothing yet.",
+    setup: "Connect your game", step1: "Save in DeSmuME. The .dsv file is in its Battery folder.", step2: "Run this on each player’s computer:", step3: "Every in-game save updates this page.",
+    yourSave: "<save file>", yourName: "<your name>",
+    kCap: "Level cap", kSeed: "Shared seed", none: "none",
+    evCaught: (p, m, l) => `<b>${p}</b> caught <b>${m}</b> in ${l}.`, evLinked: m => ` Linked with ${m}.`,
+    evFainted: m => `<b>${m}</b> fainted.`, evLost: m => ` <span class="bad">Link with ${m} is lost.</span>`,
+    evEvolved: (m, s) => `<b>${m}</b> evolved into ${s}`, evLevel: (m, n) => `<b>${m}</b> grew to Lv ${n}`,
+    evParty: m => `<b>${m}</b> moved to the team`, evBox: (m, n) => `<b>${m}</b> moved to Box ${n}`, evGone: m => `<b>${m}</b> is gone`,
+    evBadges: (p, n) => `<b>${p}</b> now has ${n === 1 ? "1 badge" : n + " badges"}`,
+    startTitle: "Start a Soul Link", startLead: "Two players, one run. Every catch is linked to your partner’s catch from the same area.",
+    tabJoin: "Join a run", tabNew: "New run", code: "Run code", codeHelp: "Your partner sees this code after creating the run.", openRun: "Open run",
+    caps: "Level caps", capsPh: "13, 18, 24, 30", capsHelp: "One level per gym, in order. Leave empty to play without caps.", create: "Create run",
+    capsErr: "Use whole numbers from 1 to 100, separated by commas.",
+    types: {},
+  },
+  de: {
+    links: "Links", run: "Run", activity: "Verlauf", copy: "Kopieren", copied: "Kopiert",
+    live2: "Beide Spieler live", live1: "1 von 2 Spielern live", live0: "Warte auf Spieler", offline: "Verbinde neu", missing: "Run nicht gefunden",
+    theme: "Farbschema wechseln",
+    tabs: { links: "Links", encounters: "Begegnungen", timeline: "Verlauf", types: "Typen", rules: "Regeln" },
+    area: "Gebiet", status: "Status",
+    hint: { team: "verbunden und im Einsatz", boxed: "verbunden, beide in der Box", open: "ein Fang fehlt noch", lost: "eins besiegt, beide raus" },
+    turn: n => `<b>${n}</b> ist dran`, partnerInTeam: "Partner ist im Team", and: "&",
+    attempt: n => `Versuch ${n}`, kAttempt: "Versuch", kGame: "Spiel", gen: n => `Gen ${n}`,
+    games: { black: "Schwarz", white: "Weiß", black2: "Schwarz 2", white2: "Weiß 2" },
+    rRetry: "Alles verloren? Starte den nächsten Versuch. Links und Verlauf werden geleert, der Code bleibt.", retry: "Nächsten Versuch starten", retrySure: "Zum Bestätigen nochmal klicken",
+    tLead: "Zeilen greifen an, Spalten verteidigen. Klick auf einen Typ hebt ihn hervor.", tSe: "sehr effektiv", tNve: "nicht sehr effektiv", tNo: "keine Wirkung",
+    cTitle: "Fangchance", cFind: "Wildes Pokémon…", cHp: "KP", cStatus: "Status", cNone: "Kein", cMinor: "PAR GIF BRT", cMajor: "SLF GFR", cGrass: "Dunkles Gras", cRate: r => `Fangrate ${r}`, cRom: "aus deiner ROM", cStd: "Originalwert",
+    balls: [["Pokéball", ""], ["Superball", ""], ["Hyperball", ""], ["Flottball", "Runde 1"], ["Finsterball", "Höhle oder Nacht"]],
+    rCaps: "Level-Caps", rNoCaps: "Dieser Run hat keine Level-Caps.", rCapsHint: "Der markierte Cap gilt, bis beide Spieler den nächsten Orden haben.", gym: n => `Arena ${n}`,
+    rRules: "Soul-Link-Regeln", rNote: "SoulSync verfolgt Links, Level und Verluste. Die übrigen Regeln laufen vorerst auf Vertrauen.",
+    rList: [["Nur die erste Begegnung", "In jedem Gebiet darfst du nur das erste Pokémon fangen, das dir begegnet."], ["Gleiches Gebiet, verbunden", "Dein Fang und der Fang deines Partners aus demselben Gebiet bilden einen Link."], ["Geteiltes Schicksal", "Wird eins besiegt, ist auch sein Partner verloren."], ["Zusammen oder gar nicht", "Verbundene Partner sind gemeinsam im Team oder gemeinsam in der Box."], ["Fehlgeschlagener Fang", "Misslingt einem von euch der Fang, ist das Gebiet für beide gesperrt."], ["Level-Cap", "Kein Pokémon darf über dem stärksten Pokémon des nächsten Arenaleiters liegen."]],
+    team: "Team", boxed: "In der Box", open: "Offen", lost: "Verloren",
+    sum: (l, o, x) => [`<b>${l} verbunden</b>`, `${o} offen`, x ? `<span class="bad">${x} verloren</span>` : `0 verloren`].join("  ·  "),
+    badges: n => `${n} Orden`, cap: n => `Level-Cap ${n}`,
+    saved: "gespeichert", never: "noch kein Spielstand", away: "offline",
+    ago: s => s < 10 ? "gerade eben" : s < 60 ? `vor ${Math.floor(s)} s` : s < 3600 ? `vor ${Math.floor(s / 60)} Min.` : `vor ${Math.floor(s / 3600)} Std.`,
+    short: s => s < 45 ? "jetzt" : s < 3600 ? `${Math.max(1, Math.round(s / 60))} Min.` : s < 86400 ? `${Math.floor(s / 3600)} Std.` : `${Math.floor(s / 86400)} T.`,
+    lv: "Lv", box: n => `Box ${n}`, fainted: "Besiegt", faintedAt: n => `Besiegt auf Lv ${n}`, lostWith: "Mit dem Link verloren",
+waitPlayer: "Warte auf Spieler zwei", playerTwo: "Spieler zwei", notJoined: "noch nicht dabei",
+    noLinks: "Noch keine Fänge. Links erscheinen hier nach dem ersten Speichern.", noEvents: "Noch nichts passiert.",
+    setup: "Spiel verbinden", step1: "In DeSmuME speichern. Die .dsv-Datei liegt im Ordner Battery.", step2: "Auf dem Rechner jedes Spielers ausführen:", step3: "Jedes Speichern im Spiel aktualisiert diese Seite.",
+    yourSave: "<spielstand>", yourName: "<dein Name>",
+    kCap: "Level-Cap", kSeed: "Gemeinsamer Seed", none: "keins",
+    evCaught: (p, m, l) => `<b>${p}</b> hat <b>${m}</b> gefangen (${l}).`, evLinked: m => ` Verbunden mit ${m}.`,
+    evFainted: m => `<b>${m}</b> wurde besiegt.`, evLost: m => ` <span class="bad">Der Link mit ${m} ist verloren.</span>`,
+    evEvolved: (m, s) => `<b>${m}</b> hat sich zu ${s} entwickelt`, evLevel: (m, n) => `<b>${m}</b> ist jetzt Lv ${n}`,
+    evParty: m => `<b>${m}</b> ist jetzt im Team`, evBox: (m, n) => `<b>${m}</b> liegt jetzt in Box ${n}`, evGone: m => `<b>${m}</b> ist weg`,
+    evBadges: (p, n) => `<b>${p}</b> hat jetzt ${n} Orden`,
+    startTitle: "Soul Link starten", startLead: "Zwei Spieler, ein Run. Jeder Fang ist mit dem Fang deines Partners aus demselben Gebiet verbunden.",
+    tabJoin: "Run beitreten", tabNew: "Neuer Run", code: "Run-Code", codeHelp: "Dein Partner sieht den Code, nachdem er den Run erstellt hat.", openRun: "Run öffnen",
+    caps: "Level-Caps", capsPh: "13, 18, 24, 30", capsHelp: "Ein Level pro Arena, der Reihe nach. Leer lassen, um ohne Caps zu spielen.", create: "Run erstellen",
+    capsErr: "Bitte ganze Zahlen von 1 bis 100, durch Kommas getrennt.",
+    types: { normal: "Normal", fire: "Feuer", water: "Wasser", electric: "Elektro", grass: "Pflanze", ice: "Eis", fighting: "Kampf", poison: "Gift", ground: "Boden", flying: "Flug", psychic: "Psycho", bug: "Käfer", rock: "Gestein", ghost: "Geist", dragon: "Drache", dark: "Unlicht", steel: "Stahl" },
+  },
+};
+
+const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+let lang = store.get("soulsync.lang") || (navigator.language || "en").slice(0, 2);
+if (!T[lang]) lang = "en";
+const t = () => T[lang];
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const $ = (sel, el = document) => el.querySelector(sel);
+const $app = $("#app");
+const OUT = "cubic-bezier(.22,1,.36,1)";
+const DEMO = location.pathname === "/demo" || window.SOULSYNC_DEMO === true;
+const codeFromPath = DEMO ? "DEMO-0000" : (location.pathname.match(/^\/run\/([^/]+)/) || [])[1];
+
+const VIEWS = ["links", "encounters", "timeline", "types", "rules"];
+let view = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "links";
+let state = null, conn = "offline", sprites = window.SOULSYNC_SPRITES || null, mounted = false;
+const theme = store.get("soulsync.theme");
+if (theme) document.documentElement.dataset.theme = theme;
+
+const nameOf = (names, fallback) => names ? names[lang] : fallback;
+const species = p => nameOf(p.species_name, "#" + p.species);
+const label = p => p.is_nicknamed && p.nickname ? p.nickname : species(p);
+const locName = l => nameOf(l.location_name, "#" + l.location);
+const typeName = ty => t().types[ty] || ty[0].toUpperCase() + ty.slice(1);
+const once = (el, cls) => { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); el.addEventListener("animationend", () => el.classList.remove(cls), { once: true }); };
+const nextFrame = fn => requestAnimationFrame(() => requestAnimationFrame(fn));
+
+/* ---------- chrome */
+function topBar() {
+  const run = !!codeFromPath;
+  return `<header class="top">
+    <div class="top-l"><a class="brand" href="/"><span class="mark"><i></i><i></i></span>SoulSync</a>
+    ${run ? `<nav class="nav" id="nav">${VIEWS.map(v => `<button type="button" data-v="${v}">${t().tabs[v]}</button>`).join("")}</nav>` : ""}</div>
+    <div class="top-r">
+      ${run ? `<span class="game" id="game"></span><span class="status" id="status"><i></i><span></span></span>
+      <span class="chip"><span class="mono" id="code">${esc(codeFromPath.toUpperCase())}</span><button type="button" id="copy">${t().copy}</button></span>` : ""}
+      <span class="pair" id="lang"><button type="button" data-l="en" aria-pressed="${lang === "en"}">EN</button><button type="button" data-l="de" aria-pressed="${lang === "de"}">DE</button></span>
+      <button type="button" class="icon-btn" id="theme" aria-label="${t().theme}" title="${t().theme}"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="3.2"/><path d="M8 1.5v1.3M8 13.2v1.3M1.5 8h1.3M13.2 8h1.3M3.4 3.4l.9.9M11.7 11.7l.9.9M3.4 12.6l.9-.9M11.7 4.3l.9-.9"/></svg></button>
+    </div>
+  </header>`;
+}
+
+function bindChrome() {
+  $("#lang").onclick = e => {
+    const b = e.target.closest("button"); if (!b || b.dataset.l === lang) return;
+    lang = b.dataset.l; store.set("soulsync.lang", lang); mounted = false; render();
+  };
+  $("#theme").onclick = () => {
+    const root = document.documentElement;
+    const dark = root.dataset.theme ? root.dataset.theme === "dark" : !matchMedia("(prefers-color-scheme:light)").matches;
+    root.dataset.theme = dark ? "light" : "dark"; store.set("soulsync.theme", root.dataset.theme);
+  };
+  const nav = $("#nav");
+  if (nav) nav.onclick = e => {
+    const b = e.target.closest("button"); if (!b || b.dataset.v === view) return;
+    view = b.dataset.v; try { history.replaceState(null, "", "#" + view); } catch {}
+    showView();
+  };
+  const copy = $("#copy");
+  if (copy) copy.onclick = () => copyText($("#code").textContent, copy);
+}
+
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); btn.textContent = t().copied; setTimeout(() => btn.textContent = t().copy, 1500); } catch {}
+}
+
+/* ---------- start page */
+let tab = 0;
+function renderStart() {
+  $app.innerHTML = topBar() + `<main class="stage"><div class="form">
+    <div><h1>${t().startTitle}</h1><p class="lead">${t().startLead}</p></div>
+    <div class="tabs" role="tablist" data-i="${tab}"><button type="button" role="tab" aria-selected="${tab === 0}" data-i="0">${t().tabJoin}</button><button type="button" role="tab" aria-selected="${tab === 1}" data-i="1">${t().tabNew}</button></div>
+    <form class="pane" id="pane"></form>
+  </div></main>`;
+  bindChrome();
+  const tabs = $(".tabs"), pane = $("#pane");
+  const fill = () => {
+    pane.innerHTML = tab === 0
+      ? `<div class="field"><label for="f-code">${t().code}</label><input id="f-code" class="mono" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="HYPNO-6811" required><small>${t().codeHelp}</small></div><button class="btn" type="submit">${t().openRun}</button>`
+      : `<div class="field"><label for="f-caps">${t().caps}</label><input id="f-caps" autocomplete="off" placeholder="${t().capsPh}"><small>${t().capsHelp}</small></div><p class="err" id="err" hidden></p><button class="btn" type="submit">${t().create}</button>`;
+    pane.style.animation = "none"; void pane.offsetWidth; pane.style.animation = "";
+  };
+  fill();
+  tabs.onclick = e => {
+    const b = e.target.closest("button"); if (!b || +b.dataset.i === tab) return;
+    tab = +b.dataset.i; tabs.dataset.i = tab;
+    tabs.querySelectorAll("button").forEach(x => x.setAttribute("aria-selected", +x.dataset.i === tab));
+    fill();
+  };
+  pane.onsubmit = async e => {
+    e.preventDefault();
+    if (tab === 0) {
+      const c = $("#f-code").value.trim().toUpperCase();
+      if (c) location.href = "/run/" + encodeURIComponent(c);
+      return;
+    }
+    const err = $("#err"), btn = $(".btn", pane), raw = $("#f-caps").value.trim();
+    const caps = raw ? raw.split(/[\s,;]+/).filter(Boolean).map(Number) : [];
+    if (caps.some(n => !Number.isInteger(n) || n < 1 || n > 100) || caps.length > 16) { err.textContent = t().capsErr; err.hidden = false; return; }
+    btn.disabled = true;
+    try {
+      const res = await fetch("/api/runs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ caps }) });
+      if (!res.ok) throw new Error(await res.text());
+      location.href = "/run/" + encodeURIComponent((await res.json()).code);
+    } catch (e2) { btn.disabled = false; err.textContent = String(e2.message || e2); err.hidden = false; }
+  };
+}
+
+/* ---------- run page */
+const SECTIONS = ["open", "team", "boxed", "lost"];
+const TILED = { boxed: true, lost: true };
+const rows = new Map();   // location id -> row element
+const feed = new Map();   // event key -> element
+
+function mount() {
+  rows.clear(); feed.clear();
+  $app.innerHTML = topBar() + `<div class="body">
+    <main>
+      <div class="head"><h1 id="title"></h1><p class="sum" id="sum"></p></div>
+      <div class="view" data-view="links"><div class="panel">
+        <div class="players"><div class="pl a" style="--c:var(--a)"></div><div class="cap" id="cap"></div><div class="pl b" style="--c:var(--b)"></div></div>
+        <div class="scroll">
+          <div id="setup"></div>
+          ${SECTIONS.map(s => `<section class="sec" data-sec="${s}" hidden><h3><span class="glyph"><i></i><u></u><i></i></span><span>${t()[s]}</span><em></em><small>${t().hint[s]}</small></h3><div class="${TILED[s] ? "tiles" : "rows"}"></div></section>`).join("")}
+          <p class="empty-list" id="none" hidden>${t().noLinks}</p>
+        </div>
+      </div></div>
+      <div class="view" data-view="encounters" hidden><div class="panel"><div class="thead" id="ehead"></div><div class="scroll" id="enc"></div></div></div>
+      <div class="view" data-view="timeline" hidden><div class="panel"><div class="scroll" id="tl"></div></div></div>
+      <div class="view" data-view="types" hidden><div class="panel"><div class="scroll types" id="types"></div></div></div>
+      <div class="view" data-view="rules" hidden><div class="scroll rules" id="rules"></div></div>
+    </main>
+    <aside class="rail">
+      <section><h2>${t().run}</h2><div id="kv"></div></section>
+      <section class="catch" id="catch"></section>
+      <section><h2>${t().activity}</h2><div class="feed" id="feed"></div><p class="feed-empty" id="nofeed" hidden>${t().noEvents}</p></section>
+    </aside>
+  </div>`;
+  bindChrome();
+  mountCatch();
+  mounted = true;
+  showView();
+}
+
+function showView() {
+  document.querySelectorAll(".view").forEach(el => { el.hidden = el.dataset.view !== view; });
+  document.querySelectorAll("#nav button").forEach(b => { if (b.dataset.v === view) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
+  const h = $("#title"); if (h) h.textContent = t().tabs[view];
+}
+
+function updateEncounters() {
+  const ms = model(), ps = state.players;
+  $("#ehead").innerHTML = `<span>${t().area}</span>${[0, 1].map(i => `<span><i style="background:var(--${i ? "b" : "a"})"></i>${esc(ps[i] ? ps[i].name : t().playerTwo)}</span>`).join("")}<span>${t().status}</span>`;
+  const cell = s => {
+    if (!s) return `<span class="ecell none">–</span>`;
+    const p = s.pokemon, b = p.battle;
+    return `<span class="ecell"><span class="slot sm">${spriteImg(p)}</span><span style="min-width:0"><b>${esc(label(p))}</b><small>${esc(p.is_nicknamed && p.nickname ? species(p) + " · " : "")}${b ? `${t().lv} ${b.level}` : t().box(p.place.box ?? "")}</small></span></span>`;
+  };
+  $("#enc").innerHTML = ms.length ? ms.map(m => `<div class="erow ${m.dead ? "lost" : ""}"><span class="eloc">${esc(locName(m.link))}</span>${cell(m.sides[0])}${cell(m.sides[1])}<span class="est ${m.sec}"><i></i>${t()[m.sec]}</span></div>`).join("") : `<p class="empty-list">${t().noLinks}</p>`;
+}
+
+function updateTimeline() {
+  const idx = Object.fromEntries(state.players.map((p, i) => [p.name, i]));
+  const two = n => String(n).padStart(2, "0");
+  $("#tl").innerHTML = state.log.length ? state.log.map(e => {
+    const d = new Date(e.at);
+    return `<div class="trow"><time>${two(d.getHours())}:${two(d.getMinutes())}</time><i style="background:var(--${idx[e.player] ? "b" : "a"})"></i><span>${eventHtml(e)}</span></div>`;
+  }).join("") : `<p class="empty-list">${t().noEvents}</p>`;
+}
+
+let armUntil = 0;
+const armed = () => Date.now() < armUntil;
+
+function updateRules() {
+  const caps = state.settings && state.settings.caps || [];
+  const withSave = state.players.filter(p => p.snapshot);
+  const badges = withSave.length ? Math.min(...withSave.map(p => p.snapshot.trainer.badges)) : 0;
+  const now = Math.min(badges, caps.length - 1);
+  const sig = [lang, caps.join(), now, state.code, state.attempt].join("|"), el = $("#rules");
+  if (el._sig === sig) return;
+  el._sig = sig;
+  el.innerHTML = `<section class="rblock"><h2>${t().rCaps}</h2>${caps.length
+      ? `<div class="caps">${caps.map((c, i) => `<span class="capc ${i < now ? "done" : i === now ? "now" : ""}"><small>${t().gym(i + 1)}</small><b>${c}</b></span>`).join("")}</div><p>${t().rCapsHint}</p>`
+      : `<p>${t().rNoCaps}</p>`}</section>
+    <section class="rblock"><h2>${t().rRules}</h2><ol class="rlist">${t().rList.map(([a, b]) => `<li><b>${a}</b><span>${b}</span></li>`).join("")}</ol><p>${t().rNote}</p></section>
+    <section class="rblock"><h2>${t().attempt(state.attempt || 1)}</h2><p>${t().rRetry}</p><button type="button" class="btn2 ${armed() ? "arm" : ""}" id="retry">${armed() ? t().retrySure : t().retry}</button></section>
+    <section class="rblock"><h2>${t().setup}</h2><ol class="steps"><li>${t().step1}</li><li>${t().step2}<div class="cmd"><code>${esc(syncCmd())}</code><button type="button">${t().copy}</button></div></li><li>${t().step3}</li></ol></section>`;
+  $(".cmd button", el).onclick = e => copyText(syncCmd(), e.currentTarget);
+  const retry = $("#retry");
+  retry.onclick = () => {
+    if (!armed()) {
+      armUntil = Date.now() + 4000;
+      retry.classList.add("arm"); retry.textContent = t().retrySure;
+      setTimeout(() => { const b = $("#retry"); if (b && !armed()) { b.classList.remove("arm"); b.textContent = t().retry; } }, 4100);
+      return;
+    }
+    armUntil = 0;
+    retry.disabled = true;
+    if (window.SoulSyncDemoRestart) window.SoulSyncDemoRestart();
+    else fetch(`/api/runs/${encodeURIComponent(state.code)}/attempt`, { method: "POST" }).catch(() => {}).finally(() => { retry.disabled = false; });
+  };
+}
+
+function capNow() {
+  const caps = state.settings && state.settings.caps || [];
+  if (!caps.length) return null;
+  const withSave = state.players.filter(p => p.snapshot);
+  const badges = withSave.length ? Math.min(...withSave.map(p => p.snapshot.trainer.badges)) : 0;
+  return caps[Math.min(badges, caps.length - 1)];
+}
+
+function model() {
+  const cap = capNow();
+  return state.links.map(l => {
+    const sides = [l.sides[0] || null, l.sides[1] || null];
+    const dead = sides.some(s => s && s.status === "fainted");
+    const complete = sides.every(Boolean);
+    const sec = dead ? "lost" : !complete ? "open" : sides.some(s => s.status === "party") ? "team" : "boxed";
+    return { key: String(l.location), link: l, sides, dead, sec, cap };
+  });
+}
+
+function spriteImg(p) {
+  if (!sprites) return "";
+  const src = typeof sprites === "function" ? sprites(p.species) : sprites.replace("{id}", p.species);
+  return src ? `<img src="${esc(src)}" alt="" loading="lazy" onerror="this.remove()">` : "";
+}
+
+function sideSig(m, i) {
+  const s = m.sides[i];
+  if (!s) return ["empty", lang, state.players.map(p => p.name).join()].join("|");
+  const p = s.pokemon;
+  const o = m.sides[i ? 0 : 1];
+  return [p.pid, p.species, p.nickname, p.is_nicknamed, s.status, m.dead, p.place.kind, p.place.box, o && o.status, lang].join("|");
+}
+
+function sideHtml(m, i) {
+  const s = m.sides[i];
+  if (!s) {
+    const other = state.players[i];
+    return `<div class="idg"><span class="wait">${other ? t().turn(esc(other.name)) : esc(t().waitPlayer)}</span><span class="slot empty"></span></div>`;
+  }
+  const p = s.pokemon, b = p.battle;
+  let stat;
+  if (m.dead) stat = s.status === "fainted" ? `<span class="note bad">${b ? t().faintedAt(b.level) : t().fainted}</span>` : `<span class="note">${t().lostWith}</span>`;
+  else if (!b) {
+    const o = m.sides[i ? 0 : 1], split = o && o.status === "party";
+    stat = `<span class="note ${split ? "warn" : ""}">${t().box(p.place.box ?? "")}${split ? "  ·  " + t().partnerInTeam : ""}</span>`;
+  }
+  else stat = `<span class="lv"><span>${t().lv}</span><b class="roll" data-v="${b.level}"><span>${b.level}</span></b></span><span class="hp"><i class="ghost"></i><i class="fill"></i></span><span class="hpn"></span>`;
+  const tys = (p.types || []).map(ty => `<span class="ty" style="--tc:${TCOL[ty]}">${esc(typeName(ty))}</span>`).join("");
+  return `<div class="stat">${stat}</div><div class="idg"><div class="names"><b title="${esc(species(p))}">${esc(label(p))}</b><div class="tys">${tys}</div></div><span class="slot">${spriteImg(p)}</span></div>`;
+}
+
+function patchStat(el, m, i, fresh) {
+  const s = m.sides[i], b = s && s.pokemon.battle;
+  if (!b || m.dead) return;
+  const hp = $(".hp", el), lv = $(".roll", el), r = b.max_hp ? b.hp / b.max_hp : 0;
+  const set = () => { hp.style.setProperty("--r", r.toFixed(3)); hp.classList.toggle("low", r < .35); };
+  if (fresh) nextFrame(set); else set();
+  $(".hpn", el).textContent = `${b.hp}/${b.max_hp}`;
+  $(".lv", el).classList.toggle("over", m.cap != null && b.level > m.cap);
+  if (+lv.dataset.v !== b.level) {
+    const up = b.level > +lv.dataset.v;
+    lv.innerHTML = `<span class="out">${+lv.dataset.v}</span><span class="in">${b.level}</span>`;
+    lv.dataset.v = b.level;
+    lv.lastChild.addEventListener("animationend", () => { lv.innerHTML = `<span>${lv.dataset.v}</span>`; }, { once: true });
+    if (up) once($(".slot", el), "pulse");
+  }
+}
+
+function patchRow(el, m, fresh) {
+  for (const i of [0, 1]) {
+    const side = el.children[i === 0 ? 0 : 2], sig = sideSig(m, i);
+    if (side._sig !== sig) {
+      const had = side._sig !== undefined;
+      side._sig = sig; side.innerHTML = sideHtml(m, i);
+      if (had && !fresh) once(side, "swap");
+      patchStat(side, m, i, true);
+    } else patchStat(side, m, i, false);
+  }
+  const loc = $(".loc", el), name = locName(m.link);
+  if (loc.textContent !== name) { loc.textContent = name; loc.title = name; }
+  const was = el._sec;
+  el._sec = m.sec;
+  el.classList.toggle("lost", m.dead);
+  const draw = () => { el.dataset.a = m.sides[0] && !m.dead ? 1 : 0; el.dataset.b = m.sides[1] && !m.dead ? 1 : 0; };
+  if (fresh) nextFrame(draw); else draw();
+  if (was && was !== m.sec) {
+    if (m.sec === "lost") once(loc, "snap");
+    else if (was === "open") once(loc, "pop");
+  }
+}
+
+function newRow() {
+  const el = document.createElement("div");
+  el.className = "row enter"; el._kind = "row";
+  el.innerHTML = `<div class="side a" style="--c:var(--a)"></div><div class="tether"><i class="seg a"></i><span class="loc"></span><i class="seg b"></i></div><div class="side b" style="--c:var(--b)"></div>`;
+  el.addEventListener("animationend", e => { if (e.target === el) el.classList.remove("enter"); });
+  return el;
+}
+
+function newTile() {
+  const el = document.createElement("div");
+  el.className = "tile enter"; el._kind = "tile";
+  el.addEventListener("animationend", e => { if (e.target === el) el.classList.remove("enter"); });
+  return el;
+}
+
+function patchTile(el, m) {
+  const [a, b] = m.sides.map(s => s.pokemon);
+  const fallen = m.sides.find(s => s.status === "fainted");
+  const sig = [a.pid, b.pid, a.species, b.species, a.nickname, b.nickname, m.sec, fallen && fallen.pokemon.pid, lang].join("|");
+  if (el._sig === sig) return;
+  el._sig = sig;
+  el.classList.toggle("lost", m.dead);
+  const sub = locName(m.link) + (fallen ? "  ·  " + t().evFainted(label(fallen.pokemon)).replace(/<[^>]+>/g, "").replace(/\.$/, "") : "");
+  el.innerHTML = `<span class="duo"><span class="slot sm">${spriteImg(a)}</span><u></u><span class="slot sm">${spriteImg(b)}</span></span><span class="tt"><b>${esc(label(a))} ${t().and} ${esc(label(b))}</b><small>${esc(sub)}</small></span>`;
+  el.title = `${species(a)} ${t().and} ${species(b)}`;
+}
+
+// Full rows where stats matter (open, team); compact tiles for box and lost.
+function updateLinks() {
+  const ms = model();
+  const before = new Map();
+  rows.forEach((el, k) => before.set(k, el.getBoundingClientRect()));
+  const seen = new Set();
+  let fresh = 0;
+  for (const m of ms) {
+    m.home = m.sec;
+    const el = rows.get(m.key);
+    if (!el) continue;
+    // A link that just died stays in place while the tether snaps, then moves to Lost.
+    if (el._kind === "row" && m.sec === "lost") {
+      m.home = el._home;
+      if (!el._dying) {
+        el._dying = true; el.classList.add("leaving");
+        setTimeout(() => { if (rows.get(m.key) === el) rows.delete(m.key); el.remove(); if (state && mounted) updateLinks(); }, 1300);
+      }
+    } else if ((el._kind === "tile") !== !!TILED[m.sec]) { rows.delete(m.key); el.remove(); }
+  }
+  for (const sec of SECTIONS) {
+    const box = $(`.sec[data-sec=${sec}]`), list = box.lastElementChild, mine = ms.filter(m => m.home === sec);
+    box.hidden = !mine.length;
+    $("em", box).textContent = ms.filter(m => m.sec === sec).length;
+    mine.forEach((m, idx) => {
+      seen.add(m.key);
+      let el = rows.get(m.key);
+      const isNew = !el;
+      if (isNew) { el = TILED[sec] ? newTile() : newRow(); el.style.setProperty("--i", Math.min(fresh++, 12)); rows.set(m.key, el); }
+      el._home = sec;
+      if (list.children[idx] !== el) list.insertBefore(el, list.children[idx] || null);
+      if (el._kind === "tile") patchTile(el, m); else patchRow(el, m, isNew);
+    });
+  }
+  rows.forEach((el, k) => { if (!seen.has(k)) { rows.delete(k); el.remove(); } });
+  rows.forEach((el, k) => {
+    const r = before.get(k); if (!r) return;
+    const n = el.getBoundingClientRect(), dx = r.left - n.left, dy = r.top - n.top;
+    if (Math.abs(dx) > 1 || Math.abs(dy) > 1) el.animate([{ transform: `translate(${dx}px,${dy}px)` }, { transform: "none" }], { duration: 480, easing: OUT });
+  });
+  $("#none").hidden = ms.length > 0 || state.players.length < 2;
+  const n = s => ms.filter(m => m.sec === s).length;
+  $("#sum").innerHTML = t().sum(n("team") + n("boxed"), n("open"), n("lost"));
+}
+
+/* ---------- type chart (generations 2 to 5) */
+const TYPES = ["normal", "fire", "water", "electric", "grass", "ice", "fighting", "poison", "ground", "flying", "psychic", "bug", "rock", "ghost", "dragon", "dark", "steel"];
+const TCOL = { normal: "#A8A77A", fire: "#EE8130", water: "#6390F0", electric: "#F7D02C", grass: "#7AC74C", ice: "#96D9D6", fighting: "#C22E28", poison: "#A33EA1", ground: "#E2BF65", flying: "#A98FF3", psychic: "#F95587", bug: "#A6B91A", rock: "#B6A136", ghost: "#735797", dragon: "#6F35FC", dark: "#705746", steel: "#B7B7CE" };
+const CHART = (() => {
+  const raw = {
+    normal: ["", "rock steel", "ghost"], fire: ["grass ice bug steel", "fire water rock dragon", ""], water: ["fire ground rock", "water grass dragon", ""],
+    electric: ["water flying", "electric grass dragon", "ground"], grass: ["water ground rock", "fire grass poison flying bug dragon steel", ""],
+    ice: ["grass ground flying dragon", "fire water ice steel", ""], fighting: ["normal ice rock dark steel", "poison flying psychic bug", "ghost"],
+    poison: ["grass", "poison ground rock ghost", "steel"], ground: ["fire electric poison rock steel", "grass bug", "flying"],
+    flying: ["grass fighting bug", "electric rock steel", ""], psychic: ["fighting poison", "psychic steel", "dark"],
+    bug: ["grass psychic dark", "fire fighting poison flying ghost steel", ""], rock: ["fire ice flying bug", "fighting ground steel", ""],
+    ghost: ["psychic ghost", "dark steel", "normal"], dragon: ["dragon", "steel", ""], dark: ["psychic ghost", "fighting dark steel", ""],
+    steel: ["ice rock", "fire water electric steel", ""],
+  };
+  const out = {};
+  for (const [a, [se, nve, no]] of Object.entries(raw)) {
+    out[a] = {};
+    se.split(" ").filter(Boolean).forEach(d => { out[a][d] = 2; });
+    nve.split(" ").filter(Boolean).forEach(d => { out[a][d] = .5; });
+    no.split(" ").filter(Boolean).forEach(d => { out[a][d] = 0; });
+  }
+  return out;
+})();
+const eff = (a, d) => CHART[a][d] ?? 1;
+let tRow = null, tCol = null;
+
+function updateTypes() {
+  const el = $("#types");
+  if (el._sig !== lang) {
+    el._sig = lang;
+    const mark = x => x === 2 ? "2" : x === .5 ? "½" : x === 0 ? "0" : "";
+    el.innerHTML = `<p>${t().tLead}</p>
+      <div class="tgrid"><span></span>${TYPES.map((d, c) => `<button type="button" class="ch" data-c="${c}" style="--tc:${TCOL[d]}" title="${esc(typeName(d))}"><i></i>${esc(typeName(d).slice(0, 3))}</button>`).join("")}
+      ${TYPES.map((a, r) => `<button type="button" class="rh" data-r="${r}" style="--tc:${TCOL[a]}"><i></i>${esc(typeName(a))}</button>` + TYPES.map((d, c) => { const x = eff(a, d); return `<span class="tc ${x === 2 ? "se" : x === .5 ? "nve" : x === 0 ? "no" : ""}" data-r="${r}" data-c="${c}">${mark(x)}</span>`; }).join("")).join("")}</div>
+      <p class="tleg"><span><b class="se">2</b>${t().tSe}</span><span><b class="nve">½</b>${t().tNve}</span><span><b class="no">0</b>${t().tNo}</span></p>`;
+    const grid = $(".tgrid", el);
+    grid.onclick = e => {
+      const x = e.target.closest("[data-r],[data-c]");
+      if (!x) tRow = tCol = null;
+      else if (x.classList.contains("tc")) {
+        const same = tRow === +x.dataset.r && tCol === +x.dataset.c;
+        tRow = same ? null : +x.dataset.r; tCol = same ? null : +x.dataset.c;
+      }
+      else if (x.dataset.r != null) tRow = tRow === +x.dataset.r ? null : +x.dataset.r;
+      else tCol = tCol === +x.dataset.c ? null : +x.dataset.c;
+      paintTypes();
+    };
+    grid.onmouseover = e => {
+      const c = e.target.closest(".tc");
+      grid.querySelectorAll(".hi").forEach(x => x.classList.remove("hi"));
+      if (c) grid.querySelectorAll(`.rh[data-r="${c.dataset.r}"],.ch[data-c="${c.dataset.c}"]`).forEach(x => x.classList.add("hi"));
+    };
+    grid.onmouseleave = () => grid.querySelectorAll(".hi").forEach(x => x.classList.remove("hi"));
+  }
+  paintTypes();
+}
+
+function paintTypes() {
+  const grid = $("#types .tgrid");
+  grid.classList.toggle("focus", tRow != null || tCol != null);
+  for (const x of grid.children) {
+    const r = x.dataset.r != null ? +x.dataset.r : null, c = x.dataset.c != null ? +x.dataset.c : null;
+    if (x.classList.contains("tc")) {
+      x.classList.toggle("on", r === tRow || c === tCol);
+      x.classList.toggle("x", r === tRow && c === tCol);
+    } else if (r != null || c != null) {
+      const sel = r != null ? r === tRow : c === tCol;
+      x.classList.toggle("sel", sel); x.setAttribute("aria-pressed", sel);
+    }
+  }
+}
+
+/* ---------- catch chance (generation 5) */
+const BALLS = [1, 1.5, 2, 5, 3.5];
+const catchUi = { list: null, fromRom: false, sp: null, hp: 100, status: 0, grass: false, loaded: null };
+
+// Chance per throw. `hp` is the remaining share of HP, `caught` the number of
+// species owned, which decides critical captures and the dark grass penalty.
+function catchChance(rate, hp, status, ball, grass, caught) {
+  const tier = caught > 600 ? 5 : caught > 450 ? 4 : caught > 300 ? 3 : caught > 150 ? 2 : caught > 30 ? 1 : 0;
+  const g = grass ? [1229, 2048, 2867, 3277, 3686, 4096][tier] / 4096 : 1;
+  const x = (1 - 2 * hp / 3) * g * rate * ball * [1, 1.5, 2.5][status];
+  if (x >= 255) return 1;
+  const y = Math.floor(65536 / Math.pow(255 / x, .25)) / 65536;
+  const crit = Math.floor(Math.min(255, x) * [0, .5, 1, 1.5, 2, 2.5][tier] / 6) / 256;
+  return crit * y + (1 - crit) * y ** 3;
+}
+
+function caughtCount() {
+  return Math.max(0, ...state.players.map(p => p.snapshot ? new Set([...p.snapshot.party, ...p.snapshot.boxes].filter(m => !m.is_egg).map(m => m.species)).size : 0));
+}
+
+function mountCatch() {
+  const el = $("#catch"), u = catchUi;
+  el.innerHTML = `<h2>${t().cTitle}<small id="crate"></small></h2>
+    <input class="cin" id="cin" type="text" autocomplete="off" spellcheck="false" placeholder="${t().cFind}" aria-label="${t().cFind}" value="${u.sp ? esc(u.sp[lang === "de" ? 1 : 0]) : ""}">
+    <div class="clist" id="clist" hidden></div>
+    <div class="crow"><span>${t().cHp}</span><input type="range" id="chp" min="1" max="100" value="${u.hp}" aria-label="${t().cHp}"><output id="chpo"></output></div>
+    <div class="crow"><span>${t().cStatus}</span><div class="seg3" id="cst">${[t().cNone, t().cMinor, t().cMajor].map((x, i) => `<button type="button" data-s="${i}">${x}</button>`).join("")}</div></div>
+    <div class="crow"><label><input type="checkbox" id="cgr" ${u.grass ? "checked" : ""}>${t().cGrass}</label></div>
+    <div class="cres" id="cres">${t().balls.map(([n, note]) => `<span>${n}${note ? `<small>${note}</small>` : ""}</span><b></b><u><i></i></u>`).join("")}</div>`;
+  const input = $("#cin"), list = $("#clist");
+  let cur = 0, hits = [];
+  const close = () => { list.hidden = true; };
+  const choose = sp => { u.sp = sp; input.value = sp[lang === "de" ? 1 : 0]; close(); updateCatch(); };
+  const search = () => {
+    const q = input.value.trim().toLowerCase(), k = lang === "de" ? 1 : 0;
+    const all = u.list || [];
+    hits = q ? [...all.filter(sp => sp[k].toLowerCase().startsWith(q)), ...all.filter(sp => !sp[k].toLowerCase().startsWith(q) && sp[k].toLowerCase().includes(q))].slice(0, 6) : [];
+    cur = 0; list.hidden = !hits.length;
+    list.innerHTML = hits.map((sp, i) => `<button type="button" data-i="${i}" class="${i ? "" : "cur"}"><span>${esc(sp[k])}</span><small>${sp[2]}</small></button>`).join("");
+  };
+  input.oninput = () => { u.sp = null; search(); updateCatch(); };
+  input.onfocus = () => { input.select(); };
+  input.onkeydown = e => {
+    if (e.key === "Escape") { close(); return; }
+    if (!hits.length || list.hidden) return;
+    if (e.key === "Enter") { e.preventDefault(); choose(hits[cur]); }
+    else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault(); cur = (cur + (e.key === "ArrowDown" ? 1 : hits.length - 1)) % hits.length;
+      [...list.children].forEach((b, i) => b.classList.toggle("cur", i === cur));
+    }
+  };
+  input.onblur = () => setTimeout(close, 150);
+  list.onmousedown = e => { const b = e.target.closest("button"); if (b) { e.preventDefault(); choose(hits[+b.dataset.i]); } };
+  $("#chp").oninput = e => { u.hp = +e.target.value; updateCatch(); };
+  $("#cst").onclick = e => { const b = e.target.closest("button"); if (b) { u.status = +b.dataset.s; updateCatch(); } };
+  $("#cgr").onchange = e => { u.grass = e.target.checked; updateCatch(); };
+}
+
+function loadSpecies() {
+  const u = catchUi, key = state.code + "|" + !!state.rom_data;
+  if (u.loaded === key) return;
+  u.loaded = key;
+  const take = d => {
+    u.list = d.species; u.fromRom = !!d.from_rom;
+    if (u.sp) u.sp = u.list.find(sp => sp[0] === u.sp[0]) || null;
+    updateCatch();
+  };
+  if (window.SoulSyncDemoSpecies) take(window.SoulSyncDemoSpecies);
+  else fetch(`/api/runs/${encodeURIComponent(state.code)}/species`).then(r => r.json()).then(take).catch(() => { u.loaded = null; });
+}
+
+function updateCatch() {
+  if (!$("#cres")) return;
+  loadSpecies();
+  const u = catchUi, hp = u.hp;
+  $("#chpo").textContent = hp + " %";
+  $("#chp").style.setProperty("--hpc", `var(--${hp > 50 ? "ok" : hp > 20 ? "warn" : "danger"})`);
+  $("#cst").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", +b.dataset.s === u.status));
+  $("#crate").textContent = u.sp ? `${t().cRate(u.sp[2])}  ·  ${u.fromRom ? t().cRom : t().cStd}` : "";
+  const res = $("#cres"), caught = caughtCount();
+  res.classList.toggle("off", !u.sp);
+  BALLS.forEach((ball, i) => {
+    const p = u.sp ? catchChance(u.sp[2], hp / 100, u.status, ball, u.grass, caught) : 0;
+    const pct = p * 100;
+    res.children[i * 3 + 1].textContent = u.sp ? (pct >= 99.95 ? "100" : pct < 10 ? pct.toFixed(1) : Math.round(pct)) + " %" : "–";
+    const bar = res.children[i * 3 + 2].firstChild;
+    bar.style.width = pct + "%";
+    bar.style.background = `var(--${pct >= 50 ? "ok" : pct >= 20 ? "warn" : "danger"})`;
+  });
+}
+
+function gameOf(p) { const g = p && p.snapshot && p.snapshot.trainer.game; return g ? t().games[g] || g : null; }
+
+function updatePlayers() {
+  const cap = capNow();
+  $("#cap").innerHTML = `<b>${t().attempt(state.attempt || 1)}</b>${cap != null ? t().cap(cap) : ""}`;
+  const games = [...new Set(state.players.map(gameOf).filter(Boolean))];
+  $("#game").textContent = games.length ? `Pokémon ${games.join(" / ")}  ·  ${t().gen(5)}` : "";
+  for (const i of [0, 1]) {
+    const el = $(i ? ".pl.b" : ".pl.a"), p = state.players[i];
+    if (!el.firstChild) el.innerHTML = `<div class="pl-n"><div><i></i><span></span><em></em></div><small></small></div><div class="pl-b"><div class="badges">${"<i></i>".repeat(8)}</div><span></span></div>`;
+    el.classList.toggle("off", !p || !p.connected);
+    $(".pl-n span", el).textContent = p ? p.name : t().playerTwo;
+    $(".pl-n em", el).textContent = gameOf(p) || "";
+    const secs = p && p.updated_at ? Math.max(0, (Date.now() - p.updated_at) / 1000) : null;
+    $("small", el).textContent = !p ? t().notJoined : [p.connected ? null : t().away, secs == null ? t().never : `${t().saved} ${t().ago(secs)}`].filter(Boolean).join("  ·  ");
+    const has = !!(p && p.snapshot), badges = has ? p.snapshot.trainer.badges : 0;
+    $(".pl-b", el).style.visibility = has ? "" : "hidden";
+    $(".pl-b span", el).textContent = t().badges(badges);
+    $(".badges", el).querySelectorAll("i").forEach((d, k) => {
+      const on = k < badges;
+      if (on && !d.classList.contains("on") && el._seen) once(d, "pop");
+      d.classList.toggle("on", on);
+    });
+    if (has) el._seen = true;
+  }
+}
+
+function updateStatus() {
+  const el = $("#status"); if (!el) return;
+  const live = state ? state.players.filter(p => p.connected).length : 0;
+  el.className = "status" + (conn === "missing" ? " bad" : conn === "live" && live ? " live" : "");
+  $("span", el).textContent = conn === "missing" ? t().missing : conn !== "live" ? t().offline : live >= 2 ? t().live2 : live === 1 ? t().live1 : t().live0;
+}
+
+function syncCmd() {
+  const server = location.origin.startsWith("http://localhost:3000") ? "" : ` --server ${location.origin}`;
+  return `soulsync sync ${t().yourSave} --code ${state.code} --name ${t().yourName}${server}`;
+}
+
+function updateSetup() {
+  const el = $("#setup"), need = state.players.length < 2 && !DEMO;
+  if (!need) { el.innerHTML = ""; el._on = false; return; }
+  if (el._on) return;
+  el._on = true;
+  el.innerHTML = `<div class="setup"><h3>${t().setup}</h3><ol><li>${t().step1}</li><li>${t().step2}<div class="cmd"><code>${esc(syncCmd())}</code><button type="button">${t().copy}</button></div></li><li>${t().step3}</li></ol></div>`;
+  $("button", el).onclick = e => copyText(syncCmd(), e.currentTarget);
+}
+
+function updateRail() {
+  const cap = capNow();
+  $("#kv").innerHTML = [[t().kAttempt, state.attempt || 1], [t().kCap, cap != null ? cap : t().none], [t().kSeed, `<span class="mono" style="font-size:13px">${esc(state.seed)}</span>`]]
+    .map(([k, v]) => `<div class="kv"><span>${k}</span><b>${v}</b></div>`).join("");
+  updateFeed();
+}
+
+function partnerOf(p, player) {
+  const i = state.players.findIndex(x => x.name === player);
+  const l = state.links.find(x => x.location === p.met_location);
+  const o = l && l.sides[i === 0 ? 1 : 0];
+  return o ? label(o.pokemon) : null;
+}
+
+function eventHtml(e) {
+  const x = t(), ev = e.event, p = ev.pokemon, m = p && esc(label(p));
+  switch (ev.type) {
+    case "caught": { const o = partnerOf(p, e.player); return x.evCaught(esc(e.player), m, esc(nameOf(p.met_location_name, "#" + p.met_location))) + (o ? x.evLinked(esc(o)) : ""); }
+    case "fainted": { const o = partnerOf(p, e.player); return x.evFainted(m) + (o ? x.evLost(esc(o)) : ""); }
+    case "evolved": return x.evEvolved(m, esc(species(p)));
+    case "level_up": return x.evLevel(m, p.battle ? p.battle.level : "?");
+    case "moved": return p.place.kind === "party" ? x.evParty(m) : x.evBox(m, p.place.box);
+    case "gone": return x.evGone(m);
+    case "badges": return x.evBadges(esc(e.player), ev.count);
+    default: return esc(ev.type);
+  }
+}
+
+function updateFeed() {
+  const box = $("#feed"), first = feed.size === 0;
+  const keys = state.log.map(e => [e.at, e.player, e.event.type, e.event.pokemon ? e.event.pokemon.pid : e.event.count].join("|"));
+  const want = new Set(keys);
+  feed.forEach((el, k) => { if (!want.has(k)) { feed.delete(k); el.remove(); } });
+  for (let i = state.log.length - 1; i >= 0; i--) {
+    const k = keys[i];
+    if (feed.has(k)) continue;
+    const el = document.createElement("div");
+    el.className = "ev" + (first ? "" : " new");
+    el.innerHTML = `<div><time data-at="${state.log[i].at}"></time><span>${eventHtml(state.log[i])}</span></div>`;
+    box.prepend(el); feed.set(k, el);
+    if (!first) nextFrame(() => el.classList.remove("new"));
+  }
+  $("#nofeed").hidden = state.log.length > 0;
+  tick();
+}
+
+function tick() {
+  document.querySelectorAll(".ev time").forEach(el => { el.textContent = t().short(Math.max(0, (Date.now() - +el.dataset.at) / 1000)); });
+}
+
+function render() {
+  document.documentElement.lang = lang;
+  if (!codeFromPath) return renderStart();
+  if (!state) {
+    $app.innerHTML = topBar() + `<p class="center-msg">${conn === "missing" ? t().missing : ""}</p>`;
+    bindChrome(); updateStatus(); mounted = false; return;
+  }
+  if (!mounted) mount();
+  updateStatus(); updatePlayers(); updateSetup(); updateLinks(); updateRail(); updateEncounters(); updateTimeline(); updateTypes(); updateRules(); updateCatch();
+}
+
+function apply(next) { state = next; conn = "live"; render(); }
+
+function connect() {
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  const path = `/api/runs/${encodeURIComponent(codeFromPath.toUpperCase())}`;
+  const ws = new WebSocket(`${proto}//${location.host}${path}/ws`);
+  let opened = false;
+  ws.onopen = () => { opened = true; conn = "live"; updateStatus(); };
+  ws.onmessage = m => { const msg = JSON.parse(m.data); if (msg.type === "state") apply(msg.state); };
+  ws.onclose = async () => {
+    if (!opened) {
+      const r = await fetch(path).catch(() => null);
+      if (r && r.status === 404) { conn = "missing"; render(); return; }
+    }
+    conn = "offline"; updateStatus(); setTimeout(connect, 2000);
+  };
+}
+
+render();
+if (codeFromPath && !sprites) fetch("/api/config").then(r => r.json()).then(c => { sprites = c.sprites || null; if (state) { mounted = false; render(); } }).catch(() => {});
+if (DEMO) {
+  const run = () => window.SoulSyncDemo(apply);
+  if (window.SoulSyncDemo) run();
+  else { const s = document.createElement("script"); s.src = "/assets/demo.js"; s.onload = run; document.head.appendChild(s); }
+} else if (codeFromPath) connect();
+if (codeFromPath) setInterval(() => { if (state && mounted) { updatePlayers(); tick(); } }, 10000);
+</script>
+</body>
+</html>

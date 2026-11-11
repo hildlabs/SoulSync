@@ -4,8 +4,9 @@
 //! the save followed by a 122-byte DeSmuME footer).
 
 use crate::crypto::{PARTY_SIZE, STORED_SIZE};
+use crate::game::Game;
 use crate::pk5::{self, Place, Pokemon};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 const SAVE_SIZE: usize = 0x80000;
@@ -16,6 +17,8 @@ const BOX_SLOTS: usize = 30;
 const PARTY_BLOCK: usize = 0x18E00;
 const TRAINER_BLOCK: usize = 0x19400;
 const BADGE_FLAGS: usize = 0x21104;
+/// Offset of the game version byte inside the trainer block.
+const GAME_VERSION: usize = 0x1F;
 
 /// Why a save file could not be read.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -40,14 +43,17 @@ impl fmt::Display for SaveError {
 impl std::error::Error for SaveError {}
 
 /// Trainer data from the save.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Trainer {
     pub name: String,
     pub badges: u8,
+    /// Which game wrote the save, if it says so.
+    #[serde(default)]
+    pub game: Option<Game>,
 }
 
 /// Everything SoulSync reads from a save file.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SaveSnapshot {
     pub trainer: Trainer,
     pub party: Vec<Pokemon>,
@@ -93,6 +99,7 @@ pub fn parse_b2w2(data: &[u8]) -> Result<SaveSnapshot, SaveError> {
     let trainer = Trainer {
         name: pk5::read_string(&b[TRAINER_BLOCK + 4..], 8),
         badges: b[BADGE_FLAGS].count_ones() as u8,
+        game: Game::from_save_version(b[TRAINER_BLOCK + GAME_VERSION]),
     };
     Ok(SaveSnapshot {
         trainer,
@@ -147,6 +154,7 @@ mod tests {
                 .copy_from_slice(&u.to_le_bytes());
         }
         s[BADGE_FLAGS] = 0b0000_0011;
+        s[TRAINER_BLOCK + GAME_VERSION] = 23;
         s
     }
 
@@ -157,7 +165,8 @@ mod tests {
             snap.trainer,
             Trainer {
                 name: "Hannes".into(),
-                badges: 2
+                badges: 2,
+                game: Some(Game::Black2),
             }
         );
         assert_eq!(snap.party.len(), 2);
