@@ -55,6 +55,8 @@ struct Inner {
     auto: Option<LuaSetup>,
     /// The location the script last reported the player in.
     place: Option<Arc<Mutex<Option<u16>>>>,
+    /// Where the sync takes requests to forget an encounter.
+    forget: Option<Arc<Mutex<Vec<u32>>>>,
     /// A newer build of the app, if one is published.
     update: Option<crate::update::Release>,
 }
@@ -447,6 +449,7 @@ impl Local {
         {
             let mut inner = self.inner.lock().unwrap();
             inner.place = live.as_ref().map(|l| l.place.clone());
+            inner.forget = live.as_ref().map(|l| l.forget.clone());
             inner.lua = Some(install_lua(&save));
             inner.auto = installed
                 .as_ref()
@@ -659,6 +662,20 @@ fn ureq_ok(url: &str) -> bool {
     soulsync_client::exists(url)
 }
 
+#[derive(Deserialize)]
+struct Forget {
+    pid: u32,
+}
+
+/// Takes back an encounter the app noted by mistake.
+async fn forget(State(local): State<Local>, Json(req): Json<Forget>) -> Reply {
+    let inner = local.inner.lock().unwrap();
+    let queue = inner.forget.as_ref().ok_or_else(|| bad("no run"))?;
+    queue.lock().unwrap().push(req.pid);
+    drop(inner);
+    Ok(Json(local.view()))
+}
+
 /// Looks for a newer build once, in the background. Only the Windows program
 /// is published, and only numbered builds know what is newer.
 fn look_for_update(local: &Local) {
@@ -747,6 +764,7 @@ pub fn routes(server: soulsync_server::AppState, own: String) -> Router {
         .route("/api/local/start", post(start))
         .route("/api/local/leave", post(leave))
         .route("/api/local/update", post(update))
+        .route("/api/local/forget", post(forget))
         .layer(axum::middleware::from_fn(guard))
         .with_state(local)
 }
@@ -890,8 +908,15 @@ mod tests {
         for (i, raw) in mons.iter().enumerate() {
             ram[at + 8 + i * 220..at + 8 + (i + 1) * 220].copy_from_slice(raw);
         }
-        // The trainer of an empty save (no name, id 0) and map 3.
+        // An opponent's party, which is laid out like the player's and comes
+        // first in memory. Only the player's is followed by their trainer.
+        ram[0x404] = 1;
+        ram[0x408..0x408 + 220].copy_from_slice(&wild(60, 527));
+        // The trainer (no name) and map 3.
+        let trainer_id = 0xCAFE_1234u32;
         ram[at + 0x604..at + 0x606].copy_from_slice(&[0xFF, 0xFF]);
+        ram[at + 0x614..at + 0x618].copy_from_slice(&trainer_id.to_le_bytes());
+        std::fs::write(dir.join("live-trainer.txt"), trainer_id.to_string()).unwrap();
         ram[at + 0x780] = 3;
         // Left over from a battle before the script started.
         ram[0x8000..0x8000 + 220].copy_from_slice(&wild(50, 519));
@@ -953,7 +978,10 @@ mod tests {
         let data = std::fs::read(&out).unwrap();
         let report = LiveReport::parse(&data).unwrap();
         assert_eq!(report.party(), &ram[at..at + PARTY_BLOCK_LEN]);
-        let save = parse_b2w2(&vec![0u8; 0x80000]).unwrap();
+        let mut save = parse_b2w2(&vec![0u8; 0x80000]).unwrap();
+        assert!(!report.is_of(&save.trainer));
+        save.trainer.id = trainer_id;
+        assert!(report.is_of(&save.trainer));
         let live = save.with_live_party(report.party()).unwrap();
         assert_eq!(live.party.len(), 2);
         assert!(live.party[0].is_fainted());

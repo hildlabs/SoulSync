@@ -70,10 +70,8 @@ impl<'a> LiveReport<'a> {
         &self.window[..PARTY_BLOCK_LEN]
     }
 
-    /// The map the player is on. `None` unless the trainer of the save is
-    /// found behind the party, which shows that the memory is laid out as
-    /// expected.
-    pub fn map(&self, trainer: &Trainer) -> Option<u16> {
+    /// Where the trainer block of `trainer` follows the party in the window.
+    fn trainer_at(&self, trainer: &Trainer) -> Option<usize> {
         let mut name: Vec<u8> = trainer
             .name
             .encode_utf16()
@@ -83,9 +81,24 @@ impl<'a> LiveReport<'a> {
         name.resize(0x10.min(name.len()), 0);
         let id = trainer.id.to_le_bytes();
         let w = self.window;
-        let at = (PARTY_BLOCK_LEN..w.len().saturating_sub(0x18))
+        (PARTY_BLOCK_LEN..w.len().saturating_sub(0x18))
             .step_by(4)
-            .find(|&t| w[t + 4..].starts_with(&name) && w[t + 0x14..t + 0x18] == id)?;
+            .find(|&t| w[t + 4..].starts_with(&name) && w[t + 0x14..t + 0x18] == id)
+    }
+
+    /// Whether this is the party of `trainer`. An opponent's party looks the
+    /// same in memory, but only the player's own is followed by their
+    /// trainer data.
+    pub fn is_of(&self, trainer: &Trainer) -> bool {
+        self.trainer_at(trainer).is_some()
+    }
+
+    /// The map the player is on. `None` unless the trainer of the save is
+    /// found behind the party, which shows that the memory is laid out as
+    /// expected.
+    pub fn map(&self, trainer: &Trainer) -> Option<u16> {
+        let w = self.window;
+        let at = self.trainer_at(trainer)?;
         // In a save file blocks start at multiples of 0x100.
         let position = if at == TRAINER_IN_SAVE {
             at + 0x100
@@ -171,6 +184,17 @@ impl Encounters {
             }
         }
         changed
+    }
+
+    /// Takes back an encounter that was noted by mistake. Returns whether
+    /// there was one. The Pokémon is not noted again.
+    pub fn forget(&mut self, pid: u32) -> bool {
+        let before = self.list.len();
+        self.list.retain(|p| p.pid != pid);
+        if !self.seen.contains(&pid) {
+            self.remember(pid);
+        }
+        self.list.len() != before
     }
 
     /// The game was saved: the save now knows where every Pokémon is.
