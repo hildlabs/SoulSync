@@ -2800,6 +2800,7 @@ dependencies = [
  "soulsync-server",
  "tao",
  "tokio",
+ "ureq",
  "winresource",
  "wry",
 ]
