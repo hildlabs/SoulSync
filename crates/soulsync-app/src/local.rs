@@ -49,6 +49,8 @@ struct Inner {
     task: Option<tokio::task::JoinHandle<()>>,
     /// The Lua script for DeSmuME and the file it writes, once installed.
     live: Option<(PathBuf, PathBuf)>,
+    /// Whether DeSmuME has what it needs to run the script.
+    lua: Option<LuaSetup>,
     /// The location the script last reported the player in.
     place: Option<Arc<Mutex<Option<u16>>>>,
 }
@@ -99,6 +101,74 @@ fn install_live_script() -> Option<(PathBuf, PathBuf)> {
     // Whatever an earlier session left behind says nothing about the game now.
     let _ = std::fs::remove_file(&out);
     Some((script, out))
+}
+
+/// Lua 5.1 for DeSmuME, by the machine type in the header of an `.exe`:
+/// 64-bit and 32-bit x86. See `lua51/README.md`.
+const LUA_DLLS: [(u16, &[u8]); 2] = [
+    (0x8664, include_bytes!("../lua51/x64/lua51.dll")),
+    (0x014C, include_bytes!("../lua51/x86/lua51.dll")),
+];
+
+/// Whether DeSmuME can run Lua scripts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum LuaSetup {
+    /// `lua51.dll` was already next to DeSmuME.
+    Present,
+    /// SoulSync put it there.
+    Installed,
+    /// No DeSmuME near the save, or the folder is read-only.
+    Missing,
+}
+
+/// The machine type a Windows program is built for.
+fn exe_machine(exe: &Path) -> Option<u16> {
+    use std::io::{Read, Seek, SeekFrom};
+    let mut f = std::fs::File::open(exe).ok()?;
+    let mut b = [0u8; 4];
+    f.seek(SeekFrom::Start(0x3C)).ok()?;
+    f.read_exact(&mut b).ok()?;
+    f.seek(SeekFrom::Start(u64::from(u32::from_le_bytes(b))))
+        .ok()?;
+    let mut pe = [0u8; 6];
+    f.read_exact(&mut pe).ok()?;
+    (&pe[..4] == b"PE\0\0").then(|| u16::from_le_bytes([pe[4], pe[5]]))
+}
+
+/// DeSmuME needs `lua51.dll` next to its `.exe` and does not bring it. Looks
+/// for DeSmuME where the save is (its `Battery` folder sits next to the
+/// `.exe`) and adds the DLL if it is missing.
+fn install_lua(save: &Path) -> LuaSetup {
+    let folders = save.ancestors().skip(1).take(2);
+    for dir in folders {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            continue;
+        };
+        let mut exes: Vec<PathBuf> = entries
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| {
+                let name = p.file_name().unwrap_or_default().to_string_lossy();
+                let name = name.to_ascii_lowercase();
+                name.starts_with("desmume") && name.ends_with(".exe")
+            })
+            .collect();
+        exes.sort();
+        let Some(machine) = exes.iter().find_map(|e| exe_machine(e)) else {
+            continue;
+        };
+        let dll = dir.join("lua51.dll");
+        if dll.exists() {
+            return LuaSetup::Present;
+        }
+        let ours = LUA_DLLS.iter().find(|(m, _)| *m == machine);
+        return match ours.map(|(_, bytes)| std::fs::write(&dll, bytes)) {
+            Some(Ok(())) => LuaSetup::Installed,
+            _ => LuaSetup::Missing,
+        };
+    }
+    LuaSetup::Missing
 }
 
 /// Whether the Lua script wrote the party a moment ago.
@@ -201,6 +271,7 @@ impl Local {
             "live": inner.live.as_ref().map(|(script, out)| serde_json::json!({
                 "script": script,
                 "active": live_active(out),
+                "lua": inner.lua,
                 "place": inner
                     .place
                     .as_ref()
@@ -260,6 +331,7 @@ impl Local {
         {
             let mut inner = self.inner.lock().unwrap();
             inner.place = live.as_ref().map(|l| l.place.clone());
+            inner.lua = Some(install_lua(&save));
             inner.live = installed;
         }
         let me = self.clone();
@@ -548,6 +620,33 @@ mod tests {
             Some(battery.join("SoulLink.dsv"))
         );
         assert_eq!(guess_save(&dir.join("Other.nds")), None);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn puts_lua_next_to_desmume() {
+        let dir = std::env::temp_dir().join(format!("soulsync-dll-{}", std::process::id()));
+        let save = dir.join("Battery").join("SoulLink.dsv");
+        std::fs::create_dir_all(save.parent().unwrap()).unwrap();
+        assert_eq!(install_lua(&save), LuaSetup::Missing);
+        // A 32-bit program: "PE" header at 0x80, machine 0x014C.
+        let mut exe = vec![0u8; 0x90];
+        exe[0x3C] = 0x80;
+        exe[0x80..0x86].copy_from_slice(b"PE\0\0\x4C\x01");
+        std::fs::write(dir.join("DeSmuME_0.9.13_x86.exe"), &exe).unwrap();
+        std::fs::write(dir.join("notes.exe"), b"MZ").unwrap();
+        assert_eq!(install_lua(&save), LuaSetup::Installed);
+        assert_eq!(std::fs::read(dir.join("lua51.dll")).unwrap(), LUA_DLLS[1].1);
+        // Never replaces one that is there.
+        std::fs::write(dir.join("lua51.dll"), b"theirs").unwrap();
+        assert_eq!(install_lua(&save), LuaSetup::Present);
+        assert_eq!(std::fs::read(dir.join("lua51.dll")).unwrap(), b"theirs");
+        // Both DLLs are Windows libraries for the right machine.
+        for (machine, bytes) in LUA_DLLS {
+            let file = dir.join("check.dll");
+            std::fs::write(&file, bytes).unwrap();
+            assert_eq!(exe_machine(&file), Some(machine));
+        }
         std::fs::remove_dir_all(dir).unwrap();
     }
 
