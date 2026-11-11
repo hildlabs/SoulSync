@@ -273,6 +273,9 @@ main{display:flex;flex-direction:column;min-height:0}
 .rblock h2{font-size:15px;font-weight:600;letter-spacing:-.01em}
 .rblock>p{margin-top:8px;color:var(--muted);max-width:60ch}
 .caps{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.capline{grid-column:2;display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 2px}
+.capline span{padding:3px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;font-variant-numeric:tabular-nums}
+.capline i{font-style:normal;color:var(--muted)}
 .capc{min-width:64px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;transition:background .3s,border-color .3s}
 .capc small{display:block;font-size:12px;color:var(--muted)}
 .capc b{font-size:18px;font-weight:600;letter-spacing:-.01em}
@@ -432,7 +435,7 @@ const T = {
     balls: [["Poké Ball", ""], ["Great Ball", ""], ["Ultra Ball", ""], ["Quick Ball", "turn 1"], ["Dusk Ball", "cave or night"]],
     rCaps: "Level caps", rNoCaps: "This run has no level caps.", rCapsHint: "The highlighted cap applies until both players have the next badge.", gym: n => `Gym ${n}`,
     rRules: "Soul Link rules", rNote: "SoulSync tracks links, levels and losses. The other rules are on your honour for now.",
-    rules: { first: ["First encounter only", "In each area you may catch only the first Pokémon you meet."], linked: ["Same area, linked", "Your catch and your partner’s catch from the same area form a link."], fate: ["Shared fate", "If one of them faints, its partner is lost too."], together: ["Together or not at all", "Linked partners are in the team together or in the box together."], failed: ["Failed catch", "If one of you fails the catch, the area is closed for both."], cap: ["Level cap", "No Pokémon may be above the strongest Pokémon of the next gym leader."], items: ["Items in step", "Use a healing item only when your partner uses one too."], dupes: ["No duplicates", "A species you already own does not count as the first encounter."], nick: ["Nicknames", "Every caught Pokémon gets a nickname."], set: ["Set mode", "No switching after the opponent’s Pokémon faints."] },
+    rules: { first: ["First encounter only", "In each area you may catch only the first Pokémon you meet."], linked: ["Same area, linked", "Your catch and your partner’s catch from the same area form a link."], fate: ["Shared fate", "If one of them faints, its partner is lost too."], together: ["Together or not at all", "Linked partners are in the team together or in the box together."], failed: ["Failed catch", "If one of you fails the catch, the area is closed for both."], cap: ["Level cap", "No Pokémon may be above the strongest Pokémon of the next gym leader."], items: ["Item for item", "In a fight you may use one item for each item your opponent has used, and never before."], dupes: ["No duplicates", "A species you already own does not count as the first encounter."], nick: ["Nicknames", "Every caught Pokémon gets a nickname."], set: ["Set mode", "No switching after the opponent’s Pokémon faints."] },
     rAlways: "always on", pickRules: "Rules",
     team: "Team", boxed: "Boxed", open: "Open", lost: "Lost",
     sum: (l, o, x) => [`<b>${l} linked</b>`, `${o} open`, x ? `<span class="bad">${x} lost</span>` : `0 lost`].join("  ·  "),
@@ -462,7 +465,8 @@ waitPlayer: "Waiting for player two", playerTwo: "Player two", notJoined: "not j
     phase: { idle: "Not running", connecting: "Connecting", live: "Live, every in-game save is sent", error: "Stopped" },
     tabJoin: "Join a run", tabNew: "New run", code: "Run code", codeHelp: "Your partner sees this code after creating the run.", openRun: "Open run",
     caps: "Level caps", capsPh: "13, 18, 24, 30", capsHelp: "One level per gym, in order. Leave empty to play without caps.", create: "Create run",
-    capsErr: "Use whole numbers from 1 to 100, separated by commas.",
+    capsErr: "Use whole numbers from 1 to 100, separated by commas.", league: "League",
+    capsRom: "Read from your ROM: the strongest Pokémon of each gym leader, then of the Pokémon League.", capsGame: g => `Could not read the levels from your ROM. These are the levels of ${g}.`, capsNoRom: "Choose your ROM first, so the caps can be read from it.",
     types: {},
   },
   de: {
@@ -481,7 +485,7 @@ waitPlayer: "Waiting for player two", playerTwo: "Player two", notJoined: "not j
     balls: [["Pokéball", ""], ["Superball", ""], ["Hyperball", ""], ["Flottball", "Runde 1"], ["Finsterball", "Höhle oder Nacht"]],
     rCaps: "Level-Caps", rNoCaps: "Dieser Run hat keine Level-Caps.", rCapsHint: "Der markierte Cap gilt, bis beide Spieler den nächsten Orden haben.", gym: n => `Arena ${n}`,
     rRules: "Soul-Link-Regeln", rNote: "SoulSync verfolgt Links, Level und Verluste. Die übrigen Regeln laufen vorerst auf Vertrauen.",
-    rules: { first: ["Nur die erste Begegnung", "In jedem Gebiet darfst du nur das erste Pokémon fangen, das dir begegnet."], linked: ["Gleiches Gebiet, verbunden", "Dein Fang und der Fang deines Partners aus demselben Gebiet bilden einen Link."], fate: ["Geteiltes Schicksal", "Wird eins besiegt, ist auch sein Partner verloren."], together: ["Zusammen oder gar nicht", "Verbundene Partner sind gemeinsam im Team oder gemeinsam in der Box."], failed: ["Fehlgeschlagener Fang", "Misslingt einem von euch der Fang, ist das Gebiet für beide gesperrt."], cap: ["Level-Cap", "Kein Pokémon darf über dem stärksten Pokémon des nächsten Arenaleiters liegen."], items: ["Items im Gleichschritt", "Ein Heil-Item nur benutzen, wenn dein Partner auch eins benutzt."], dupes: ["Keine Doppelten", "Eine Art, die du schon besitzt, zählt nicht als erste Begegnung."], nick: ["Spitznamen", "Jedes gefangene Pokémon bekommt einen Spitznamen."], set: ["Folgemodus", "Kein Wechsel, nachdem ein gegnerisches Pokémon besiegt wurde."] },
+    rules: { first: ["Nur die erste Begegnung", "In jedem Gebiet darfst du nur das erste Pokémon fangen, das dir begegnet."], linked: ["Gleiches Gebiet, verbunden", "Dein Fang und der Fang deines Partners aus demselben Gebiet bilden einen Link."], fate: ["Geteiltes Schicksal", "Wird eins besiegt, ist auch sein Partner verloren."], together: ["Zusammen oder gar nicht", "Verbundene Partner sind gemeinsam im Team oder gemeinsam in der Box."], failed: ["Fehlgeschlagener Fang", "Misslingt einem von euch der Fang, ist das Gebiet für beide gesperrt."], cap: ["Level-Cap", "Kein Pokémon darf über dem stärksten Pokémon des nächsten Arenaleiters liegen."], items: ["Item gegen Item", "Im Kampf darfst du für jedes Item, das dein Gegner eingesetzt hat, selbst ein Item einsetzen, vorher keins."], dupes: ["Keine Doppelten", "Eine Art, die du schon besitzt, zählt nicht als erste Begegnung."], nick: ["Spitznamen", "Jedes gefangene Pokémon bekommt einen Spitznamen."], set: ["Folgemodus", "Kein Wechsel, nachdem ein gegnerisches Pokémon besiegt wurde."] },
     rAlways: "immer aktiv", pickRules: "Regeln",
     team: "Team", boxed: "In der Box", open: "Offen", lost: "Verloren",
     sum: (l, o, x) => [`<b>${l} verbunden</b>`, `${o} offen`, x ? `<span class="bad">${x} verloren</span>` : `0 verloren`].join("  ·  "),
@@ -511,7 +515,8 @@ waitPlayer: "Warte auf Spieler zwei", playerTwo: "Spieler zwei", notJoined: "noc
     phase: { idle: "Läuft nicht", connecting: "Verbinde", live: "Live, jedes Speichern im Spiel wird gesendet", error: "Gestoppt" },
     tabJoin: "Run beitreten", tabNew: "Neuer Run", code: "Run-Code", codeHelp: "Dein Partner sieht den Code, nachdem er den Run erstellt hat.", openRun: "Run öffnen",
     caps: "Level-Caps", capsPh: "13, 18, 24, 30", capsHelp: "Ein Level pro Arena, der Reihe nach. Leer lassen, um ohne Caps zu spielen.", create: "Run erstellen",
-    capsErr: "Bitte ganze Zahlen von 1 bis 100, durch Kommas getrennt.",
+    capsErr: "Bitte ganze Zahlen von 1 bis 100, durch Kommas getrennt.", league: "Liga",
+    capsRom: "Aus deiner ROM gelesen: das stärkste Pokémon jedes Arenaleiters, danach der Pokémon-Liga.", capsGame: g => `Die Level ließen sich nicht aus deiner ROM lesen. Das sind die Level von ${g}.`, capsNoRom: "Wähle zuerst deine ROM, damit die Caps daraus gelesen werden können.",
     types: { normal: "Normal", fire: "Feuer", water: "Wasser", electric: "Elektro", grass: "Pflanze", ice: "Eis", fighting: "Kampf", poison: "Gift", ground: "Boden", flying: "Flug", psychic: "Psycho", bug: "Käfer", rock: "Gestein", ghost: "Geist", dragon: "Drache", dark: "Unlicht", steel: "Stahl" },
   },
 };
@@ -626,9 +631,9 @@ function renderStart() {
 }
 
 /* ---------- setup page (desktop app) */
-const setupUi = { tab: 1, rules: null, caps: "", code: "", error: "" };
-function rulePicker(chosen) {
-  return `<div class="field"><label>${t().pickRules}</label><div class="checks" id="f-rules">${RULES.filter(id => id !== "cap").map(id => {
+const setupUi = { tab: 1, rules: null, capOn: true, code: "", error: "" };
+function rulePicker(chosen, first = "") {
+  return `<div class="field"><label>${t().pickRules}</label><div class="checks" id="f-rules">${first}${RULES.filter(id => id !== "cap").map(id => {
     const fixed = RULES_FIXED.includes(id);
     return `<label><input type="checkbox" value="${id}" ${chosen.includes(id) ? "checked" : ""} ${fixed ? "disabled" : ""}><span>${t().rules[id][0]}${fixed ? `  ·  ${t().rAlways}` : ""}</span><small>${t().rules[id][1]}</small></label>`;
   }).join("")}</div></div>`;
@@ -641,6 +646,14 @@ function parseCaps(raw) {
   const caps = raw.trim() ? raw.trim().split(/[\s,;]+/).filter(Boolean).map(Number) : [];
   return caps.some(n => !Number.isInteger(n) || n < 1 || n > 100) || caps.length > 16 ? null : caps;
 }
+
+// The level cap rule of the app's setup: on means the caps of the chosen ROM.
+function capPicker(on, rom) {
+  const c = rom && rom.ok && rom.caps;
+  const levels = c ? `<span class="capline">${c.levels.map((l, i) => `<span><i>${capName(i)}</i> ${l}</span>`).join("")}</span><small>${c.from_rom ? t().capsRom : t().capsGame(esc(rom.label[lang]))}</small>` : `<small>${t().capsNoRom}</small>`;
+  return `<label><input type="checkbox" id="f-cap" ${on ? "checked" : ""}><span>${t().rules.cap[0]}</span><small>${t().rules.cap[1]}</small>${on ? levels : ""}</label>`;
+}
+const capName = i => i < 8 ? i + 1 + "." : t().league;
 
 function renderSetup() {
   const u = setupUi, rom = local.rom, save = local.save;
@@ -658,7 +671,7 @@ function renderSetup() {
     <div class="tabs" role="tablist" data-i="${u.tab}"><button type="button" role="tab" aria-selected="${u.tab === 0}" data-i="0">${t().tabJoin}</button><button type="button" role="tab" aria-selected="${u.tab === 1}" data-i="1">${t().tabNew}</button></div>
     <div class="pane" style="animation:none">${u.tab === 0
       ? `<div class="field"><label for="f-code">${t().code}</label><input id="f-code" class="mono" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="HYPNO-6811" value="${esc(u.code)}"><small>${t().codeHelp}</small></div>`
-      : `<div class="field"><label for="f-caps">${t().caps}</label><input id="f-caps" autocomplete="off" placeholder="${t().capsPh}" value="${esc(u.caps)}"><small>${t().capsHelp}</small></div>${rulePicker(u.rules)}`}
+      : rulePicker(u.rules, capPicker(u.capOn, rom))}
       <details class="adv" ${local.server ? "open" : ""}><summary>${t().advanced}</summary><div class="field"><label for="f-server">${t().fServer}</label><input id="f-server" autocomplete="off" spellcheck="false" placeholder="https://" value="${esc(local.server)}"><small>${t().fServerHelp}</small></div></details>
       <p class="err" id="err" ${u.error ? "" : "hidden"}>${esc(u.error)}</p>
       <button class="btn" type="submit">${u.tab === 0 ? t().startJoin : t().startNew}</button>
@@ -667,13 +680,14 @@ function renderSetup() {
   bindChrome();
   const form = $("#setupf");
   const keep = () => {
-    const caps = $("#f-caps"), code = $("#f-code");
-    if (caps) { u.caps = caps.value; u.rules = readRules([]); }
+    const cap = $("#f-cap"), code = $("#f-code");
+    if (cap) { u.capOn = cap.checked; u.rules = readRules([]); }
     if (code) u.code = code.value;
   };
   const save_ = async patch => { keep(); const r = await localPost("set", patch); if (r.ok) { local = await r.json(); SRV = local.server || ""; } };
   const fields = () => ({ name: $("#f-name").value, rom: $("#f-rom").value, save: $("#f-save").value, server: $("#f-server").value });
   for (const id of ["name", "rom", "save", "server"]) $("#f-" + id).onchange = async () => { await save_(fields()); if (id !== "name" && id !== "server") renderSetup(); };
+  form.onchange = e => { if (e.target.id === "f-cap") { keep(); renderSetup(); } };
   form.onclick = async e => {
     const pick = e.target.closest("[data-pick]"), tabBtn = e.target.closest(".tabs button");
     if (pick) {
@@ -687,8 +701,8 @@ function renderSetup() {
     e.preventDefault();
     await save_(fields());
     const fail = msg => { u.error = msg; renderSetup(); };
-    const caps = u.tab === 1 ? parseCaps(u.caps) : [];
-    if (!caps) return fail(t().capsErr);
+    const rom = local.rom, caps = u.tab === 1 && u.capOn ? rom && rom.ok && rom.caps && rom.caps.levels : [];
+    if (!caps) return fail(t().capsNoRom);
     const body = u.tab === 0 ? { code: u.code.trim() } : { settings: { caps, rules: RULES.filter(id => u.rules.includes(id) || (id === "cap" && caps.length)) } };
     if (u.tab === 0 && !body.code) return fail(t().eCode);
     $(".btn", form).disabled = true;
@@ -783,7 +797,7 @@ function updateRules() {
   el._sig = sig;
   const list = RULES.filter(id => chosen.includes(id) && (id !== "cap" || caps.length));
   el.innerHTML = `<section class="rblock"><h2>${t().rCaps}</h2>${caps.length
-      ? `<div class="caps">${caps.map((c, i) => `<span class="capc ${i < now ? "done" : i === now ? "now" : ""}"><small>${t().gym(i + 1)}</small><b>${c}</b></span>`).join("")}</div><p>${t().rCapsHint}</p>`
+      ? `<div class="caps">${caps.map((c, i) => `<span class="capc ${i < now ? "done" : i === now ? "now" : ""}"><small>${i < 8 ? t().gym(i + 1) : t().league}</small><b>${c}</b></span>`).join("")}</div><p>${t().rCapsHint}</p>`
       : `<p>${t().rNoCaps}</p>`}</section>
     <section class="rblock"><h2>${t().rRules}</h2><ol class="rlist">${list.map(id => `<li><b>${t().rules[id][0]}</b><span>${t().rules[id][1]}</span></li>`).join("")}</ol><p>${t().rNote}</p></section>`;
 }

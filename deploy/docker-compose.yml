@@ -10,6 +10,14 @@
 # address so Caddy only listens there. Put the variables in a `.env` file next
 # to this one to keep them across restarts.
 #
+# Set SOULSYNC_EMAIL to your address to let Caddy fall back to ZeroSSL when
+# Let's Encrypt refuses. That happens on host names many people share, such as
+# the ones hosting providers hand out, because Let's Encrypt limits
+# certificates per domain.
+#
+# Without HTTPS, for a quick test: SOULSYNC_DOMAIN=:80 serves plain HTTP on
+# the machine's address.
+#
 # Behind a reverse proxy you already run: start only the server and point the
 # proxy at 127.0.0.1:3000 (it must pass WebSocket upgrades through):
 #
@@ -32,6 +40,7 @@ services:
       - "${SOULSYNC_BIND:-0.0.0.0}:443:443"
     environment:
       SOULSYNC_DOMAIN: ${SOULSYNC_DOMAIN:-localhost}
+      SOULSYNC_ACME: ${SOULSYNC_EMAIL:+email ${SOULSYNC_EMAIL}}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

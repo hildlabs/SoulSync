@@ -36,6 +36,15 @@ impl Game {
         }
     }
 
+    /// Level caps of the unmodified game: the strongest Pokémon of each gym
+    /// leader in badge order, then of the Pokémon League.
+    pub fn level_caps(self) -> [u8; 9] {
+        match self {
+            Game::Black | Game::White => [14, 20, 23, 27, 31, 35, 39, 43, 50],
+            Game::Black2 | Game::White2 => [13, 18, 24, 30, 33, 39, 48, 51, 59],
+        }
+    }
+
     pub fn generation(self) -> u8 {
         5
     }

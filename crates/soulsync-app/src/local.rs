@@ -10,7 +10,7 @@ use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use soulsync_client::{create_run, load, session, ws_url, End, Update};
 use soulsync_core::protocol::RunSettings;
-use soulsync_core::{read_catch_rates, read_rom_header, Lang, ROM_HEADER_LEN};
+use soulsync_core::{read_catch_rates, read_level_caps, read_rom_header, Lang, ROM_HEADER_LEN};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -55,12 +55,16 @@ struct Local {
     own: String,
 }
 
-fn config_path() -> Option<PathBuf> {
-    let dir = std::env::var_os("SOULSYNC_CONFIG_DIR")
+/// Where the app keeps its settings.
+pub fn data_dir() -> Option<PathBuf> {
+    std::env::var_os("SOULSYNC_CONFIG_DIR")
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("APPDATA").map(|d| PathBuf::from(d).join("SoulSync")))
-        .or_else(|| std::env::var_os("HOME").map(|d| PathBuf::from(d).join(".config/soulsync")))?;
-    Some(dir.join("config.json"))
+        .or_else(|| std::env::var_os("HOME").map(|d| PathBuf::from(d).join(".config/soulsync")))
+}
+
+fn config_path() -> Option<PathBuf> {
+    Some(data_dir()?.join("config.json"))
 }
 
 fn read_config() -> Config {
@@ -90,7 +94,19 @@ fn rom_info(path: &Path) -> serde_json::Value {
         .ok()
         .and_then(|()| read_rom_header(&header));
     let game = info.as_ref().and_then(|i| i.game);
+    // Level caps follow the gym leaders of this very ROM; the unmodified
+    // game's levels stand in if they cannot be read.
+    let caps = game.map(|g| {
+        let read = std::fs::File::open(path)
+            .ok()
+            .and_then(|mut f| read_level_caps(&mut f, g).ok());
+        serde_json::json!({
+            "from_rom": read.is_some(),
+            "levels": read.unwrap_or_else(|| g.level_caps().to_vec()),
+        })
+    });
     serde_json::json!({
+        "caps": caps,
         "path": path,
         "ok": game.is_some(),
         "game": game,

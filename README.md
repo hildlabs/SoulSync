@@ -8,13 +8,15 @@ SoulSync reads both players' game state and shows it on one shared dashboard: li
 
 ## The app
 
-Start `SoulSync` (on Windows: `SoulSync.exe`). It opens in your browser:
+Start `SoulSync` (on Windows: `SoulSync.exe`). It opens in its own window; closing the window quits it:
 
 1. Enter your name and pick your ROM and your save. For DeSmuME the save is the `.dsv` in its `Battery` folder; SoulSync finds it next to the ROM if it can.
 2. Start a new run and choose your rules, or join your partner's run with their code.
 3. Play. Every in-game save updates the dashboard for both of you.
 
 To play together, both players enter the same run server under *Server*. Without one, the run stays on your computer. Your ROM and your save never leave your machine.
+
+The window uses the web view that comes with Windows 11 and macOS. On Windows 10 it needs Microsoft's WebView2 runtime, which most computers already have; without it SoulSync opens in your browser instead. On Linux it always opens in the browser.
 
 ## Hosting a run server
 
@@ -24,6 +26,10 @@ SOULSYNC_DOMAIN=soulsync.example.org docker compose --profile https up -d --buil
 ```
 
 This runs the server behind Caddy with HTTPS. The domain must point to the machine, and ports 80 and 443 must be free and open.
+
+The host name your provider gave the machine works as the domain too. Many customers share such a name's domain, so Let's Encrypt often refuses it with a rate limit. Add `SOULSYNC_EMAIL=you@example.org` and Caddy gets the certificate from ZeroSSL instead when that happens.
+
+For a quick test without HTTPS, `SOULSYNC_DOMAIN=:80` serves plain HTTP; players then enter `http://` and the machine's address as the server.
 
 If the machine already runs a reverse proxy, start only the server with `docker compose up -d --build` and point the proxy at `127.0.0.1:3000`, passing WebSocket upgrades through. Runs are kept in memory.
 
