@@ -1,0 +1,25 @@
+[package]
+name = "soulsync-app"
+description = "SoulSync desktop app: set up a run, sync your game and watch the dashboard"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "SoulSync"
+path = "src/main.rs"
+
+[dependencies]
+soulsync-core = { path = "../soulsync-core" }
+soulsync-client = { path = "../soulsync-client" }
+soulsync-server = { path = "../soulsync-server" }
+serde.workspace = true
+serde_json.workspace = true
+axum = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time"] }
+open = "5"
+
+[target.'cfg(any(windows, target_os = "macos"))'.dependencies]
+rfd = { version = "0.15", default-features = false }

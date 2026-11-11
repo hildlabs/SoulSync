@@ -202,8 +202,8 @@ main{display:flex;flex-direction:column;min-height:0}
 .rail section:last-child{flex:1;min-height:0;display:flex;flex-direction:column}
 .rail h2{font-size:15px;font-weight:600;letter-spacing:-.01em}
 .kv{display:flex;justify-content:space-between;gap:16px;padding:8px 0;border-bottom:1px solid var(--line)}
-.kv span{color:var(--muted)}
-.kv b{font-weight:400;text-align:right;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.kv>span{flex:none;color:var(--muted)}
+.kv b{font-weight:400;text-align:right;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .feed{flex:1;min-height:0;margin-top:16px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
 .ev{display:grid;grid-template-rows:1fr;transition:grid-template-rows .45s var(--out)}
 .ev>div{overflow:hidden;display:grid;grid-template-columns:46px minmax(0,1fr);gap:12px;line-height:21px;transition:opacity .4s var(--out) .1s,transform .45s var(--out) .1s}
@@ -314,8 +314,8 @@ main{display:flex;flex-direction:column;min-height:0}
 .tgrid .tc.x{box-shadow:inset 0 0 0 1.5px var(--text)}
 
 /* ---------- start */
-.stage{flex:1;overflow-y:auto;display:flex;justify-content:center;align-items:flex-start;padding:56px 16px 80px}
-.form{width:100%;max-width:420px;display:flex;flex-direction:column;gap:28px}
+.stage{flex:1;min-height:0;overflow-y:auto;padding:56px 16px 80px}
+.form{width:100%;max-width:420px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
 .form h1{font-size:32px;line-height:1.15;font-weight:600;letter-spacing:-.025em}
 .form .lead{margin-top:10px;font-size:15px;line-height:23px;color:var(--muted)}
 .tabs{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:10px}
@@ -332,6 +332,24 @@ main{display:flex;flex-direction:column;min-height:0}
 .btn{height:46px;border-radius:10px;background:var(--inverse);color:var(--inverse-text);font-size:15px;font-weight:500;transition:transform .12s var(--out),opacity .15s}
 .btn:disabled{opacity:.6}
 .err{color:var(--danger);font-size:13px}
+.form.wide{max-width:520px}
+.filerow{display:flex;gap:8px}
+.filerow input{flex:1;min-width:0}
+.filerow button{flex:none;height:46px;padding:0 16px;border:1px solid var(--line);border-radius:10px;font-weight:500;transition:border-color .15s,transform .12s var(--out)}
+.filerow button:hover{border-color:var(--muted)}
+.field small.ok{color:var(--ok)}
+.field small.bad{color:var(--danger)}
+.checks{display:grid;gap:2px;margin-top:2px}
+.checks label{display:grid;grid-template-columns:18px minmax(0,1fr);gap:2px 10px;padding:8px 0;cursor:pointer;margin:0;font-size:14px;font-weight:500}
+.checks label small{grid-column:2;margin:0;font-weight:400}
+.checks input{width:16px;height:16px;margin:3px 0 0;accent-color:var(--text)}
+.checks input:disabled+span{color:var(--muted)}
+details.adv summary{cursor:pointer;font-size:13px;font-weight:500;color:var(--muted)}
+details.adv .field{margin-top:12px}
+.rblock .kv:last-of-type{border-bottom:0}
+.rblock .kv b{max-width:70%;white-space:nowrap}
+.dot{display:inline-block;width:8px;height:8px;margin-right:8px;border-radius:50%;background:var(--faint)}
+.dot.live{background:var(--ok)}.dot.error{background:var(--danger)}.dot.connecting{background:var(--warn)}
 .center-msg{padding:96px 16px;text-align:center;color:var(--muted)}
 
 @keyframes rise{from{opacity:0;transform:translateY(8px)}}
@@ -402,7 +420,7 @@ const T = {
     links: "Links", run: "Run", activity: "Activity", copy: "Copy", copied: "Copied",
     live2: "Both players live", live1: "1 of 2 players live", live0: "Waiting for players", offline: "Reconnecting", missing: "Run not found",
     theme: "Switch theme",
-    tabs: { links: "Links", encounters: "Encounters", timeline: "Timeline", types: "Types", rules: "Rules" },
+    tabs: { links: "Links", encounters: "Encounters", timeline: "Timeline", types: "Types", rules: "Rules", settings: "Settings" },
     area: "Area", status: "Status",
     hint: { team: "linked and in play", boxed: "linked, both resting", open: "one catch is still missing", lost: "one fainted, both are out" },
     turn: n => `<b>${n}</b> is up`, partnerInTeam: "partner is in the team", and: "&",
@@ -414,7 +432,8 @@ const T = {
     balls: [["Poké Ball", ""], ["Great Ball", ""], ["Ultra Ball", ""], ["Quick Ball", "turn 1"], ["Dusk Ball", "cave or night"]],
     rCaps: "Level caps", rNoCaps: "This run has no level caps.", rCapsHint: "The highlighted cap applies until both players have the next badge.", gym: n => `Gym ${n}`,
     rRules: "Soul Link rules", rNote: "SoulSync tracks links, levels and losses. The other rules are on your honour for now.",
-    rList: [["First encounter only", "In each area you may catch only the first Pokémon you meet."], ["Same area, linked", "Your catch and your partner’s catch from the same area form a link."], ["Shared fate", "If one of them faints, its partner is lost too."], ["Together or not at all", "Linked partners are in the team together or in the box together."], ["Failed catch", "If one of you fails the catch, the area is closed for both."], ["Level cap", "No Pokémon may be above the strongest Pokémon of the next gym leader."]],
+    rules: { first: ["First encounter only", "In each area you may catch only the first Pokémon you meet."], linked: ["Same area, linked", "Your catch and your partner’s catch from the same area form a link."], fate: ["Shared fate", "If one of them faints, its partner is lost too."], together: ["Together or not at all", "Linked partners are in the team together or in the box together."], failed: ["Failed catch", "If one of you fails the catch, the area is closed for both."], cap: ["Level cap", "No Pokémon may be above the strongest Pokémon of the next gym leader."], items: ["Items in step", "Use a healing item only when your partner uses one too."], dupes: ["No duplicates", "A species you already own does not count as the first encounter."], nick: ["Nicknames", "Every caught Pokémon gets a nickname."], set: ["Set mode", "No switching after the opponent’s Pokémon faints."] },
+    rAlways: "always on", pickRules: "Rules",
     team: "Team", boxed: "Boxed", open: "Open", lost: "Lost",
     sum: (l, o, x) => [`<b>${l} linked</b>`, `${o} open`, x ? `<span class="bad">${x} lost</span>` : `0 lost`].join("  ·  "),
     badges: n => n === 1 ? "1 badge" : `${n} badges`, cap: n => `Level cap ${n}`,
@@ -433,6 +452,14 @@ waitPlayer: "Waiting for player two", playerTwo: "Player two", notJoined: "not j
     evParty: m => `<b>${m}</b> moved to the team`, evBox: (m, n) => `<b>${m}</b> moved to Box ${n}`, evGone: m => `<b>${m}</b> is gone`,
     evBadges: (p, n) => `<b>${p}</b> now has ${n === 1 ? "1 badge" : n + " badges"}`,
     startTitle: "Start a Soul Link", startLead: "Two players, one run. Every catch is linked to your partner’s catch from the same area.",
+    setupTitle: "Set up SoulSync", setupLead: "Pick your game once. SoulSync then keeps it in sync and shows the dashboard.",
+    fName: "Your name", fNamePh: "Shown to your partner", fRom: "Your ROM", fSave: "Your save", browse: "Browse", fPathPh: "Path to the file",
+    romOk: (g, n) => `Pokémon ${g}  ·  Gen ${n}`, romBad: "This is not a supported Pokémon ROM (Black, White, Black 2, White 2).",
+    saveOk: (n, b, p) => `Trainer ${n}  ·  ${b} badges  ·  ${p} Pokémon`, saveBad: "This save cannot be read. Pick the .dsv from DeSmuME’s Battery folder.",
+    fServer: "Run server", fServerHelp: "Leave empty to keep the run on this computer only. To play with a partner, both enter the same server address.", advanced: "Server",
+    startNew: "Start run", startJoin: "Join run", eName: "Enter your name.", eSave: "Pick a save that can be read first.", eCode: "No run with this code on the server.",
+    sGame: "Your game", sRun: "Run", sSync: "Sync", sServer: "Server", sLocal: "this computer", sLeave: "Leave run", sLeaveSure: "Click again to leave", sLeaveHint: "Stops syncing and returns to the setup. The run stays on the server.",
+    phase: { idle: "Not running", connecting: "Connecting", live: "Live, every in-game save is sent", error: "Stopped" },
     tabJoin: "Join a run", tabNew: "New run", code: "Run code", codeHelp: "Your partner sees this code after creating the run.", openRun: "Open run",
     caps: "Level caps", capsPh: "13, 18, 24, 30", capsHelp: "One level per gym, in order. Leave empty to play without caps.", create: "Create run",
     capsErr: "Use whole numbers from 1 to 100, separated by commas.",
@@ -442,7 +469,7 @@ waitPlayer: "Waiting for player two", playerTwo: "Player two", notJoined: "not j
     links: "Links", run: "Run", activity: "Verlauf", copy: "Kopieren", copied: "Kopiert",
     live2: "Beide Spieler live", live1: "1 von 2 Spielern live", live0: "Warte auf Spieler", offline: "Verbinde neu", missing: "Run nicht gefunden",
     theme: "Farbschema wechseln",
-    tabs: { links: "Links", encounters: "Begegnungen", timeline: "Verlauf", types: "Typen", rules: "Regeln" },
+    tabs: { links: "Links", encounters: "Begegnungen", timeline: "Verlauf", types: "Typen", rules: "Regeln", settings: "Einstellungen" },
     area: "Gebiet", status: "Status",
     hint: { team: "verbunden und im Einsatz", boxed: "verbunden, beide in der Box", open: "ein Fang fehlt noch", lost: "eins besiegt, beide raus" },
     turn: n => `<b>${n}</b> ist dran`, partnerInTeam: "Partner ist im Team", and: "&",
@@ -454,7 +481,8 @@ waitPlayer: "Waiting for player two", playerTwo: "Player two", notJoined: "not j
     balls: [["Pokéball", ""], ["Superball", ""], ["Hyperball", ""], ["Flottball", "Runde 1"], ["Finsterball", "Höhle oder Nacht"]],
     rCaps: "Level-Caps", rNoCaps: "Dieser Run hat keine Level-Caps.", rCapsHint: "Der markierte Cap gilt, bis beide Spieler den nächsten Orden haben.", gym: n => `Arena ${n}`,
     rRules: "Soul-Link-Regeln", rNote: "SoulSync verfolgt Links, Level und Verluste. Die übrigen Regeln laufen vorerst auf Vertrauen.",
-    rList: [["Nur die erste Begegnung", "In jedem Gebiet darfst du nur das erste Pokémon fangen, das dir begegnet."], ["Gleiches Gebiet, verbunden", "Dein Fang und der Fang deines Partners aus demselben Gebiet bilden einen Link."], ["Geteiltes Schicksal", "Wird eins besiegt, ist auch sein Partner verloren."], ["Zusammen oder gar nicht", "Verbundene Partner sind gemeinsam im Team oder gemeinsam in der Box."], ["Fehlgeschlagener Fang", "Misslingt einem von euch der Fang, ist das Gebiet für beide gesperrt."], ["Level-Cap", "Kein Pokémon darf über dem stärksten Pokémon des nächsten Arenaleiters liegen."]],
+    rules: { first: ["Nur die erste Begegnung", "In jedem Gebiet darfst du nur das erste Pokémon fangen, das dir begegnet."], linked: ["Gleiches Gebiet, verbunden", "Dein Fang und der Fang deines Partners aus demselben Gebiet bilden einen Link."], fate: ["Geteiltes Schicksal", "Wird eins besiegt, ist auch sein Partner verloren."], together: ["Zusammen oder gar nicht", "Verbundene Partner sind gemeinsam im Team oder gemeinsam in der Box."], failed: ["Fehlgeschlagener Fang", "Misslingt einem von euch der Fang, ist das Gebiet für beide gesperrt."], cap: ["Level-Cap", "Kein Pokémon darf über dem stärksten Pokémon des nächsten Arenaleiters liegen."], items: ["Items im Gleichschritt", "Ein Heil-Item nur benutzen, wenn dein Partner auch eins benutzt."], dupes: ["Keine Doppelten", "Eine Art, die du schon besitzt, zählt nicht als erste Begegnung."], nick: ["Spitznamen", "Jedes gefangene Pokémon bekommt einen Spitznamen."], set: ["Folgemodus", "Kein Wechsel, nachdem ein gegnerisches Pokémon besiegt wurde."] },
+    rAlways: "immer aktiv", pickRules: "Regeln",
     team: "Team", boxed: "In der Box", open: "Offen", lost: "Verloren",
     sum: (l, o, x) => [`<b>${l} verbunden</b>`, `${o} offen`, x ? `<span class="bad">${x} verloren</span>` : `0 verloren`].join("  ·  "),
     badges: n => `${n} Orden`, cap: n => `Level-Cap ${n}`,
@@ -473,6 +501,14 @@ waitPlayer: "Warte auf Spieler zwei", playerTwo: "Spieler zwei", notJoined: "noc
     evParty: m => `<b>${m}</b> ist jetzt im Team`, evBox: (m, n) => `<b>${m}</b> liegt jetzt in Box ${n}`, evGone: m => `<b>${m}</b> ist weg`,
     evBadges: (p, n) => `<b>${p}</b> hat jetzt ${n} Orden`,
     startTitle: "Soul Link starten", startLead: "Zwei Spieler, ein Run. Jeder Fang ist mit dem Fang deines Partners aus demselben Gebiet verbunden.",
+    setupTitle: "SoulSync einrichten", setupLead: "Wähle einmal dein Spiel aus. SoulSync hält es danach synchron und zeigt das Dashboard.",
+    fName: "Dein Name", fNamePh: "So sieht dich dein Partner", fRom: "Deine ROM", fSave: "Dein Spielstand", browse: "Durchsuchen", fPathPh: "Pfad zur Datei",
+    romOk: (g, n) => `Pokémon ${g}  ·  Gen ${n}`, romBad: "Das ist keine unterstützte Pokémon-ROM (Schwarz, Weiß, Schwarz 2, Weiß 2).",
+    saveOk: (n, b, p) => `Trainer ${n}  ·  ${b} Orden  ·  ${p} Pokémon`, saveBad: "Dieser Spielstand lässt sich nicht lesen. Wähle die .dsv aus dem Battery-Ordner von DeSmuME.",
+    fServer: "Run-Server", fServerHelp: "Leer lassen, dann bleibt der Run nur auf diesem Rechner. Für das Spiel zu zweit tragen beide dieselbe Server-Adresse ein.", advanced: "Server",
+    startNew: "Run starten", startJoin: "Run beitreten", eName: "Trag deinen Namen ein.", eSave: "Wähle zuerst einen lesbaren Spielstand.", eCode: "Auf dem Server gibt es keinen Run mit diesem Code.",
+    sGame: "Dein Spiel", sRun: "Run", sSync: "Sync", sServer: "Server", sLocal: "dieser Rechner", sLeave: "Run verlassen", sLeaveSure: "Zum Verlassen nochmal klicken", sLeaveHint: "Beendet den Sync und führt zurück zur Einrichtung. Der Run bleibt auf dem Server.",
+    phase: { idle: "Läuft nicht", connecting: "Verbinde", live: "Live, jedes Speichern im Spiel wird gesendet", error: "Gestoppt" },
     tabJoin: "Run beitreten", tabNew: "Neuer Run", code: "Run-Code", codeHelp: "Dein Partner sieht den Code, nachdem er den Run erstellt hat.", openRun: "Run öffnen",
     caps: "Level-Caps", capsPh: "13, 18, 24, 30", capsHelp: "Ein Level pro Arena, der Reihe nach. Leer lassen, um ohne Caps zu spielen.", create: "Run erstellen",
     capsErr: "Bitte ganze Zahlen von 1 bis 100, durch Kommas getrennt.",
@@ -489,9 +525,12 @@ const $ = (sel, el = document) => el.querySelector(sel);
 const $app = $("#app");
 const OUT = "cubic-bezier(.22,1,.36,1)";
 const DEMO = location.pathname === "/demo" || window.SOULSYNC_DEMO === true;
-const codeFromPath = DEMO ? "DEMO-0000" : (location.pathname.match(/^\/run\/([^/]+)/) || [])[1];
+let codeFromPath = DEMO ? "DEMO-0000" : (location.pathname.match(/^\/run\/([^/]+)/) || [])[1];
+// Inside the desktop app: its local state (ROM, save, run, sync). `SRV` is the run server, empty for this origin.
+let local = null, SRV = "";
+const localPost = (path, body) => fetch("/api/local/" + path, { method: "POST", headers: { "content-type": "application/json", "x-soulsync": "1" }, body: JSON.stringify(body || {}) });
 
-const VIEWS = ["links", "encounters", "timeline", "types", "rules"];
+const VIEWS = ["links", "encounters", "timeline", "types", "rules", "settings"];
 let view = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "links";
 let state = null, conn = "offline", sprites = window.SOULSYNC_SPRITES || null, mounted = false;
 const theme = store.get("soulsync.theme");
@@ -557,7 +596,7 @@ function renderStart() {
   const fill = () => {
     pane.innerHTML = tab === 0
       ? `<div class="field"><label for="f-code">${t().code}</label><input id="f-code" class="mono" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="HYPNO-6811" required><small>${t().codeHelp}</small></div><button class="btn" type="submit">${t().openRun}</button>`
-      : `<div class="field"><label for="f-caps">${t().caps}</label><input id="f-caps" autocomplete="off" placeholder="${t().capsPh}"><small>${t().capsHelp}</small></div><p class="err" id="err" hidden></p><button class="btn" type="submit">${t().create}</button>`;
+      : `<div class="field"><label for="f-caps">${t().caps}</label><input id="f-caps" autocomplete="off" placeholder="${t().capsPh}"><small>${t().capsHelp}</small></div>${rulePicker(RULES_DEFAULT)}<p class="err" id="err" hidden></p><button class="btn" type="submit">${t().create}</button>`;
     pane.style.animation = "none"; void pane.offsetWidth; pane.style.animation = "";
   };
   fill();
@@ -575,14 +614,92 @@ function renderStart() {
       return;
     }
     const err = $("#err"), btn = $(".btn", pane), raw = $("#f-caps").value.trim();
-    const caps = raw ? raw.split(/[\s,;]+/).filter(Boolean).map(Number) : [];
-    if (caps.some(n => !Number.isInteger(n) || n < 1 || n > 100) || caps.length > 16) { err.textContent = t().capsErr; err.hidden = false; return; }
+    const caps = parseCaps(raw);
+    if (!caps) { err.textContent = t().capsErr; err.hidden = false; return; }
     btn.disabled = true;
     try {
-      const res = await fetch("/api/runs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ caps }) });
+      const res = await fetch("/api/runs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ caps, rules: readRules(caps) }) });
       if (!res.ok) throw new Error(await res.text());
       location.href = "/run/" + encodeURIComponent((await res.json()).code);
     } catch (e2) { btn.disabled = false; err.textContent = String(e2.message || e2); err.hidden = false; }
+  };
+}
+
+/* ---------- setup page (desktop app) */
+const setupUi = { tab: 1, rules: null, caps: "", code: "", error: "" };
+function rulePicker(chosen) {
+  return `<div class="field"><label>${t().pickRules}</label><div class="checks" id="f-rules">${RULES.filter(id => id !== "cap").map(id => {
+    const fixed = RULES_FIXED.includes(id);
+    return `<label><input type="checkbox" value="${id}" ${chosen.includes(id) ? "checked" : ""} ${fixed ? "disabled" : ""}><span>${t().rules[id][0]}${fixed ? `  ·  ${t().rAlways}` : ""}</span><small>${t().rules[id][1]}</small></label>`;
+  }).join("")}</div></div>`;
+}
+function readRules(caps) {
+  const ids = [...document.querySelectorAll("#f-rules input:checked")].map(i => i.value);
+  return RULES.filter(id => ids.includes(id) || (id === "cap" && caps.length));
+}
+function parseCaps(raw) {
+  const caps = raw.trim() ? raw.trim().split(/[\s,;]+/).filter(Boolean).map(Number) : [];
+  return caps.some(n => !Number.isInteger(n) || n < 1 || n > 100) || caps.length > 16 ? null : caps;
+}
+
+function renderSetup() {
+  const u = setupUi, rom = local.rom, save = local.save;
+  if (!u.rules) u.rules = RULES_DEFAULT.slice();
+  const file = (kind, f, label, okText) => `<div class="field"><label for="f-${kind}">${label}</label>
+    <div class="filerow"><input id="f-${kind}" autocomplete="off" spellcheck="false" placeholder="${t().fPathPh}" value="${f ? esc(f.path) : ""}">${local.dialogs ? `<button type="button" data-pick="${kind}">${t().browse}</button>` : ""}</div>
+    ${f ? `<small class="${f.ok ? "ok" : "bad"}">${f.ok ? okText : kind === "rom" ? t().romBad : t().saveBad}</small>` : ""}</div>`;
+  $app.innerHTML = topBar() + `<main class="stage"><form class="form wide" id="setupf">
+    <div><h1>${t().setupTitle}</h1><p class="lead">${t().setupLead}</p></div>
+    <div class="pane" style="animation:none">
+      <div class="field"><label for="f-name">${t().fName}</label><input id="f-name" autocomplete="off" maxlength="24" placeholder="${t().fNamePh}" value="${esc(local.name)}"></div>
+      ${file("rom", rom, t().fRom, rom && rom.ok ? t().romOk(esc(rom.label[lang]), rom.generation) : "")}
+      ${file("save", save, t().fSave, save && save.ok ? t().saveOk(esc(save.trainer), save.badges, save.pokemon) : "")}
+    </div>
+    <div class="tabs" role="tablist" data-i="${u.tab}"><button type="button" role="tab" aria-selected="${u.tab === 0}" data-i="0">${t().tabJoin}</button><button type="button" role="tab" aria-selected="${u.tab === 1}" data-i="1">${t().tabNew}</button></div>
+    <div class="pane" style="animation:none">${u.tab === 0
+      ? `<div class="field"><label for="f-code">${t().code}</label><input id="f-code" class="mono" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="HYPNO-6811" value="${esc(u.code)}"><small>${t().codeHelp}</small></div>`
+      : `<div class="field"><label for="f-caps">${t().caps}</label><input id="f-caps" autocomplete="off" placeholder="${t().capsPh}" value="${esc(u.caps)}"><small>${t().capsHelp}</small></div>${rulePicker(u.rules)}`}
+      <details class="adv" ${local.server ? "open" : ""}><summary>${t().advanced}</summary><div class="field"><label for="f-server">${t().fServer}</label><input id="f-server" autocomplete="off" spellcheck="false" placeholder="https://" value="${esc(local.server)}"><small>${t().fServerHelp}</small></div></details>
+      <p class="err" id="err" ${u.error ? "" : "hidden"}>${esc(u.error)}</p>
+      <button class="btn" type="submit">${u.tab === 0 ? t().startJoin : t().startNew}</button>
+    </div>
+  </form></main>`;
+  bindChrome();
+  const form = $("#setupf");
+  const keep = () => {
+    const caps = $("#f-caps"), code = $("#f-code");
+    if (caps) { u.caps = caps.value; u.rules = readRules([]); }
+    if (code) u.code = code.value;
+  };
+  const save_ = async patch => { keep(); const r = await localPost("set", patch); if (r.ok) { local = await r.json(); SRV = local.server || ""; } };
+  const fields = () => ({ name: $("#f-name").value, rom: $("#f-rom").value, save: $("#f-save").value, server: $("#f-server").value });
+  for (const id of ["name", "rom", "save", "server"]) $("#f-" + id).onchange = async () => { await save_(fields()); if (id !== "name" && id !== "server") renderSetup(); };
+  form.onclick = async e => {
+    const pick = e.target.closest("[data-pick]"), tabBtn = e.target.closest(".tabs button");
+    if (pick) {
+      await save_(fields()); pick.disabled = true;
+      const r = await localPost("pick", { kind: pick.dataset.pick });
+      if (r.ok) local = await r.json();
+      renderSetup();
+    } else if (tabBtn && +tabBtn.dataset.i !== u.tab) { keep(); u.tab = +tabBtn.dataset.i; u.error = ""; renderSetup(); }
+  };
+  form.onsubmit = async e => {
+    e.preventDefault();
+    await save_(fields());
+    const fail = msg => { u.error = msg; renderSetup(); };
+    const caps = u.tab === 1 ? parseCaps(u.caps) : [];
+    if (!caps) return fail(t().capsErr);
+    const body = u.tab === 0 ? { code: u.code.trim() } : { settings: { caps, rules: RULES.filter(id => u.rules.includes(id) || (id === "cap" && caps.length)) } };
+    if (u.tab === 0 && !body.code) return fail(t().eCode);
+    $(".btn", form).disabled = true;
+    const r = await localPost("start", body).catch(() => null);
+    if (!r || !r.ok) {
+      const why = r ? await r.text() : "";
+      return fail(why === "name" ? t().eName : why === "save" ? t().eSave : why === "code" ? t().eCode : why || t().offline);
+    }
+    local = await r.json(); u.error = "";
+    codeFromPath = local.code; SRV = local.server || ""; state = null; mounted = false;
+    render(); enter();
   };
 }
 
@@ -609,6 +726,7 @@ function mount() {
       <div class="view" data-view="timeline" hidden><div class="panel"><div class="scroll" id="tl"></div></div></div>
       <div class="view" data-view="types" hidden><div class="panel"><div class="scroll types" id="types"></div></div></div>
       <div class="view" data-view="rules" hidden><div class="scroll rules" id="rules"></div></div>
+      <div class="view" data-view="settings" hidden><div class="scroll rules" id="settings"></div></div>
     </main>
     <aside class="rail">
       <section><h2>${t().run}</h2><div id="kv"></div></section>
@@ -651,34 +769,72 @@ function updateTimeline() {
 let armUntil = 0;
 const armed = () => Date.now() < armUntil;
 
+const RULES = ["first", "linked", "fate", "together", "failed", "cap", "items", "dupes", "nick", "set"];
+const RULES_FIXED = ["linked", "fate"], RULES_DEFAULT = ["first", "linked", "fate", "together", "failed", "cap"];
+
 function updateRules() {
   const caps = state.settings && state.settings.caps || [];
+  const chosen = state.settings && state.settings.rules && state.settings.rules.length ? state.settings.rules : RULES_DEFAULT;
   const withSave = state.players.filter(p => p.snapshot);
   const badges = withSave.length ? Math.min(...withSave.map(p => p.snapshot.trainer.badges)) : 0;
   const now = Math.min(badges, caps.length - 1);
-  const sig = [lang, caps.join(), now, state.code, state.attempt].join("|"), el = $("#rules");
+  const sig = [lang, caps.join(), now, chosen.join()].join("|"), el = $("#rules");
   if (el._sig === sig) return;
   el._sig = sig;
+  const list = RULES.filter(id => chosen.includes(id) && (id !== "cap" || caps.length));
   el.innerHTML = `<section class="rblock"><h2>${t().rCaps}</h2>${caps.length
       ? `<div class="caps">${caps.map((c, i) => `<span class="capc ${i < now ? "done" : i === now ? "now" : ""}"><small>${t().gym(i + 1)}</small><b>${c}</b></span>`).join("")}</div><p>${t().rCapsHint}</p>`
       : `<p>${t().rNoCaps}</p>`}</section>
-    <section class="rblock"><h2>${t().rRules}</h2><ol class="rlist">${t().rList.map(([a, b]) => `<li><b>${a}</b><span>${b}</span></li>`).join("")}</ol><p>${t().rNote}</p></section>
-    <section class="rblock"><h2>${t().attempt(state.attempt || 1)}</h2><p>${t().rRetry}</p><button type="button" class="btn2 ${armed() ? "arm" : ""}" id="retry">${armed() ? t().retrySure : t().retry}</button></section>
-    <section class="rblock"><h2>${t().setup}</h2><ol class="steps"><li>${t().step1}</li><li>${t().step2}<div class="cmd"><code>${esc(syncCmd())}</code><button type="button">${t().copy}</button></div></li><li>${t().step3}</li></ol></section>`;
-  $(".cmd button", el).onclick = e => copyText(syncCmd(), e.currentTarget);
-  const retry = $("#retry");
-  retry.onclick = () => {
-    if (!armed()) {
-      armUntil = Date.now() + 4000;
-      retry.classList.add("arm"); retry.textContent = t().retrySure;
-      setTimeout(() => { const b = $("#retry"); if (b && !armed()) { b.classList.remove("arm"); b.textContent = t().retry; } }, 4100);
+    <section class="rblock"><h2>${t().rRules}</h2><ol class="rlist">${list.map(id => `<li><b>${t().rules[id][0]}</b><span>${t().rules[id][1]}</span></li>`).join("")}</ol><p>${t().rNote}</p></section>`;
+}
+
+// A button that asks for a second click before it acts.
+function confirmButton(btn, label, sure, act) {
+  btn.onclick = () => {
+    if (!armed() || armFor !== btn.id) {
+      armUntil = Date.now() + 4000; armFor = btn.id;
+      btn.classList.add("arm"); btn.textContent = sure;
+      setTimeout(() => { const b = document.getElementById(btn.id); if (b && !armed()) { b.classList.remove("arm"); b.textContent = label; } }, 4100);
       return;
     }
-    armUntil = 0;
-    retry.disabled = true;
-    if (window.SoulSyncDemoRestart) window.SoulSyncDemoRestart();
-    else fetch(`/api/runs/${encodeURIComponent(state.code)}/attempt`, { method: "POST" }).catch(() => {}).finally(() => { retry.disabled = false; });
+    armUntil = 0; act(btn);
   };
+}
+let armFor = "";
+
+function updateSettings() {
+  const el = $("#settings");
+  const sig = [lang, state.code, state.attempt, JSON.stringify(local)].join("|");
+  if (el._sig === sig) return;
+  el._sig = sig;
+  const kv = rows => rows.map(([k, v]) => `<div class="kv"><span>${k}</span><b>${v}</b></div>`).join("");
+  const name = p => esc(String(p || "").split(/[\\/]/).pop());
+  let html = "";
+  if (local) {
+    const rom = local.rom, save = local.save;
+    html += `<section class="rblock"><h2>${t().sGame}</h2><div style="margin-top:6px">${kv([
+      [t().fName, esc(local.name)],
+      [t().fRom, rom ? `<span title="${esc(rom.path)}">${name(rom.path)}</span>${rom.ok ? `  ·  ${esc(rom.label[lang])}` : ""}` : "–"],
+      [t().fSave, save ? `<span title="${esc(save.path)}">${name(save.path)}</span>` : "–"],
+    ])}</div></section>
+    <section class="rblock"><h2>${t().sRun}</h2><div style="margin-top:6px">${kv([
+      [t().code, `<span class="mono">${esc(state.code)}</span>`],
+      [t().sSync, `<i class="dot ${local.phase}"></i>${t().phase[local.phase] || local.phase}${local.message ? `  ·  ${esc(local.message)}` : ""}`],
+      [t().sServer, local.server ? esc(local.server) : t().sLocal],
+    ])}</div><p>${t().sLeaveHint}</p><button type="button" class="btn2" id="leave">${t().sLeave}</button></section>`;
+  }
+  html += `<section class="rblock"><h2>${t().attempt(state.attempt || 1)}</h2><p>${t().rRetry}</p><button type="button" class="btn2" id="retry">${t().retry}</button></section>`;
+  if (!local) html += `<section class="rblock"><h2>${t().setup}</h2><ol class="steps"><li>${t().step1}</li><li>${t().step2}<div class="cmd"><code>${esc(syncCmd())}</code><button type="button">${t().copy}</button></div></li><li>${t().step3}</li></ol></section>`;
+  el.innerHTML = html;
+  const cmd = $(".cmd button", el);
+  if (cmd) cmd.onclick = e => copyText(syncCmd(), e.currentTarget);
+  confirmButton($("#retry"), t().retry, t().retrySure, btn => {
+    btn.disabled = true;
+    if (window.SoulSyncDemoRestart) { window.SoulSyncDemoRestart(); btn.disabled = false; btn.classList.remove("arm"); btn.textContent = t().retry; }
+    else fetch(`${SRV}/api/runs/${encodeURIComponent(state.code)}/attempt`, { method: "POST" }).catch(() => {}).finally(() => { el._sig = ""; updateSettings(); });
+  });
+  const leave = $("#leave");
+  if (leave) confirmButton(leave, t().sLeave, t().sLeaveSure, async () => { await localPost("leave").catch(() => {}); location.reload(); });
 }
 
 function capNow() {
@@ -984,7 +1140,7 @@ function loadSpecies() {
     updateCatch();
   };
   if (window.SoulSyncDemoSpecies) take(window.SoulSyncDemoSpecies);
-  else fetch(`/api/runs/${encodeURIComponent(state.code)}/species`).then(r => r.json()).then(take).catch(() => { u.loaded = null; });
+  else fetch(`${SRV}/api/runs/${encodeURIComponent(state.code)}/species`).then(r => r.json()).then(take).catch(() => { u.loaded = null; });
 }
 
 function updateCatch() {
@@ -1107,41 +1263,68 @@ function tick() {
 
 function render() {
   document.documentElement.lang = lang;
-  if (!codeFromPath) return renderStart();
+  if (!codeFromPath) return local ? renderSetup() : renderStart();
   if (!state) {
     $app.innerHTML = topBar() + `<p class="center-msg">${conn === "missing" ? t().missing : ""}</p>`;
     bindChrome(); updateStatus(); mounted = false; return;
   }
   if (!mounted) mount();
-  updateStatus(); updatePlayers(); updateSetup(); updateLinks(); updateRail(); updateEncounters(); updateTimeline(); updateTypes(); updateRules(); updateCatch();
+  updateStatus(); updatePlayers(); updateSetup(); updateLinks(); updateRail(); updateEncounters(); updateTimeline(); updateTypes(); updateRules(); updateSettings(); updateCatch();
 }
 
 function apply(next) { state = next; conn = "live"; render(); }
 
 function connect() {
-  const proto = location.protocol === "https:" ? "wss:" : "ws:";
-  const path = `/api/runs/${encodeURIComponent(codeFromPath.toUpperCase())}`;
-  const ws = new WebSocket(`${proto}//${location.host}${path}/ws`);
+  const code = codeFromPath;
+  const path = `${SRV || location.origin}/api/runs/${encodeURIComponent(code.toUpperCase())}`;
+  const ws = new WebSocket(path.replace(/^http/, "ws") + "/ws");
   let opened = false;
   ws.onopen = () => { opened = true; conn = "live"; updateStatus(); };
-  ws.onmessage = m => { const msg = JSON.parse(m.data); if (msg.type === "state") apply(msg.state); };
+  ws.onmessage = m => { const msg = JSON.parse(m.data); if (msg.type === "state" && code === codeFromPath) apply(msg.state); };
   ws.onclose = async () => {
+    if (code !== codeFromPath) return;
     if (!opened) {
       const r = await fetch(path).catch(() => null);
-      if (r && r.status === 404) { conn = "missing"; render(); return; }
+      if (r && r.status === 404) {
+        // The app remembers a run its server no longer has: back to the setup.
+        if (local) { setupUi.error = t().missing; await localPost("leave").catch(() => {}); local.code = null; codeFromPath = undefined; state = null; mounted = false; render(); return; }
+        conn = "missing"; render(); return;
+      }
     }
     conn = "offline"; updateStatus(); setTimeout(connect, 2000);
   };
 }
 
-render();
-if (codeFromPath && !sprites) fetch("/api/config").then(r => r.json()).then(c => { sprites = c.sprites || null; if (state) { mounted = false; render(); } }).catch(() => {});
+async function boot() {
+  if (!DEMO) {
+    try {
+      const r = await fetch("/api/local/state");
+      if (r.ok) local = await r.json();
+    } catch {}
+  }
+  if (local) {
+    SRV = local.server || ""; codeFromPath = local.code || undefined;
+    setInterval(async () => {
+      try { const r = await fetch("/api/local/state"); if (r.ok) { local = await r.json(); if (state && mounted) updateSettings(); } } catch {}
+    }, 3000);
+  }
+  render();
+  if (codeFromPath) enter();
+}
+
+// Starts everything a run page needs once its code is known.
+function enter() {
+  if (!sprites) fetch(SRV + "/api/config").then(r => r.json()).then(c => { sprites = c.sprites || null; if (state) { mounted = false; render(); } }).catch(() => {});
+  if (!DEMO) connect();
+  if (!enter.timer) enter.timer = setInterval(() => { if (state && mounted) { updatePlayers(); tick(); } }, 10000);
+}
+
+boot();
 if (DEMO) {
   const run = () => window.SoulSyncDemo(apply);
   if (window.SoulSyncDemo) run();
   else { const s = document.createElement("script"); s.src = "/assets/demo.js"; s.onload = run; document.head.appendChild(s); }
-} else if (codeFromPath) connect();
-if (codeFromPath) setInterval(() => { if (state && mounted) { updatePlayers(); tick(); } }, 10000);
+}
 </script>
 </body>
 </html>

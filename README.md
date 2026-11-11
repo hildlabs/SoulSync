@@ -4,9 +4,32 @@ Track Pokémon Soul Link runs live, straight from your emulator.
 
 SoulSync reads both players' game state and shows it on one shared dashboard: linked pairs, encounters per route, deaths, level caps and your house rules. No manual bookkeeping. The goal is a single app you send to your partner: enter the run code, pick your own ROM, play.
 
-> **Status:** early development. Black 2 / White 2 saves sync to a shared live dashboard every time a player saves in-game. Live emulator support (no saving needed) and the desktop app are next, see the [roadmap](docs/ROADMAP.md).
+> **Status:** early development. Black 2 / White 2 saves sync to a shared live dashboard every time a player saves in-game. Live emulator support (no saving needed) is next, see the [roadmap](docs/ROADMAP.md).
 
-## Quick start
+## The app
+
+Start `SoulSync` (on Windows: `SoulSync.exe`). It opens in your browser:
+
+1. Enter your name and pick your ROM and your save. For DeSmuME the save is the `.dsv` in its `Battery` folder; SoulSync finds it next to the ROM if it can.
+2. Start a new run and choose your rules, or join your partner's run with their code.
+3. Play. Every in-game save updates the dashboard for both of you.
+
+To play together, both players enter the same run server under *Server*. Without one, the run stays on your computer. Your ROM and your save never leave your machine.
+
+## Hosting a run server
+
+```sh
+cd deploy
+SOULSYNC_DOMAIN=soulsync.example.org docker compose --profile https up -d --build
+```
+
+This runs the server behind Caddy with HTTPS. The domain must point to the machine, and ports 80 and 443 must be free and open.
+
+If the machine already runs a reverse proxy, start only the server with `docker compose up -d --build` and point the proxy at `127.0.0.1:3000`, passing WebSocket upgrades through. Runs are kept in memory.
+
+## Command line
+
+The same works without the app:
 
 ```sh
 # 1. Start a server (or use one someone else runs)
@@ -19,7 +42,7 @@ soulsync new --server http://localhost:3000
 soulsync sync Battery/SoulLink.dsv --code ZORUA-4821 --name Red --server http://localhost:3000
 ```
 
-Open `http://localhost:3000/run/ZORUA-4821` to watch the run. The dashboard pairs both players' Pokémon by met location, marks links as linked, waiting or dead, and lists every catch, faint, evolution, level-up and badge.
+Open `http://localhost:3000/run/ZORUA-4821` to watch the run.
 
 ## Other commands
 
@@ -58,6 +81,8 @@ cargo test
 | --- | --- |
 | [`soulsync-core`](crates/soulsync-core) | Generation 5 data model: PK5 encryption, save parsing, species/types/locations, events, Soul Link pairs, sync protocol |
 | [`soulsync-server`](crates/soulsync-server) | Run server: run codes, WebSocket sync, web dashboard |
+| [`soulsync-client`](crates/soulsync-client) | Creates runs and keeps a save in sync with a server |
+| [`soulsync-app`](crates/soulsync-app) | The desktop app: setup, sync and dashboard in one program |
 | [`soulsync-cli`](crates/soulsync-cli) | The `soulsync` command-line tool |
 
 ## License
