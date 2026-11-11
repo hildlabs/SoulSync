@@ -13,8 +13,6 @@ path = "src/main.rs"
 
 [dependencies]
 soulsync-core = { path = "../soulsync-core" }
+soulsync-client = { path = "../soulsync-client" }
 serde_json.workspace = true
 tokio = { version = "1", features = ["rt", "macros", "time"] }
-tokio-tungstenite = { version = "0.28", features = ["rustls-tls-webpki-roots"] }
-futures-util = "0.3"
-ureq = { version = "3", features = ["json"] }

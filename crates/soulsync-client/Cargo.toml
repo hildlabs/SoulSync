@@ -1,0 +1,16 @@
+[package]
+name = "soulsync-client"
+description = "SoulSync client: creates runs and keeps a save in sync with a run server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+soulsync-core = { path = "../soulsync-core" }
+serde_json.workspace = true
+tokio = { version = "1", features = ["rt", "macros", "time"] }
+tokio-tungstenite = { version = "0.28", features = ["rustls-tls-webpki-roots"] }
+futures-util = "0.3"
+ureq = { version = "3", features = ["json"] }
