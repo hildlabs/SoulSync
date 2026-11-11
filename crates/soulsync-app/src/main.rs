@@ -12,6 +12,7 @@
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
 mod local;
+mod update;
 mod window;
 
 use std::net::SocketAddr;
@@ -36,9 +37,22 @@ fn main() {
     let _in_runtime = runtime.enter();
     let addr = SocketAddr::from(([127, 0, 0, 1], PORT));
     let url = format!("http://127.0.0.1:{PORT}");
+    update::tidy();
+    // Started by an update: the program it replaces is about to quit and
+    // still holds the port for a moment.
+    let updated = std::env::args().any(|a| a == update::UPDATED_FLAG);
+    let bind = || runtime.block_on(tokio::net::TcpListener::bind(addr));
+    let mut listener = bind();
+    for _ in 0..40 {
+        if listener.is_ok() || !updated {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(250));
+        listener = bind();
+    }
     // If the port is taken, SoulSync is most likely running already, and the
     // window shows that instance.
-    if let Ok(listener) = runtime.block_on(tokio::net::TcpListener::bind(addr)) {
+    if let Ok(listener) = listener {
         let server = soulsync_server::AppState::from_env();
         let app = soulsync_server::app(server.clone()).merge(local::routes(server, url.clone()));
         runtime.spawn(async move { axum::serve(listener, app).await.expect("serve") });

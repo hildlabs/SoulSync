@@ -55,6 +55,8 @@ struct Inner {
     auto: Option<LuaSetup>,
     /// The location the script last reported the player in.
     place: Option<Arc<Mutex<Option<u16>>>>,
+    /// A newer build of the app, if one is published.
+    update: Option<crate::update::Release>,
 }
 
 #[derive(Clone)]
@@ -125,7 +127,7 @@ enum LuaSetup {
 }
 
 /// The machine type a Windows program is built for.
-fn exe_machine(exe: &Path) -> Option<u16> {
+pub(crate) fn exe_machine(exe: &Path) -> Option<u16> {
     use std::io::{Read, Seek, SeekFrom};
     let mut f = std::fs::File::open(exe).ok()?;
     let mut b = [0u8; 4];
@@ -388,6 +390,10 @@ impl Local {
                     .and_then(|p| *p.lock().unwrap())
                     .and_then(soulsync_core::dex::location),
             })),
+            "update": serde_json::json!({
+                "build": crate::update::build(),
+                "latest": inner.update.as_ref().map(|r| r.build),
+            }),
             "dialogs": cfg!(any(windows, target_os = "macos")),
             "version": env!("CARGO_PKG_VERSION"),
         })
@@ -653,6 +659,36 @@ fn ureq_ok(url: &str) -> bool {
     soulsync_client::exists(url)
 }
 
+/// Looks for a newer build once, in the background. Only the Windows program
+/// is published, and only numbered builds know what is newer.
+fn look_for_update(local: &Local) {
+    let Some(own) = crate::update::build().filter(|_| cfg!(windows)) else {
+        return;
+    };
+    let local = local.clone();
+    std::thread::spawn(move || {
+        if let Some(release) = crate::update::latest().filter(|r| r.build > own) {
+            local.inner.lock().unwrap().update = Some(release);
+        }
+    });
+}
+
+/// Installs the newer build and quits, so that it can take over.
+async fn update(State(local): State<Local>) -> Reply {
+    let release = local.inner.lock().unwrap().update.clone();
+    let release = release.ok_or_else(|| bad("no update"))?;
+    tokio::task::spawn_blocking(move || crate::update::install(&release))
+        .await
+        .map_err(|e| bad(e.to_string()))?
+        .map_err(bad)?;
+    // After the answer is out.
+    tokio::spawn(async {
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        std::process::exit(0);
+    });
+    Ok(Json(local.view()))
+}
+
 /// Leaves the run. The run itself stays on its server.
 async fn leave(State(local): State<Local>) -> Json<serde_json::Value> {
     local.stop();
@@ -703,12 +739,14 @@ pub fn routes(server: soulsync_server::AppState, own: String) -> Router {
     if resume {
         local.start();
     }
+    look_for_update(&local);
     Router::new()
         .route("/api/local/state", get(state))
         .route("/api/local/set", post(set))
         .route("/api/local/pick", post(pick))
         .route("/api/local/start", post(start))
         .route("/api/local/leave", post(leave))
+        .route("/api/local/update", post(update))
         .layer(axum::middleware::from_fn(guard))
         .with_state(local)
 }

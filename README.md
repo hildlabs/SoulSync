@@ -10,7 +10,7 @@ SoulSync reads the game state of two to four players and shows it on one shared 
 
 ## The app
 
-Start `SoulSync` (on Windows: `SoulSync.exe`). It opens in its own window; closing the window quits it:
+Get `SoulSync.exe` for Windows from the [latest release](https://github.com/hildlabs/SoulSync/releases/latest). Later builds are offered in the app's top bar and install with one click. Start `SoulSync`; it opens in its own window, and closing the window quits it:
 
 1. Enter your name and pick your ROM and your save. For DeSmuME the save is the `.dsv` in its `Battery` folder; SoulSync finds it next to the ROM if it can.
 2. Start a new run, choose how many players it has (two to four) and your rules, or join your partner's run with their code.

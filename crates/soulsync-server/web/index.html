@@ -63,6 +63,9 @@ button{cursor:pointer;background:none;border:0;padding:0}
 .chip{display:flex;align-items:center;gap:10px;height:32px;padding:0 10px;border:1px solid var(--line);border-radius:8px;font-size:13px}
 .chip button{color:var(--muted);font-weight:500;transition:color .15s}
 .chip button:hover{color:var(--text)}
+.chip.upd{border-color:var(--a)}
+.chip.upd button{color:var(--a)}
+.chip.upd.bad{border-color:var(--danger);color:var(--danger)}
 .pair{display:flex;height:32px;padding:3px;border:1px solid var(--line);border-radius:8px}
 .pair button{padding:0 8px;border-radius:5px;font-size:13px;font-weight:500;color:var(--muted);transition:color .15s,background .15s,transform .12s var(--out)}
 .pair button[aria-pressed=true]{background:var(--raised);color:var(--text)}
@@ -483,7 +486,7 @@ waitPlayer: n => `Waiting for player ${n}`, playerN: n => `Player ${n}`, fPlayer
     saveOk: (n, b, p) => `Trainer ${n}  ·  ${b} badges  ·  ${p} Pokémon`, saveBad: "This save cannot be read. Pick the .dsv from DeSmuME’s Battery folder.",
     fServer: "Run server", fServerHelp: "Leave empty to keep the run on this computer only. To play with a partner, both enter the same server address.", advanced: "Server",
     startNew: "Start run", startJoin: "Join run", eName: "Enter your name.", eSave: "Pick a save that can be read first.", eCode: "No run with this code on the server.",
-    sLive: "Live from DeSmuME", sLua: "Lua for DeSmuME", sLuaState: { present: "ready", installed: "set up, restart DeSmuME", missing: "DeSmuME not found" }, sLiveOn: "connected", sLiveOff: "script not running", sAuto: "Starts with the game", sAutoState: { present: "yes", installed: "set up, restart DeSmuME", missing: "no, load the script by hand" }, sLiveHint: "Without the script the dashboard updates when you save in-game. With it, it follows your party and your encounters right away. DeSmuME starts it by itself when you open the game. If it does not: in DeSmuME open Tools › Lua Scripting › New Lua Script Window, choose this file and press Run.", sLiveScript: "Script", sGame: "Your game", sRun: "Run", sSync: "Sync", sServer: "Server", sLocal: "this computer", sLeave: "Leave run", sLeaveSure: "Click again to leave", sLeaveHint: "Stops syncing and returns to the setup. The run stays on the server.",
+    sLive: "Live from DeSmuME", sLua: "Lua for DeSmuME", sLuaState: { present: "ready", installed: "set up, restart DeSmuME", missing: "DeSmuME not found" }, sLiveOn: "connected", sLiveOff: "script not running", sAuto: "Starts with the game", sAutoState: { present: "yes", installed: "set up, restart DeSmuME", missing: "no, load the script by hand" }, sLiveHint: "Without the script the dashboard updates when you save in-game. With it, it follows your party and your encounters right away. DeSmuME starts it by itself when you open the game. If it does not: in DeSmuME open Tools › Lua Scripting › New Lua Script Window, choose this file and press Run.", sLiveScript: "Script", sGame: "Your game", sRun: "Run", sSync: "Sync", sServer: "Server", sLocal: "this computer", sBuild: "App build", uNew: n => `Update ${n} is ready`, uDo: "Install", uBusy: "Installing, SoulSync restarts…", uFail: "Update failed", uAgain: "Try again", sLeave: "Leave run", sLeaveSure: "Click again to leave", sLeaveHint: "Stops syncing and returns to the setup. The run stays on the server.",
     phase: { idle: "Not running", connecting: "Connecting", live: "Live, every in-game save is sent", error: "Stopped" },
     tabJoin: "Join a run", tabNew: "New run", code: "Run code", codeHelp: "Your partner sees this code after creating the run.", openRun: "Open run",
     caps: "Level caps", capsPh: "13, 18, 24, 30", capsHelp: "One level per gym, in order. Leave empty to play without caps.", create: "Create run",
@@ -534,7 +537,7 @@ waitPlayer: n => `Warte auf Spieler ${n}`, playerN: n => `Spieler ${n}`, fPlayer
     saveOk: (n, b, p) => `Trainer ${n}  ·  ${b} Orden  ·  ${p} Pokémon`, saveBad: "Dieser Spielstand lässt sich nicht lesen. Wähle die .dsv aus dem Battery-Ordner von DeSmuME.",
     fServer: "Run-Server", fServerHelp: "Leer lassen, dann bleibt der Run nur auf diesem Rechner. Für das Spiel zu zweit tragen beide dieselbe Server-Adresse ein.", advanced: "Server",
     startNew: "Run starten", startJoin: "Run beitreten", eName: "Trag deinen Namen ein.", eSave: "Wähle zuerst einen lesbaren Spielstand.", eCode: "Auf dem Server gibt es keinen Run mit diesem Code.",
-    sLive: "Live aus DeSmuME", sLua: "Lua für DeSmuME", sLuaState: { present: "bereit", installed: "eingerichtet, DeSmuME neu starten", missing: "DeSmuME nicht gefunden" }, sLiveOn: "verbunden", sLiveOff: "Skript läuft nicht", sAuto: "Startet mit dem Spiel", sAutoState: { present: "ja", installed: "eingerichtet, DeSmuME neu starten", missing: "nein, Skript von Hand laden" }, sLiveHint: "Ohne das Skript aktualisiert sich das Dashboard, wenn du im Spiel speicherst. Mit ihm folgt es deinem Team und deinen Begegnungen sofort. DeSmuME startet es von selbst, wenn du das Spiel öffnest. Falls nicht: in DeSmuME Tools › Lua Scripting › New Lua Script Window öffnen, diese Datei auswählen und Run drücken.", sLiveScript: "Skript", sGame: "Dein Spiel", sRun: "Run", sSync: "Sync", sServer: "Server", sLocal: "dieser Rechner", sLeave: "Run verlassen", sLeaveSure: "Zum Verlassen nochmal klicken", sLeaveHint: "Beendet den Sync und führt zurück zur Einrichtung. Der Run bleibt auf dem Server.",
+    sLive: "Live aus DeSmuME", sLua: "Lua für DeSmuME", sLuaState: { present: "bereit", installed: "eingerichtet, DeSmuME neu starten", missing: "DeSmuME nicht gefunden" }, sLiveOn: "verbunden", sLiveOff: "Skript läuft nicht", sAuto: "Startet mit dem Spiel", sAutoState: { present: "ja", installed: "eingerichtet, DeSmuME neu starten", missing: "nein, Skript von Hand laden" }, sLiveHint: "Ohne das Skript aktualisiert sich das Dashboard, wenn du im Spiel speicherst. Mit ihm folgt es deinem Team und deinen Begegnungen sofort. DeSmuME startet es von selbst, wenn du das Spiel öffnest. Falls nicht: in DeSmuME Tools › Lua Scripting › New Lua Script Window öffnen, diese Datei auswählen und Run drücken.", sLiveScript: "Skript", sGame: "Dein Spiel", sRun: "Run", sSync: "Sync", sServer: "Server", sLocal: "dieser Rechner", sBuild: "App-Build", uNew: n => `Update ${n} ist da`, uDo: "Installieren", uBusy: "Wird installiert, SoulSync startet neu…", uFail: "Update fehlgeschlagen", uAgain: "Nochmal", sLeave: "Run verlassen", sLeaveSure: "Zum Verlassen nochmal klicken", sLeaveHint: "Beendet den Sync und führt zurück zur Einrichtung. Der Run bleibt auf dem Server.",
     phase: { idle: "Läuft nicht", connecting: "Verbinde", live: "Live, jedes Speichern im Spiel wird gesendet", error: "Gestoppt" },
     tabJoin: "Run beitreten", tabNew: "Neuer Run", code: "Run-Code", codeHelp: "Dein Partner sieht den Code, nachdem er den Run erstellt hat.", openRun: "Run öffnen",
     caps: "Level-Caps", capsPh: "13, 18, 24, 30", capsHelp: "Ein Level pro Arena, der Reihe nach. Leer lassen, um ohne Caps zu spielen.", create: "Run erstellen",
@@ -579,6 +582,7 @@ function topBar() {
     <div class="top-l"><a class="brand" href="/"><svg class="mark" viewBox="104 80 304 352" fill="none" stroke-width="64" aria-hidden="true"><path d="M327.4 154A76 76 0 1 0 256 256" stroke="var(--a)"/><circle cx="327.4" cy="154" r="32" fill="var(--a)"/><path d="M256 256A76 76 0 1 1 184.600 358" stroke="var(--b)"/><circle cx="184.6" cy="358" r="32" fill="var(--b)"/></svg>SoulSync</a>
     ${run ? `<nav class="nav" id="nav">${VIEWS.map(v => `<button type="button" data-v="${v}">${t().tabs[v]}</button>`).join("")}</nav>` : ""}</div>
     <div class="top-r">
+      <span class="chip upd" id="upd" hidden><span></span><button type="button"></button></span>
       ${run ? `<span class="game" id="game"></span><span class="status" id="status"><i></i><span></span></span>
       <span class="chip"><span class="mono" id="code">${esc(codeFromPath.toUpperCase())}</span><button type="button" id="copy">${t().copy}</button></span>` : ""}
       <span class="pair" id="lang"><button type="button" data-l="en" aria-pressed="${lang === "en"}">EN</button><button type="button" data-l="de" aria-pressed="${lang === "de"}">DE</button></span>
@@ -587,7 +591,28 @@ function topBar() {
   </header>`;
 }
 
+// Offers a newer build of the app, where the app found one.
+let updating = "";
+function showUpdate() {
+  const el = $("#upd"), u = local && local.update;
+  if (!el) return;
+  el.hidden = !(u && u.latest);
+  if (el.hidden) return;
+  el.classList.toggle("bad", updating === "failed");
+  $("span", el).textContent = updating === "failed" ? t().uFail : updating ? t().uBusy : t().uNew(u.latest);
+  const btn = $("button", el);
+  btn.hidden = updating === "busy";
+  btn.textContent = updating === "failed" ? t().uAgain : t().uDo;
+  btn.onclick = async () => {
+    updating = "busy"; showUpdate();
+    const r = await localPost("update").catch(() => null);
+    // The app restarts by itself; the page only has to say so when it does not.
+    if (!r || !r.ok) { updating = "failed"; showUpdate(); }
+  };
+}
+
 function bindChrome() {
+  showUpdate();
   $("#lang").onclick = e => {
     const b = e.target.closest("button"); if (!b || b.dataset.l === lang) return;
     lang = b.dataset.l; store.set("soulsync.lang", lang); mounted = false; render();
@@ -873,6 +898,7 @@ function updateSettings() {
       [t().code, `<span class="mono">${esc(state.code)}</span>`],
       [t().sSync, `<i class="dot ${local.phase}"></i>${t().phase[local.phase] || local.phase}${local.message ? `  ·  ${esc(local.message)}` : ""}`],
       [t().sServer, local.server ? esc(local.server) : t().sLocal],
+      [t().sBuild, local.update && local.update.build ? local.update.build : "–"],
     ])}</div><p>${t().sLeaveHint}</p><button type="button" class="btn2" id="leave">${t().sLeave}</button></section>`;
     if (local.live) html += `<section class="rblock"><h2>${t().sLive}</h2><div style="margin-top:6px">${kv([
       [t().sSync, `<i class="dot ${local.live.active ? "live" : "idle"}"></i>${local.live.active ? t().sLiveOn : t().sLiveOff}`],
@@ -1423,7 +1449,7 @@ async function boot() {
   if (local) {
     SRV = local.server || ""; codeFromPath = local.code || undefined;
     setInterval(async () => {
-      try { const r = await fetch("/api/local/state"); if (r.ok) { local = await r.json(); if (state && mounted) updateSettings(); } } catch {}
+      try { const r = await fetch("/api/local/state"); if (r.ok) { local = await r.json(); showUpdate(); if (state && mounted) updateSettings(); } } catch {}
     }, 3000);
   }
   render();

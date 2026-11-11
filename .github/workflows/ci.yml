@@ -22,8 +22,14 @@ jobs:
       - run: cargo test --all
 
   # The desktop app for Windows, to download from the run's summary page.
+  # Builds of main are also published as a release, which is where the app
+  # looks for updates; see crates/soulsync-app/src/update.rs.
   windows-app:
     runs-on: windows-latest
+    permissions:
+      contents: write
+    env:
+      SOULSYNC_BUILD: ${{ github.run_number }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -34,3 +40,13 @@ jobs:
           name: SoulSync-windows
           path: target/release/SoulSync.exe
           if-no-files-found: error
+      - name: Publish the build
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "build-${{ github.run_number }}" target/release/SoulSync.exe
+          --target "${{ github.sha }}" --title "Build ${{ github.run_number }}"
+          --notes "SoulSync for Windows, built from ${{ github.sha }}. The app installs this by itself."
+          --latest
