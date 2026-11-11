@@ -85,6 +85,13 @@ impl SaveSnapshot {
         self.party.iter().chain(&self.boxes).filter(|p| !p.is_egg)
     }
 
+    /// The player has nothing but their starter yet. The run begins with the
+    /// first catch: a faint before it, like in the first fight against the
+    /// rival, does not count.
+    pub fn only_starter(&self) -> bool {
+        self.all_pokemon().count() <= 1
+    }
+
     /// Whether the player has this Pokémon, eggs included.
     pub fn owns(&self, pid: u32) -> bool {
         self.party.iter().chain(&self.boxes).any(|p| p.pid == pid)

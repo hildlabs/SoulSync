@@ -59,7 +59,8 @@ pub fn diff(old: &SaveSnapshot, new: &SaveSnapshot) -> Vec<Event> {
             if b.level > a.level {
                 events.push(Event::LevelUp { pokemon: p.clone() });
             }
-            if a.hp > 0 && b.hp == 0 {
+            // Not while the starter is all there is; see `only_starter`.
+            if a.hp > 0 && b.hp == 0 && !new.only_starter() {
                 events.push(Event::Fainted { pokemon: p.clone() });
             }
         }

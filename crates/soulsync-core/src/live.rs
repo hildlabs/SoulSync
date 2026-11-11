@@ -202,10 +202,18 @@ impl Encounters {
                 snapshot.keep(p);
             }
         }
-        for p in snapshot.party.iter().filter(|p| p.is_fainted()) {
-            if !self.fallen.iter().any(|f| f.pid == p.pid) {
-                self.fallen.push(p.clone());
-                changed = true;
+        if snapshot.only_starter() {
+            // Before the first catch a faint does not count, and one that was
+            // noted before this rule existed is forgotten.
+            let before = self.fallen.len();
+            self.fallen.retain(|f| !snapshot.owns(f.pid));
+            changed |= self.fallen.len() != before;
+        } else {
+            for p in snapshot.party.iter().filter(|p| p.is_fainted()) {
+                if !self.fallen.iter().any(|f| f.pid == p.pid) {
+                    self.fallen.push(p.clone());
+                    changed = true;
+                }
             }
         }
         snapshot.fallen = self.fallen.clone();
@@ -365,6 +373,14 @@ mod tests {
         e.complete(&mut saved, false);
         assert!(!saved.owns(30));
         assert_eq!(saved.fallen[0].pid, 30);
+
+        // A faint noted while the starter was all there was is forgotten.
+        let mut alone = Encounters::default();
+        alone.of(&trainer());
+        alone.fallen = vec![mon(30, 0)];
+        let mut first = snapshot(vec![mon(30, 0)]);
+        assert!(alone.complete(&mut first, true));
+        assert!(first.fallen.is_empty());
 
         // A new game starts over.
         let again = Trainer {
