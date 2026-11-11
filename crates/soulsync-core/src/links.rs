@@ -15,7 +15,8 @@ pub enum Status {
     Party,
     /// In a PC box.
     Boxed,
-    /// Fainted, now or earlier. Healing does not bring a link back.
+    /// Fainted, now or earlier. Healing does not bring a link back. A starter
+    /// that faints before the player's first catch is not counted.
     Fainted,
     /// The first wild Pokémon of the location, met but not caught. The
     /// location is used up for both players.
@@ -53,8 +54,8 @@ impl Link {
     }
 }
 
-fn status(p: &Pokemon, fallen: &[Pokemon]) -> Status {
-    if p.is_fainted() || fallen.iter().any(|f| f.pid == p.pid) {
+fn status(p: &Pokemon, fallen: &[Pokemon], excused: bool) -> Status {
+    if !excused && (p.is_fainted() || fallen.iter().any(|f| f.pid == p.pid)) {
         Status::Fainted
     } else if p.battle.is_some() {
         Status::Party
@@ -68,7 +69,8 @@ fn status(p: &Pokemon, fallen: &[Pokemon]) -> Status {
 /// sorted by location id. Players without a save yet are passed as `None`.
 ///
 /// A player without a Pokémon from a location where they met a wild one has
-/// missed that encounter.
+/// missed that encounter. A faint does not count while a player has only
+/// their starter; see [`SaveSnapshot::only_starter`].
 pub fn links(players: &[Option<&SaveSnapshot>]) -> Vec<Link> {
     let mut by_loc: BTreeMap<u16, Vec<Option<Side>>> = BTreeMap::new();
     for (i, snap) in players.iter().enumerate() {
@@ -80,7 +82,7 @@ pub fn links(players: &[Option<&SaveSnapshot>]) -> Vec<Link> {
             if sides[i].is_none() {
                 sides[i] = Some(Side {
                     pokemon: p.clone(),
-                    status: status(p, &snap.fallen),
+                    status: status(p, &snap.fallen, snap.only_starter()),
                 });
             }
         }
@@ -203,11 +205,11 @@ mod tests {
     fn fainted_stays_fainted() {
         let fell = party(1, 427, 15, 0);
         // Healed at a Pokémon Center.
-        let mut healed = snap(vec![party(1, 427, 15, 30)], vec![]);
+        let mut healed = snap(vec![party(1, 427, 15, 30), party(2, 495, 4, 30)], vec![]);
         healed.fallen = vec![fell.clone()];
         let l = links(&[Some(&healed), None]);
-        assert_eq!(l[0].sides[0].as_ref().unwrap().status, Status::Fainted);
-        assert!(l[0].is_dead());
+        assert_eq!(l[1].sides[0].as_ref().unwrap().status, Status::Fainted);
+        assert!(l[1].is_dead() && !l[0].is_dead());
         // Released afterwards: the location is not open again.
         let mut released = snap(vec![party(2, 495, 4, 30)], vec![]);
         released.fallen = vec![fell];
@@ -215,6 +217,20 @@ mod tests {
         assert_eq!(l.len(), 2);
         assert_eq!(l[1].location, 15);
         assert_eq!(l[1].sides[0].as_ref().unwrap().status, Status::Fainted);
+    }
+
+    #[test]
+    fn the_starter_may_faint_before_the_first_catch() {
+        // Lost the first fight against the rival, or noted as fallen earlier.
+        let mut first = snap(vec![party(1, 495, 4, 0)], vec![]);
+        first.fallen = vec![party(1, 495, 4, 0)];
+        let l = links(&[Some(&first), None]);
+        assert_eq!(l[0].sides[0].as_ref().unwrap().status, Status::Party);
+        assert!(!l[0].is_dead());
+        // With a second Pokémon the run has begun.
+        let begun = snap(vec![party(1, 495, 4, 0), party(2, 504, 14, 12)], vec![]);
+        let l = links(&[Some(&begun), None]);
+        assert_eq!(l[0].sides[0].as_ref().unwrap().status, Status::Fainted);
     }
 
     #[test]

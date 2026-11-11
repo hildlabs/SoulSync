@@ -195,6 +195,12 @@ mod tests {
             Place::Party { slot: 0 },
         )
         .unwrap();
+        // A second Pokémon: with the starter alone a faint would not count.
+        let boxed = parse(
+            &build_raw(2, 504, "", 120, 3, None),
+            Place::Box { r#box: 0, slot: 0 },
+        )
+        .unwrap();
         SaveSnapshot {
             trainer: Trainer {
                 name: "x".into(),
@@ -203,7 +209,7 @@ mod tests {
                 game: None,
             },
             party: vec![p],
-            boxes: vec![],
+            boxes: vec![boxed],
             encounters: vec![],
             fallen: vec![],
             wild: None,
@@ -277,7 +283,7 @@ mod tests {
         let s = r.state();
         assert!(matches!(s.log[0].event, Event::Fainted { .. }));
         assert_eq!(s.log[0].player, "Hannes");
-        assert_eq!(s.links.len(), 1);
+        assert_eq!(s.links.len(), 2);
         assert_eq!(s.links[0].sides.len(), 2);
         assert!(s.links[0].sides[1].is_none());
         assert_eq!(s.players[0].updated_at, Some(2));
