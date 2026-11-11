@@ -66,6 +66,7 @@ button{cursor:pointer;background:none;border:0;padding:0}
 .chip.upd{border-color:var(--a)}
 .chip.upd button{color:var(--a)}
 .chip.upd.bad{border-color:var(--danger);color:var(--danger)}
+.chip.upd.busy{background:linear-gradient(to right,color-mix(in srgb,var(--a) 24%,transparent) var(--pct,0%),transparent var(--pct,0%));font-variant-numeric:tabular-nums}
 .pair{display:flex;height:32px;padding:3px;border:1px solid var(--line);border-radius:8px}
 .pair button{padding:0 8px;border-radius:5px;font-size:13px;font-weight:500;color:var(--muted);transition:color .15s,background .15s,transform .12s var(--out)}
 .pair button[aria-pressed=true]{background:var(--raised);color:var(--text)}
@@ -488,7 +489,7 @@ waitPlayer: n => `Waiting for player ${n}`, playerN: n => `Player ${n}`, fPlayer
     saveOk: (n, b, p) => `Trainer ${n}  ·  ${b} badges  ·  ${p} Pokémon`, saveBad: "This save cannot be read. Pick the .dsv from DeSmuME’s Battery folder.",
     fServer: "Run server", fServerHelp: "Leave empty to keep the run on this computer only. To play with a partner, both enter the same server address.", advanced: "Server",
     startNew: "Start run", startJoin: "Join run", eName: "Enter your name.", eSave: "Pick a save that can be read first.", eCode: "No run with this code on the server.",
-    sLive: "Live from DeSmuME", sLua: "Lua for DeSmuME", sLuaState: { present: "ready", installed: "set up, restart DeSmuME", missing: "DeSmuME not found" }, sLiveOn: "connected", sLiveOff: "script not running", sAuto: "Starts with the game", sAutoState: { present: "yes", installed: "set up, restart DeSmuME", missing: "no, load the script by hand" }, sLiveHint: "Without the script the dashboard updates when you save in-game. With it, it follows your party and your encounters right away. DeSmuME starts it by itself when you open the game. If it does not: in DeSmuME open Tools › Lua Scripting › New Lua Script Window, choose this file and press Run.", sLiveScript: "Script", sGame: "Your game", sRun: "Run", sSync: "Sync", sServer: "Server", sLocal: "this computer", sBuild: "App build", uNew: n => `Update ${n} is ready`, uDo: "Install", uBusy: "Installing, SoulSync restarts…", uFail: "Update failed", uAgain: "Try again", sLeave: "Leave run", sLeaveSure: "Click again to leave", sLeaveHint: "Stops syncing and returns to the setup. The run stays on the server.",
+    sLive: "Live from DeSmuME", sLua: "Lua for DeSmuME", sLuaState: { present: "ready", installed: "set up, restart DeSmuME", missing: "DeSmuME not found" }, sLiveOn: "connected", sLiveForeign: "connected, but your party was not found yet", sLiveOff: "script not running", sAuto: "Starts with the game", sAutoState: { present: "yes", installed: "set up, restart DeSmuME", missing: "no, load the script by hand" }, sLiveHint: "Without the script the dashboard updates when you save in-game. With it, it follows your party and your encounters right away. DeSmuME starts it by itself when you open the game. If it does not: in DeSmuME open Tools › Lua Scripting › New Lua Script Window, choose this file and press Run.", sLiveScript: "Script", sGame: "Your game", sRun: "Run", sSync: "Sync", sServer: "Server", sLocal: "this computer", sBuild: "App build", uNew: n => `Update ${n} is ready`, uDo: "Install", uBusy: "Downloading update…", uLoad: n => `Downloading update… ${n} %`, uStart: "Installing, SoulSync restarts…", uFail: "Update failed", uAgain: "Try again", sLeave: "Leave run", sLeaveSure: "Click again to leave", sLeaveHint: "Stops syncing and returns to the setup. The run stays on the server.",
     phase: { idle: "Not running", connecting: "Connecting", live: "Live, every in-game save is sent", error: "Stopped" },
     tabJoin: "Join a run", tabNew: "New run", code: "Run code", codeHelp: "Your partner sees this code after creating the run.", openRun: "Open run",
     caps: "Level caps", capsPh: "13, 18, 24, 30", capsHelp: "One level per gym, in order. Leave empty to play without caps.", create: "Create run",
@@ -539,7 +540,7 @@ waitPlayer: n => `Warte auf Spieler ${n}`, playerN: n => `Spieler ${n}`, fPlayer
     saveOk: (n, b, p) => `Trainer ${n}  ·  ${b} Orden  ·  ${p} Pokémon`, saveBad: "Dieser Spielstand lässt sich nicht lesen. Wähle die .dsv aus dem Battery-Ordner von DeSmuME.",
     fServer: "Run-Server", fServerHelp: "Leer lassen, dann bleibt der Run nur auf diesem Rechner. Für das Spiel zu zweit tragen beide dieselbe Server-Adresse ein.", advanced: "Server",
     startNew: "Run starten", startJoin: "Run beitreten", eName: "Trag deinen Namen ein.", eSave: "Wähle zuerst einen lesbaren Spielstand.", eCode: "Auf dem Server gibt es keinen Run mit diesem Code.",
-    sLive: "Live aus DeSmuME", sLua: "Lua für DeSmuME", sLuaState: { present: "bereit", installed: "eingerichtet, DeSmuME neu starten", missing: "DeSmuME nicht gefunden" }, sLiveOn: "verbunden", sLiveOff: "Skript läuft nicht", sAuto: "Startet mit dem Spiel", sAutoState: { present: "ja", installed: "eingerichtet, DeSmuME neu starten", missing: "nein, Skript von Hand laden" }, sLiveHint: "Ohne das Skript aktualisiert sich das Dashboard, wenn du im Spiel speicherst. Mit ihm folgt es deinem Team und deinen Begegnungen sofort. DeSmuME startet es von selbst, wenn du das Spiel öffnest. Falls nicht: in DeSmuME Tools › Lua Scripting › New Lua Script Window öffnen, diese Datei auswählen und Run drücken.", sLiveScript: "Skript", sGame: "Dein Spiel", sRun: "Run", sSync: "Sync", sServer: "Server", sLocal: "dieser Rechner", sBuild: "App-Build", uNew: n => `Update ${n} ist da`, uDo: "Installieren", uBusy: "Wird installiert, SoulSync startet neu…", uFail: "Update fehlgeschlagen", uAgain: "Nochmal", sLeave: "Run verlassen", sLeaveSure: "Zum Verlassen nochmal klicken", sLeaveHint: "Beendet den Sync und führt zurück zur Einrichtung. Der Run bleibt auf dem Server.",
+    sLive: "Live aus DeSmuME", sLua: "Lua für DeSmuME", sLuaState: { present: "bereit", installed: "eingerichtet, DeSmuME neu starten", missing: "DeSmuME nicht gefunden" }, sLiveOn: "verbunden", sLiveForeign: "verbunden, aber dein Team wurde noch nicht gefunden", sLiveOff: "Skript läuft nicht", sAuto: "Startet mit dem Spiel", sAutoState: { present: "ja", installed: "eingerichtet, DeSmuME neu starten", missing: "nein, Skript von Hand laden" }, sLiveHint: "Ohne das Skript aktualisiert sich das Dashboard, wenn du im Spiel speicherst. Mit ihm folgt es deinem Team und deinen Begegnungen sofort. DeSmuME startet es von selbst, wenn du das Spiel öffnest. Falls nicht: in DeSmuME Tools › Lua Scripting › New Lua Script Window öffnen, diese Datei auswählen und Run drücken.", sLiveScript: "Skript", sGame: "Dein Spiel", sRun: "Run", sSync: "Sync", sServer: "Server", sLocal: "dieser Rechner", sBuild: "App-Build", uNew: n => `Update ${n} ist da`, uDo: "Installieren", uBusy: "Update wird geladen…", uLoad: n => `Update wird geladen… ${n} %`, uStart: "Wird installiert, SoulSync startet neu…", uFail: "Update fehlgeschlagen", uAgain: "Nochmal", sLeave: "Run verlassen", sLeaveSure: "Zum Verlassen nochmal klicken", sLeaveHint: "Beendet den Sync und führt zurück zur Einrichtung. Der Run bleibt auf dem Server.",
     phase: { idle: "Läuft nicht", connecting: "Verbinde", live: "Live, jedes Speichern im Spiel wird gesendet", error: "Gestoppt" },
     tabJoin: "Run beitreten", tabNew: "Neuer Run", code: "Run-Code", codeHelp: "Dein Partner sieht den Code, nachdem er den Run erstellt hat.", openRun: "Run öffnen",
     caps: "Level-Caps", capsPh: "13, 18, 24, 30", capsHelp: "Ein Level pro Arena, der Reihe nach. Leer lassen, um ohne Caps zu spielen.", create: "Run erstellen",
@@ -593,23 +594,36 @@ function topBar() {
   </header>`;
 }
 
-// Offers a newer build of the app, where the app found one.
-let updating = "";
+// Offers a newer build of the app, where the app found one, and shows how
+// far its installation is.
+let updateWatch = 0, updateAsked = false;
 function showUpdate() {
   const el = $("#upd"), u = local && local.update;
   if (!el) return;
   el.hidden = !(u && u.latest);
   if (el.hidden) return;
-  el.classList.toggle("bad", updating === "failed");
-  $("span", el).textContent = updating === "failed" ? t().uFail : updating ? t().uBusy : t().uNew(u.latest);
+  const p = u.progress, failed = p && p.step === "failed", busy = (p && !failed) || (updateAsked && !p);
+  el.classList.toggle("bad", !!failed);
+  el.classList.toggle("busy", !!busy);
+  const pct = p && p.step === "download" && p.percent != null ? p.percent : null;
+  $("span", el).textContent = failed ? t().uFail : !busy ? t().uNew(u.latest) : p && p.step === "start" ? t().uStart : pct != null ? t().uLoad(pct) : t().uBusy;
+  el.style.setProperty("--pct", (p && p.step === "start" ? 100 : pct || 0) + "%");
   const btn = $("button", el);
-  btn.hidden = updating === "busy";
-  btn.textContent = updating === "failed" ? t().uAgain : t().uDo;
+  btn.hidden = !!busy;
+  btn.textContent = failed ? t().uAgain : t().uDo;
   btn.onclick = async () => {
-    updating = "busy"; showUpdate();
+    updateAsked = true; showUpdate();
     const r = await localPost("update").catch(() => null);
-    // The app restarts by itself; the page only has to say so when it does not.
-    if (!r || !r.ok) { updating = "failed"; showUpdate(); }
+    if (r && r.ok) local = await r.json();
+    else local.update.progress = { step: "failed" };
+    updateAsked = false; showUpdate();
+    // Follows the download closely. The app restarts by itself at the end.
+    clearInterval(updateWatch);
+    updateWatch = setInterval(async () => {
+      try { const r = await fetch("/api/local/state"); if (r.ok) { local = await r.json(); showUpdate(); } } catch {}
+      const now = local.update && local.update.progress;
+      if (!now || now.step === "failed") clearInterval(updateWatch);
+    }, 400);
   };
 }
 
@@ -915,7 +929,7 @@ function updateSettings() {
       [t().sBuild, local.update && local.update.build ? local.update.build : "–"],
     ])}</div><p>${t().sLeaveHint}</p><button type="button" class="btn2" id="leave">${t().sLeave}</button></section>`;
     if (local.live) html += `<section class="rblock"><h2>${t().sLive}</h2><div style="margin-top:6px">${kv([
-      [t().sSync, `<i class="dot ${local.live.active ? "live" : "idle"}"></i>${local.live.active ? t().sLiveOn : t().sLiveOff}`],
+      [t().sSync, `<i class="dot ${local.live.active ? "live" : "idle"}"></i>${!local.live.active ? t().sLiveOff : local.live.foreign ? t().sLiveForeign : t().sLiveOn}`],
       [t().sLua, t().sLuaState[local.live.lua] || "–"],
       [t().sAuto, t().sAutoState[local.live.auto] || "–"],
       ...(local.live.active ? [[t().sPlace, local.live.place ? esc(local.live.place[lang]) : t().sPlaceNone]] : []),

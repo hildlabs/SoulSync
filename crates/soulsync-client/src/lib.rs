@@ -2,8 +2,9 @@
 //! server. Used by the command line and by the desktop app.
 
 use futures_util::{SinkExt, StreamExt};
+use soulsync_core::live::trainer_note;
 use soulsync_core::protocol::{ClientMsg, NewRun, RunSettings, ServerMsg};
-use soulsync_core::{diff, parse_b2w2, Encounters, Event, LiveReport, SaveSnapshot};
+use soulsync_core::{diff, parse_b2w2, Encounters, Event, LiveReport, SaveSnapshot, Trainer};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
@@ -105,6 +106,8 @@ pub struct Live {
     pub place: Arc<Mutex<Option<u16>>>,
     /// Encounters to take back, by PID, from whoever noticed a wrong one.
     pub forget: Arc<Mutex<Vec<u32>>>,
+    /// Whether the script's last report was about somebody else's party.
+    pub foreign: Arc<Mutex<bool>>,
 }
 
 impl Live {
@@ -123,6 +126,7 @@ impl Live {
             told: None,
             place: Arc::default(),
             forget: Arc::default(),
+            foreign: Arc::default(),
         }
     }
 
@@ -133,11 +137,11 @@ impl Live {
 
     /// Tells the script whose party to look for. Opponents' parties are in
     /// memory too.
-    fn tell(&mut self, trainer: u32) {
-        if self.told != Some(trainer) {
+    fn tell(&mut self, trainer: &Trainer) {
+        if self.told != Some(trainer.id) {
             let file = self.file.with_file_name("live-trainer.txt");
-            if std::fs::write(file, trainer.to_string()).is_ok() {
-                self.told = Some(trainer);
+            if std::fs::write(file, trainer_note(trainer)).is_ok() {
+                self.told = Some(trainer.id);
             }
         }
     }
@@ -147,13 +151,17 @@ impl Live {
     /// `None` while the script is in the middle of writing; try again.
     fn view(&mut self, base: &SaveSnapshot, save: &Path) -> Option<SaveSnapshot> {
         let mut snap = base.clone();
-        self.tell(base.trainer.id);
+        self.tell(&base.trainer);
         let current =
             matches!((modified(&self.file), modified(save)), (Some(l), Some(s)) if l >= s);
         let data = current.then(|| std::fs::read(&self.file).ok()).flatten();
         let report = data.as_deref().and_then(LiveReport::parse);
         // A report about somebody else's party says nothing about this game.
         let foreign = report.as_ref().is_some_and(|r| !r.is_of(&base.trainer));
+        *self.foreign.lock().unwrap() = foreign;
+        if foreign {
+            *self.place.lock().unwrap() = None;
+        }
         let live = report
             .as_ref()
             .filter(|_| !foreign)
@@ -344,7 +352,8 @@ mod tests {
         assert_eq!(*live.place.lock().unwrap(), Some(14));
         // The script was told whose party to look for.
         let told = std::fs::read_to_string(dir.join("live-trainer.txt")).unwrap();
-        assert_eq!(told, base.trainer.id.to_string());
+        assert_eq!(told, trainer_note(&base.trainer));
+        assert!(told.starts_with(&format!("{}\n", base.trainer.id)));
         // A report of a party without this trainer behind it, like an
         // opponent's, says nothing about this game.
         let mut foreign = report.clone();
@@ -354,6 +363,8 @@ mod tests {
         at(&file, 1_006);
         let snap = live.view(&base, &save).unwrap();
         assert!(snap.party.is_empty() && snap.wild.is_none());
+        assert!(*live.foreign.lock().unwrap());
+        assert_eq!(*live.place.lock().unwrap(), None);
         std::fs::write(&file, &report).unwrap();
         at(&file, 1_007);
         assert_eq!(live.view(&base, &save).unwrap().party.len(), 1);

@@ -80,24 +80,42 @@ local function write(data)
   return true
 end
 
--- The trainer the app syncs, if it said so.
-local trainer_id = nil
+-- The trainer the app syncs, if it said so: the ID, and the bytes of the
+-- name as the game stores them.
+local trainer_id, trainer_name, trainer_note = nil, {}, nil
 
+-- Reads what the app wrote: the ID in the first line, the name's bytes in
+-- hex in the second. Returns whether it changed.
 local function read_trainer()
   local file = io.open(TRAINER, "r")
-  if not file then return nil end
-  local id = tonumber(file:read("*l") or "")
-  file:close()
-  return id
+  local note = file and file:read("*a") or nil
+  if file then file:close() end
+  if note == trainer_note then return false end
+  trainer_note = note
+  local id, hex = (note or ""):match("^(%d+)%s*(%x*)")
+  trainer_id, trainer_name = tonumber(id), {}
+  for byte in (hex or ""):gmatch("%x%x") do
+    trainer_name[#trainer_name + 1] = tonumber(byte, 16)
+  end
+  return true
+end
+
+local function is_trainer(addr)
+  if memory.readdword(addr + 0x14) ~= trainer_id then return false end
+  for i = 1, #trainer_name do
+    if memory.readbyte(addr + 3 + i) ~= trainer_name[i] then return false end
+  end
+  return true
 end
 
 -- Whether the trainer's data follows the party block at addr, as it does in
 -- the game's own save data. An opponent's party is laid out like the
--- player's; only this tells them apart.
+-- player's; only this tells them apart. The app checks its reports the same
+-- way and takes none that fails.
 local function has_trainer(addr)
   if not trainer_id then return true end
-  for t = HEADER + SLOTS * MON, WINDOW - 0x18, 4 do
-    if memory.readdword(addr + t + 0x14) == trainer_id then return true end
+  for t = HEADER + SLOTS * MON, WINDOW - 0x18 - 4, 4 do
+    if is_trainer(addr + t) then return true end
   end
   return false
 end
@@ -213,13 +231,12 @@ print("SoulSync: looking for your party ...")
 local MISSES = 20
 
 local sent, sent_at, frame, changed, misses = nil, 0, 0, false, 0
-trainer_id = read_trainer()
+read_trainer()
 while true do
   frame = frame + 1
   if frame % 300 == 0 then
-    local id = read_trainer()
-    if id ~= trainer_id then
-      trainer_id, party, party_cursor = id, nil, RAM_START
+    if read_trainer() then
+      party, party_cursor = nil, RAM_START
     end
   end
   if not party then
