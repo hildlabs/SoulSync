@@ -1,0 +1,8 @@
+/target
+# ROMs and save files never belong in the repo
+*.nds
+*.dsv
+*.sav
+*.dst
+*.ds[0-9]
+*.log

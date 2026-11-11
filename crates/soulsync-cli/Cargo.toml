@@ -1,0 +1,16 @@
+[package]
+name = "soulsync-cli"
+description = "SoulSync command line: read and watch Pokémon save files"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "soulsync"
+path = "src/main.rs"
+
+[dependencies]
+soulsync-core = { path = "../soulsync-core" }
+serde_json.workspace = true
