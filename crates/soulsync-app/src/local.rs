@@ -45,6 +45,8 @@ struct Inner {
     /// Why the sync is not running, if it should be.
     message: Option<String>,
     task: Option<tokio::task::JoinHandle<()>>,
+    /// The Lua script for DeSmuME and the file it writes, once installed.
+    live: Option<(PathBuf, PathBuf)>,
 }
 
 #[derive(Clone)]
@@ -61,6 +63,45 @@ pub fn data_dir() -> Option<PathBuf> {
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("APPDATA").map(|d| PathBuf::from(d).join("SoulSync")))
         .or_else(|| std::env::var_os("HOME").map(|d| PathBuf::from(d).join(".config/soulsync")))
+}
+
+/// The Lua script that reports the live party from DeSmuME.
+const LIVE_SCRIPT: &str = include_str!("soulsync.lua");
+/// Seconds after which a silent script counts as stopped.
+const LIVE_TIMEOUT: u64 = 15;
+
+fn live_script_path() -> Option<PathBuf> {
+    data_dir().map(|d| d.join("soulsync.lua"))
+}
+
+/// The file the Lua script writes the party to.
+fn live_party_path() -> Option<PathBuf> {
+    data_dir().map(|d| d.join("live-party.bin"))
+}
+
+fn live_script(out: &Path) -> String {
+    LIVE_SCRIPT.replace("@OUT@", &out.to_string_lossy())
+}
+
+/// Puts the Lua script where the player can load it from. Returns the script
+/// and the file it will write.
+fn install_live_script() -> Option<(PathBuf, PathBuf)> {
+    let (script, out) = (live_script_path()?, live_party_path()?);
+    std::fs::create_dir_all(script.parent()?).ok()?;
+    let text = live_script(&out);
+    if std::fs::read_to_string(&script).ok().as_deref() != Some(text.as_str()) {
+        std::fs::write(&script, text).ok()?;
+    }
+    // Whatever an earlier session left behind says nothing about the game now.
+    let _ = std::fs::remove_file(&out);
+    Some((script, out))
+}
+
+/// Whether the Lua script wrote the party a moment ago.
+fn live_active(out: &Path) -> bool {
+    soulsync_client::modified(out)
+        .and_then(|t| t.elapsed().ok())
+        .is_some_and(|age| age.as_secs() < LIVE_TIMEOUT)
 }
 
 fn config_path() -> Option<PathBuf> {
@@ -153,6 +194,10 @@ impl Local {
             "code": c.code,
             "phase": inner.phase,
             "message": inner.message,
+            "live": inner.live.as_ref().map(|(script, out)| serde_json::json!({
+                "script": script,
+                "active": live_active(out),
+            })),
             "dialogs": cfg!(any(windows, target_os = "macos")),
             "version": env!("CARGO_PKG_VERSION"),
         })
@@ -195,6 +240,9 @@ impl Local {
             .rom
             .and_then(|p| std::fs::File::open(p).ok())
             .and_then(|mut f| read_catch_rates(&mut f).ok());
+        let live = install_live_script();
+        let live_out = live.as_ref().map(|(_, out)| out.clone());
+        self.inner.lock().unwrap().live = live;
         let me = self.clone();
         self.set_phase(Phase::Connecting, None);
         let task = tokio::spawn(async move {
@@ -210,7 +258,16 @@ impl Local {
                         reporter.set_phase(Phase::Live, None);
                     }
                 };
-                match session(&url, &save, rates.as_deref(), &mut last, &mut report).await {
+                match session(
+                    &url,
+                    &save,
+                    live_out.as_deref(),
+                    rates.as_deref(),
+                    &mut last,
+                    &mut report,
+                )
+                .await
+                {
                     Ok(End::Refused(msg)) => return me.set_phase(Phase::Error, Some(msg)),
                     Ok(End::Lost) => {
                         backoff = 1;
@@ -488,5 +545,88 @@ mod tests {
         assert_eq!(c.name, "Hannes");
         assert_eq!(c.rom, Some(PathBuf::from("C:\\Games\\SoulLink.nds")));
         assert_eq!(c.server, "https://soulsync.example");
+    }
+
+    /// Runs the Lua script against a fake emulator whose memory holds a party
+    /// and checks that the core accepts what it writes.
+    #[test]
+    fn live_script_exports_the_party() {
+        use soulsync_core::pk5::{build_raw, BattleStats};
+        use soulsync_core::{parse_b2w2, PARTY_BLOCK_LEN};
+        use std::process::Command;
+
+        if Command::new("lua5.1").arg("-v").output().is_err() {
+            eprintln!("lua5.1 is not installed, skipping");
+            return;
+        }
+        let dir = std::env::temp_dir().join(format!("soulsync-lua-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let stats = |level, hp| BattleStats {
+            level,
+            hp,
+            max_hp: 60,
+        };
+        let mons = [
+            build_raw(0x1111_2222, 488, "Mondi", 14, 5, Some(&stats(23, 0))),
+            build_raw(0xFEDC_BA98, 570, "", 17, 18, Some(&stats(9, 31))),
+        ];
+        // 64 KiB of memory with decoys before the party at 0x02001234.
+        let mut ram = vec![0u8; 0x10000];
+        ram[0x104] = 3;
+        ram[0x1004] = 1;
+        ram[0x1008..0x1008 + 220].copy_from_slice(&mons[0]);
+        ram[0x1008 + 30] ^= 1;
+        let at = 0x1234;
+        // Found in the first frames; the rest of the 4 MiB reads as zero.
+        ram[at] = 6;
+        ram[at + 4] = mons.len() as u8;
+        for (i, raw) in mons.iter().enumerate() {
+            ram[at + 8 + i * 220..at + 8 + (i + 1) * 220].copy_from_slice(raw);
+        }
+        let (ram_path, out) = (dir.join("ram.bin"), dir.join("party.bin"));
+        std::fs::write(&ram_path, &ram).unwrap();
+        std::fs::write(dir.join("soulsync.lua"), live_script(&out)).unwrap();
+        let harness = r#"
+            local f = assert(io.open(arg[1], "rb")); local ram = f:read("*a"); f:close()
+            local function byte(a)
+              local o = a - 0x02000000
+              return o >= 0 and o < #ram and ram:byte(o + 1) or 0
+            end
+            memory = {
+              readbyte = byte,
+              readword = function(a) return byte(a) + byte(a + 1) * 256 end,
+              readdword = function(a)
+                return byte(a) + byte(a + 1) * 256 + byte(a + 2) * 65536 + byte(a + 3) * 16777216
+              end,
+            }
+            local frames = 0
+            emu = { frameadvance = function()
+              frames = frames + 1
+              if frames > 200 then os.exit(0) end
+            end }
+            print = function() end
+            dofile(arg[2])
+        "#;
+        std::fs::write(dir.join("harness.lua"), harness).unwrap();
+        let run = Command::new("lua5.1")
+            .arg(dir.join("harness.lua"))
+            .arg(&ram_path)
+            .arg(dir.join("soulsync.lua"))
+            .output()
+            .unwrap();
+        assert!(
+            run.status.success(),
+            "{}",
+            String::from_utf8_lossy(&run.stderr)
+        );
+        let block = std::fs::read(&out).unwrap();
+        assert_eq!(block.len(), PARTY_BLOCK_LEN);
+        assert_eq!(block, ram[at..at + PARTY_BLOCK_LEN]);
+        let save = parse_b2w2(&vec![0u8; 0x80000]).unwrap();
+        let live = save.with_live_party(&block).unwrap();
+        assert_eq!(live.party.len(), 2);
+        assert!(live.party[0].is_fainted());
+        assert_eq!(live.party[1].pid, 0xFEDC_BA98);
+        std::fs::remove_dir_all(dir).unwrap();
     }
 }

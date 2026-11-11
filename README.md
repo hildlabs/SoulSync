@@ -6,7 +6,7 @@ Track Pokémon Soul Link runs live, straight from your emulator.
 
 SoulSync reads both players' game state and shows it on one shared dashboard: linked pairs, encounters per route, deaths, level caps and your house rules. No manual bookkeeping. The goal is a single app you send to your partner: enter the run code, pick your own ROM, play.
 
-> **Status:** early development. Black 2 / White 2 saves sync to a shared live dashboard every time a player saves in-game. Live emulator support (no saving needed) is next, see the [roadmap](docs/ROADMAP.md).
+> **Status:** early development. Black 2 / White 2 saves sync to a shared live dashboard every time a player saves in-game, and a Lua script for DeSmuME reports the party without saving. Boxes, encounters and battle state live are next, see the [roadmap](docs/ROADMAP.md).
 
 ## The app
 
@@ -15,6 +15,7 @@ Start `SoulSync` (on Windows: `SoulSync.exe`). It opens in its own window; closi
 1. Enter your name and pick your ROM and your save. For DeSmuME the save is the `.dsv` in its `Battery` folder; SoulSync finds it next to the ROM if it can.
 2. Start a new run and choose your rules, or join your partner's run with their code.
 3. Play. Every in-game save updates the dashboard for both of you.
+4. For updates without saving, load SoulSync's Lua script in DeSmuME: *Tools › Lua Scripting › New Lua Script Window*, then choose the file shown under *Settings › Live from DeSmuME* and press *Run*. Catches, faints and level-ups in your party then show up within a second or two. What happens in the PC boxes still arrives with the next save.
 
 To play together, both players enter the same run server under *Server*. Without one, the run stays on your computer. Your ROM and your save never leave your machine.
 

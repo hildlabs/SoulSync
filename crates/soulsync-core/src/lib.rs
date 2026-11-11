@@ -21,4 +21,4 @@ pub use lang::{Lang, Names};
 pub use links::{links, Link, Side, Status};
 pub use pk5::{BattleStats, Place, Pokemon};
 pub use rom::{read_catch_rates, read_level_caps, RomError};
-pub use save::{parse_b2w2, SaveError, SaveSnapshot, Trainer};
+pub use save::{parse_b2w2, SaveError, SaveSnapshot, Trainer, PARTY_BLOCK_LEN};
