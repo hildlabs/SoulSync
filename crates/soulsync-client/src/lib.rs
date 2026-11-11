@@ -82,6 +82,14 @@ pub enum End {
     Refused(String),
 }
 
+/// Most bytes kept of the log of reported Pokémon.
+const LOG_LIMIT: usize = 64 * 1024;
+
+fn pid_of(raw: &[u8]) -> Option<u32> {
+    let pid = raw.get(..4)?;
+    Some(u32::from_le_bytes([pid[0], pid[1], pid[2], pid[3]]))
+}
+
 fn text(msg: &ClientMsg) -> Message {
     Message::Text(serde_json::to_string(msg).expect("serializable").into())
 }
@@ -106,6 +114,8 @@ pub struct Live {
     pub place: Arc<Mutex<Option<u16>>>,
     /// Encounters to take back, by PID, from whoever noticed a wrong one.
     pub forget: Arc<Mutex<Vec<u32>>>,
+    /// The Pokémon last written to the log as waiting for a place.
+    noted: Option<(u32, Option<u16>)>,
     /// Whether the script's last report was about somebody else's party.
     pub foreign: Arc<Mutex<bool>>,
 }
@@ -126,6 +136,7 @@ impl Live {
             told: None,
             place: Arc::default(),
             forget: Arc::default(),
+            noted: None,
             foreign: Arc::default(),
         }
     }
@@ -144,6 +155,56 @@ impl Live {
                 self.told = Some(trainer.id);
             }
         }
+    }
+
+    /// Writes down what became of a Pokémon the script reported, so that a
+    /// missing encounter can be explained afterwards. Only the newest lines
+    /// are kept.
+    fn note(&mut self, snap: &SaveSnapshot, raw: &[u8], place: Option<u16>) {
+        let Some(pid) = pid_of(raw) else { return };
+        let line = (pid, place);
+        let (seen, listed) = self.encounters.knows(pid);
+        // One still waiting for a place is reported again and again.
+        if !seen && self.noted == Some(line) {
+            return;
+        }
+        self.noted = (!seen).then_some(line);
+        let name = soulsync_core::pk5::parse(raw, soulsync_core::Place::Party { slot: 0 })
+            .map(|p| {
+                format!(
+                    "species {} lv {}",
+                    p.species,
+                    p.battle.map_or(0, |b| b.level)
+                )
+            })
+            .unwrap_or_else(|| "unreadable".into());
+        let wild = soulsync_core::pk5::parse_wild(raw).is_some();
+        let outcome = if listed {
+            "counted as the encounter of this location"
+        } else if !seen {
+            "waiting: the location is unknown"
+        } else if !wild {
+            "not counted: a trainer's Pokémon, an egg or unreadable"
+        } else {
+            "not counted: the location already has an encounter or a Pokémon"
+        };
+        let at = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        let entry = format!(
+            "{at} pid {pid:08x} {name} location {place:?} party {} boxed {}: {outcome}\n",
+            snap.party.len(),
+            snap.boxes.len()
+        );
+        let file = self.file.with_file_name("live-log.txt");
+        let mut log = std::fs::read_to_string(&file).unwrap_or_default();
+        log.push_str(&entry);
+        if log.len() > LOG_LIMIT {
+            let cut = log.len() - LOG_LIMIT / 2;
+            let cut = log[cut..].find('\n').map_or(log.len(), |i| cut + i + 1);
+            log.drain(..cut);
+        }
+        let _ = std::fs::write(file, log);
     }
 
     /// What to show for the save `base`: with the party the emulator has in
@@ -188,7 +249,16 @@ impl Live {
                 .map(&base.trainer)
                 .and_then(|m| self.locations.get(usize::from(m)).copied());
             *self.place.lock().unwrap() = place;
+            let fresh: Vec<&[u8]> = report
+                .seen
+                .iter()
+                .copied()
+                .filter(|raw| pid_of(raw).is_some_and(|pid| !self.encounters.knows(pid).0))
+                .collect();
             changed |= self.encounters.observe(&snap, &report.seen, place);
+            for raw in fresh {
+                self.note(&snap, raw, place);
+            }
             snap.wild = report.wild(&snap).map(Box::new);
         } else if current && !foreign {
             // Caught mid-write, most likely. A file that stays unreadable is
@@ -350,6 +420,11 @@ mod tests {
         assert_eq!(snap.encounters[0].met_location, 14);
         assert_eq!(snap.wild.as_ref().unwrap().species, 504);
         assert_eq!(*live.place.lock().unwrap(), Some(14));
+        let log = std::fs::read_to_string(dir.join("live-log.txt")).unwrap();
+        assert!(
+            log.contains("species 504") && log.contains("counted as the encounter"),
+            "{log}"
+        );
         // The script was told whose party to look for.
         let told = std::fs::read_to_string(dir.join("live-trainer.txt")).unwrap();
         assert_eq!(told, trainer_note(&base.trainer));
