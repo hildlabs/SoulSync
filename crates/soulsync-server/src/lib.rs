@@ -382,11 +382,13 @@ mod tests {
         SaveSnapshot {
             trainer: Trainer {
                 name: "x".into(),
+                id: 0,
                 badges: 0,
                 game: None,
             },
             party: vec![p],
             boxes: vec![],
+            encounters: vec![],
         }
     }
 

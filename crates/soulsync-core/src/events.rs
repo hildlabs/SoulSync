@@ -24,6 +24,9 @@ pub enum Event {
     Moved { pokemon: Pokemon },
     /// A Pokémon is no longer in the save (released, traded away).
     Gone { pokemon: Pokemon },
+    /// A wild Pokémon was the first the player met in its location. Whether
+    /// it gets caught shows later.
+    Encountered { pokemon: Pokemon },
     /// The badge count went up.
     Badges { count: u8 },
 }
@@ -66,6 +69,13 @@ pub fn diff(old: &SaveSnapshot, new: &SaveSnapshot) -> Vec<Event> {
             events.push(Event::Gone { pokemon: o.clone() });
         }
     }
+    for wild in &new.encounters {
+        if !old.encounters.iter().any(|w| w.pid == wild.pid) && !new.owns(wild.pid) {
+            events.push(Event::Encountered {
+                pokemon: wild.clone(),
+            });
+        }
+    }
     if new.trainer.badges > old.trainer.badges {
         events.push(Event::Badges {
             count: new.trainer.badges,
@@ -93,11 +103,13 @@ mod tests {
         SaveSnapshot {
             trainer: Trainer {
                 name: "Hannes".into(),
+                id: 0,
                 badges,
                 game: None,
             },
             party,
             boxes,
+            encounters: vec![],
         }
     }
 
@@ -110,6 +122,7 @@ mod tests {
                 Event::LevelUp { pokemon } => ("level_up", pokemon.pid),
                 Event::Moved { pokemon } => ("moved", pokemon.pid),
                 Event::Gone { pokemon } => ("gone", pokemon.pid),
+                Event::Encountered { pokemon } => ("encountered", pokemon.pid),
                 Event::Badges { count } => ("badges", *count as u32),
             })
             .collect()

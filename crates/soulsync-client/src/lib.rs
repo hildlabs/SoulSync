@@ -3,8 +3,9 @@
 
 use futures_util::{SinkExt, StreamExt};
 use soulsync_core::protocol::{ClientMsg, NewRun, RunSettings, ServerMsg};
-use soulsync_core::{diff, parse_b2w2, Event, SaveSnapshot};
-use std::path::Path;
+use soulsync_core::{diff, parse_b2w2, Encounters, Event, LiveReport, SaveSnapshot};
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 use tokio_tungstenite::tungstenite::Message;
 
@@ -84,13 +85,72 @@ fn text(msg: &ClientMsg) -> Message {
     Message::Text(serde_json::to_string(msg).expect("serializable").into())
 }
 
-/// What to show for the save `base`: with the party DeSmuME has in memory,
-/// as the SoulSync Lua script wrote it to `live`, unless the save is newer.
-/// `None` while the script is in the middle of writing; try again.
-fn live_view(base: &SaveSnapshot, save: &Path, live: &Path) -> Option<SaveSnapshot> {
-    match (modified(live), modified(save)) {
-        (Some(l), Some(s)) if l >= s => base.with_live_party(&std::fs::read(live).ok()?),
-        _ => Some(base.clone()),
+/// The emulator's side of a sync: the file the SoulSync Lua script writes,
+/// and what was learned from it.
+pub struct Live {
+    /// The script's report.
+    file: PathBuf,
+    /// Where the encounters are kept between starts.
+    store: PathBuf,
+    /// Location by map id, from the ROM. Empty: encounters cannot be placed.
+    locations: Vec<u16>,
+    encounters: Encounters,
+    /// Reports in a row that could not be read.
+    unreadable: u8,
+    /// The location the player is in, for whoever wants to show it.
+    pub place: Arc<Mutex<Option<u16>>>,
+}
+
+impl Live {
+    pub fn new(file: PathBuf, store: PathBuf, locations: Vec<u16>) -> Self {
+        let encounters = std::fs::read(&store)
+            .ok()
+            .and_then(|d| serde_json::from_slice(&d).ok())
+            .unwrap_or_default();
+        Live {
+            file,
+            store,
+            locations,
+            encounters,
+            unreadable: 0,
+            place: Arc::default(),
+        }
+    }
+
+    /// What to show for the save `base`: with the party the emulator has in
+    /// memory, unless the save is newer, and with the encounters so far.
+    /// `None` while the script is in the middle of writing; try again.
+    fn view(&mut self, base: &SaveSnapshot, save: &Path) -> Option<SaveSnapshot> {
+        let mut snap = base.clone();
+        let current =
+            matches!((modified(&self.file), modified(save)), (Some(l), Some(s)) if l >= s);
+        let data = current.then(|| std::fs::read(&self.file).ok()).flatten();
+        let report = data.as_deref().and_then(LiveReport::parse);
+        let live = report
+            .as_ref()
+            .and_then(|r| Some((r, base.with_live_party(r.party())?)));
+        if let Some((report, with_party)) = live {
+            self.unreadable = 0;
+            snap = with_party;
+            let place = report
+                .map(&base.trainer)
+                .and_then(|m| self.locations.get(usize::from(m)).copied());
+            *self.place.lock().unwrap() = place;
+            if self.encounters.observe(&snap, &report.seen, place) {
+                if let Ok(json) = serde_json::to_vec(&self.encounters) {
+                    let _ = std::fs::write(&self.store, json);
+                }
+            }
+        } else if current {
+            // Caught mid-write, most likely. A file that stays unreadable is
+            // not a report; then the save alone counts.
+            self.unreadable = self.unreadable.saturating_add(1);
+            if self.unreadable < 3 {
+                return None;
+            }
+        }
+        snap.encounters = self.encounters.of(&base.trainer).to_vec();
+        Some(snap)
     }
 }
 
@@ -98,11 +158,12 @@ fn live_view(base: &SaveSnapshot, save: &Path, live: &Path) -> Option<SaveSnapsh
 /// the file changes, until the connection ends.
 ///
 /// With `live`, the party the emulator has in memory replaces the saved one
-/// as soon as the Lua script reports it, so nobody has to save in-game.
+/// as soon as the Lua script reports it, so nobody has to save in-game, and
+/// wild encounters are tracked.
 pub async fn session(
     url: &str,
     path: &Path,
-    live: Option<&Path>,
+    mut live: Option<&mut Live>,
     catch_rates: Option<&[u8]>,
     last: &mut SaveSnapshot,
     on: &mut (dyn FnMut(Update) + Send),
@@ -130,7 +191,7 @@ pub async fn session(
         tokio::select! {
             _ = tick.tick() => {
                 let now = modified(path);
-                let live_now = live.and_then(modified);
+                let live_now = live.as_ref().and_then(|l| modified(&l.file));
                 if now == stamp && live_now == live_stamp {
                     continue;
                 }
@@ -143,8 +204,8 @@ pub async fn session(
                     }
                     stamp = now;
                 }
-                let snap = match live {
-                    Some(live) => live_view(&base, path, live),
+                let snap = match live.as_mut() {
+                    Some(live) => live.view(&base, path),
                     None => Some(base.clone()),
                 };
                 let Some(snap) = snap else { continue };
@@ -188,26 +249,33 @@ mod tests {
     }
 
     #[test]
-    fn live_party_counts_until_the_next_save() {
-        use soulsync_core::pk5::{build_raw, BattleStats};
-        use soulsync_core::PARTY_BLOCK_LEN;
+    fn live_report_counts_until_the_next_save() {
+        use soulsync_core::pk5::{build_raw, build_raw_ivs, BattleStats};
 
         let dir = std::env::temp_dir().join(format!("soulsync-live-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let (save, live) = (dir.join("game.dsv"), dir.join("live-party.bin"));
+        let (save, file) = (dir.join("game.dsv"), dir.join("live.bin"));
+        let store = dir.join("encounters.json");
         std::fs::write(&save, vec![0u8; 0x80000]).unwrap();
         let base = load(&save).unwrap();
-        assert_eq!(live_view(&base, &save, &live), Some(base.clone()));
+        // Map 1 is in location 14.
+        let mut live = Live::new(file.clone(), store.clone(), vec![0, 14]);
+        assert_eq!(live.view(&base, &save), Some(base.clone()));
 
         let stats = BattleStats {
             level: 5,
             hp: 20,
             max_hp: 20,
         };
-        let mut block = vec![0u8; PARTY_BLOCK_LEN];
-        block[4] = 1;
-        block[8..228].copy_from_slice(&build_raw(7, 495, "", 14, 5, Some(&stats)));
-        std::fs::write(&live, &block).unwrap();
+        // The party, the trainer of the empty save behind it, and map 1.
+        let mut report = b"SSL2".to_vec();
+        report.resize(4 + 0x800, 0);
+        report[4 + 4] = 1;
+        report[4 + 8..4 + 228].copy_from_slice(&build_raw(7, 495, "", 4, 5, Some(&stats)));
+        report[4 + 0x604..4 + 0x606].copy_from_slice(&[0xFF, 0xFF]);
+        report[4 + 0x780] = 1;
+        report.extend(build_raw_ivs(9, 504, "", 0, 0, Some(&stats), 0x0123_4567));
+        std::fs::write(&file, &report).unwrap();
         let at = |file: &Path, secs| {
             let t = SystemTime::UNIX_EPOCH + Duration::from_secs(secs);
             std::fs::File::options()
@@ -218,15 +286,28 @@ mod tests {
                 .unwrap();
         };
         at(&save, 1_000);
-        at(&live, 1_005);
-        assert_eq!(live_view(&base, &save, &live).unwrap().party.len(), 1);
-        // Saved after the script last wrote: the save is the truth.
+        at(&file, 1_005);
+        let snap = live.view(&base, &save).unwrap();
+        assert_eq!(snap.party.len(), 1);
+        assert_eq!(snap.encounters.len(), 1);
+        assert_eq!(snap.encounters[0].species, 504);
+        assert_eq!(snap.encounters[0].met_location, 14);
+        assert_eq!(*live.place.lock().unwrap(), Some(14));
+        // Saved after the script last wrote: the save is the truth, the
+        // encounters stay.
         at(&save, 1_010);
-        assert_eq!(live_view(&base, &save, &live), Some(base.clone()));
-        // A half-written file is ignored.
-        std::fs::write(&live, &block[..500]).unwrap();
-        at(&live, 1_020);
-        assert_eq!(live_view(&base, &save, &live), None);
+        let snap = live.view(&base, &save).unwrap();
+        assert!(snap.party.is_empty());
+        assert_eq!(snap.encounters.len(), 1);
+        // They survive a restart of the app.
+        let mut again = Live::new(file.clone(), store, vec![0, 14]);
+        assert_eq!(again.view(&base, &save).unwrap().encounters.len(), 1);
+        // A half-written report is tried again, then given up on.
+        std::fs::write(&file, &report[..500]).unwrap();
+        at(&file, 1_020);
+        assert_eq!(live.view(&base, &save), None);
+        assert_eq!(live.view(&base, &save), None);
+        assert!(live.view(&base, &save).unwrap().party.is_empty());
         std::fs::remove_dir_all(dir).unwrap();
     }
 }

@@ -48,6 +48,9 @@ impl std::error::Error for SaveError {}
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Trainer {
     pub name: String,
+    /// Trainer ID and secret ID. A new game has a new one.
+    #[serde(default)]
+    pub id: u32,
     pub badges: u8,
     /// Which game wrote the save, if it says so.
     #[serde(default)]
@@ -60,12 +63,22 @@ pub struct SaveSnapshot {
     pub trainer: Trainer,
     pub party: Vec<Pokemon>,
     pub boxes: Vec<Pokemon>,
+    /// Wild Pokémon the player met first in a location, seen live in the
+    /// emulator, with that location as `met_location`. Those the player does
+    /// not own were not caught. A save file alone has none.
+    #[serde(default)]
+    pub encounters: Vec<Pokemon>,
 }
 
 impl SaveSnapshot {
     /// All Pokémon except eggs, party first.
     pub fn all_pokemon(&self) -> impl Iterator<Item = &Pokemon> {
         self.party.iter().chain(&self.boxes).filter(|p| !p.is_egg)
+    }
+
+    /// Whether the player has this Pokémon, eggs included.
+    pub fn owns(&self, pid: u32) -> bool {
+        self.party.iter().chain(&self.boxes).any(|p| p.pid == pid)
     }
 }
 
@@ -124,6 +137,7 @@ impl SaveSnapshot {
             trainer: self.trainer.clone(),
             party,
             boxes,
+            encounters: self.encounters.clone(),
         })
     }
 }
@@ -159,6 +173,12 @@ pub fn parse_b2w2(data: &[u8]) -> Result<SaveSnapshot, SaveError> {
         .collect();
     let trainer = Trainer {
         name: pk5::read_string(&b[TRAINER_BLOCK + 4..], 8),
+        id: u32::from_le_bytes([
+            b[TRAINER_BLOCK + 0x14],
+            b[TRAINER_BLOCK + 0x15],
+            b[TRAINER_BLOCK + 0x16],
+            b[TRAINER_BLOCK + 0x17],
+        ]),
         badges: b[BADGE_FLAGS].count_ones() as u8,
         game: Game::from_save_version(b[TRAINER_BLOCK + GAME_VERSION]),
     };
@@ -166,6 +186,7 @@ pub fn parse_b2w2(data: &[u8]) -> Result<SaveSnapshot, SaveError> {
         trainer,
         party,
         boxes,
+        encounters: Vec::new(),
     })
 }
 
@@ -214,6 +235,8 @@ mod tests {
             s[TRAINER_BLOCK + 4 + i * 2..TRAINER_BLOCK + 6 + i * 2]
                 .copy_from_slice(&u.to_le_bytes());
         }
+        s[TRAINER_BLOCK + 0x14..TRAINER_BLOCK + 0x18]
+            .copy_from_slice(&0x1234_5678u32.to_le_bytes());
         s[BADGE_FLAGS] = 0b0000_0011;
         s[TRAINER_BLOCK + GAME_VERSION] = 23;
         s
@@ -226,6 +249,7 @@ mod tests {
             snap.trainer,
             Trainer {
                 name: "Hannes".into(),
+                id: 0x1234_5678,
                 badges: 2,
                 game: Some(Game::Black2),
             }

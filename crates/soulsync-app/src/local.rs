@@ -8,9 +8,11 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
-use soulsync_client::{create_run, load, session, ws_url, End, Update};
+use soulsync_client::{create_run, load, session, ws_url, End, Live, Update};
 use soulsync_core::protocol::RunSettings;
-use soulsync_core::{read_catch_rates, read_level_caps, read_rom_header, Lang, ROM_HEADER_LEN};
+use soulsync_core::{
+    read_catch_rates, read_level_caps, read_map_locations, read_rom_header, Lang, ROM_HEADER_LEN,
+};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -47,6 +49,8 @@ struct Inner {
     task: Option<tokio::task::JoinHandle<()>>,
     /// The Lua script for DeSmuME and the file it writes, once installed.
     live: Option<(PathBuf, PathBuf)>,
+    /// The location the script last reported the player in.
+    place: Option<Arc<Mutex<Option<u16>>>>,
 }
 
 #[derive(Clone)]
@@ -197,6 +201,11 @@ impl Local {
             "live": inner.live.as_ref().map(|(script, out)| serde_json::json!({
                 "script": script,
                 "active": live_active(out),
+                "place": inner
+                    .place
+                    .as_ref()
+                    .and_then(|p| *p.lock().unwrap())
+                    .and_then(soulsync_core::dex::location),
             })),
             "dialogs": cfg!(any(windows, target_os = "macos")),
             "version": env!("CARGO_PKG_VERSION"),
@@ -236,13 +245,23 @@ impl Local {
             return;
         };
         let url = ws_url(&server, &code, &config.name);
-        let rates = config
-            .rom
-            .and_then(|p| std::fs::File::open(p).ok())
-            .and_then(|mut f| read_catch_rates(&mut f).ok());
-        let live = install_live_script();
-        let live_out = live.as_ref().map(|(_, out)| out.clone());
-        self.inner.lock().unwrap().live = live;
+        let mut rom = config.rom.and_then(|p| std::fs::File::open(p).ok());
+        let rates = rom.as_mut().and_then(|f| read_catch_rates(f).ok());
+        // Without them encounters cannot be placed; the party still syncs.
+        let locations = rom
+            .as_mut()
+            .and_then(|f| read_map_locations(f).ok())
+            .unwrap_or_default();
+        let installed = install_live_script();
+        let mut live = installed.as_ref().and_then(|(_, out)| {
+            let store = data_dir()?.join("encounters.json");
+            Some(Live::new(out.clone(), store, locations))
+        });
+        {
+            let mut inner = self.inner.lock().unwrap();
+            inner.place = live.as_ref().map(|l| l.place.clone());
+            inner.live = installed;
+        }
         let me = self.clone();
         self.set_phase(Phase::Connecting, None);
         let task = tokio::spawn(async move {
@@ -261,7 +280,7 @@ impl Local {
                 match session(
                     &url,
                     &save,
-                    live_out.as_deref(),
+                    live.as_mut(),
                     rates.as_deref(),
                     &mut last,
                     &mut report,
@@ -547,12 +566,13 @@ mod tests {
         assert_eq!(c.server, "https://soulsync.example");
     }
 
-    /// Runs the Lua script against a fake emulator whose memory holds a party
-    /// and checks that the core accepts what it writes.
+    /// Runs the Lua script against a fake emulator: a party, the trainer and
+    /// the map behind it, and battles that start while it runs. Checks that
+    /// the core understands what it writes.
     #[test]
-    fn live_script_exports_the_party() {
-        use soulsync_core::pk5::{build_raw, BattleStats};
-        use soulsync_core::{parse_b2w2, PARTY_BLOCK_LEN};
+    fn live_script_reports_party_place_and_battles() {
+        use soulsync_core::pk5::{build_raw, build_raw_ivs, BattleStats};
+        use soulsync_core::{parse_b2w2, Encounters, LiveReport, PARTY_BLOCK_LEN};
 
         let dir = std::env::temp_dir().join(format!("soulsync-lua-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
@@ -561,34 +581,52 @@ mod tests {
             hp,
             max_hp: 60,
         };
+        let wild =
+            |pid, species| build_raw_ivs(pid, species, "", 0, 0, Some(&stats(4, 15)), 0x0123_4567);
         let mons = [
             build_raw(0x1111_2222, 488, "Mondi", 14, 5, Some(&stats(23, 0))),
             build_raw(0xFEDC_BA98, 570, "", 17, 18, Some(&stats(9, 31))),
         ];
-        // 64 KiB of memory with decoys before the party at 0x02001234.
+        // 64 KiB of memory with decoys before the party at 0x02001234; the
+        // rest of the 4 MiB reads as zero.
         let mut ram = vec![0u8; 0x10000];
         ram[0x104] = 3;
         ram[0x1004] = 1;
         ram[0x1008..0x1008 + 220].copy_from_slice(&mons[0]);
         ram[0x1008 + 30] ^= 1;
         let at = 0x1234;
-        // Found in the first frames; the rest of the 4 MiB reads as zero.
         ram[at] = 6;
         ram[at + 4] = mons.len() as u8;
         for (i, raw) in mons.iter().enumerate() {
             ram[at + 8 + i * 220..at + 8 + (i + 1) * 220].copy_from_slice(raw);
         }
-        let out = dir.join("party.bin");
+        // The trainer of an empty save (no name, id 0) and map 3.
+        ram[at + 0x604..at + 0x606].copy_from_slice(&[0xFF, 0xFF]);
+        ram[at + 0x780] = 3;
+        // Left over from a battle before the script started.
+        ram[0x8000..0x8000 + 220].copy_from_slice(&wild(50, 519));
+
+        let out = dir.join("live.bin");
         // Lua 5.1 is what DeSmuME runs.
         let lua = mlua::Lua::new();
-        lua.globals()
+        let globals = lua.globals();
+        globals
             .set("RAM", lua.create_string(&ram).unwrap())
             .unwrap();
+        // Battles after the script has taken stock: one where the last one
+        // was, one somewhere new, and a trainer's Pokémon.
+        let foe = build_raw_ivs(53, 509, "", 0, 0, Some(&stats(7, 20)), 0);
+        for (name, raw) in [("A", wild(51, 504)), ("B", wild(52, 506)), ("C", foe)] {
+            globals.set(name, lua.create_string(&raw).unwrap()).unwrap();
+        }
         let harness = r#"
-            local ram = RAM
+            local ram, later = RAM, {}
             local function byte(a)
               local o = a - 0x02000000
-              return o >= 0 and o < #ram and ram:byte(o + 1) or 0
+              return later[o] or (o >= 0 and o < #ram and ram:byte(o + 1)) or 0
+            end
+            local function put(o, data)
+              for i = 1, #data do later[o + i - 1] = data:byte(i) end
             end
             memory = {
               readbyte = byte,
@@ -600,21 +638,32 @@ mod tests {
             local frames = 0
             emu = { frameadvance = function()
               frames = frames + 1
-              if frames > 200 then error("enough frames") end
+              if frames == 300 then put(0x8000, A) put(0xC000, B) put(0xD000, C) end
+              if frames > 700 then error("enough frames") end
             end }
             print = function() end
         "#;
         lua.load(harness).exec().unwrap();
         let stopped = lua.load(live_script(&out)).exec().unwrap_err();
         assert!(stopped.to_string().contains("enough frames"), "{stopped}");
-        let block = std::fs::read(&out).unwrap();
-        assert_eq!(block.len(), PARTY_BLOCK_LEN);
-        assert_eq!(block, ram[at..at + PARTY_BLOCK_LEN]);
+
+        let data = std::fs::read(&out).unwrap();
+        let report = LiveReport::parse(&data).unwrap();
+        assert_eq!(report.party(), &ram[at..at + PARTY_BLOCK_LEN]);
         let save = parse_b2w2(&vec![0u8; 0x80000]).unwrap();
-        let live = save.with_live_party(&block).unwrap();
+        let live = save.with_live_party(report.party()).unwrap();
         assert_eq!(live.party.len(), 2);
         assert!(live.party[0].is_fainted());
         assert_eq!(live.party[1].pid, 0xFEDC_BA98);
+        assert_eq!(report.map(&save.trainer), Some(3));
+        // The leftover is not reported, the three new ones are.
+        let pids: Vec<u8> = report.seen.iter().map(|raw| raw[0]).collect();
+        assert_eq!(pids, [51, 52, 53]);
+        let mut encounters = Encounters::default();
+        assert!(encounters.observe(&live, &report.seen, Some(20)));
+        let list = encounters.of(&save.trainer);
+        assert_eq!(list.len(), 1);
+        assert_eq!((list[0].species, list[0].met_location), (504, 20));
         std::fs::remove_dir_all(dir).unwrap();
     }
 }

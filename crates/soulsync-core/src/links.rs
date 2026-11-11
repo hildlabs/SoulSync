@@ -17,6 +17,9 @@ pub enum Status {
     Boxed,
     /// In the party with 0 HP.
     Fainted,
+    /// The first wild Pokémon of the location, met but not caught. The
+    /// location is used up for both players.
+    Missed,
 }
 
 /// One player's side of a link.
@@ -41,12 +44,12 @@ impl Link {
         self.sides.iter().all(Option::is_some)
     }
 
-    /// Any side has fainted, so the whole link is dead.
+    /// A side fainted or missed its encounter, so the whole link is dead.
     pub fn is_dead(&self) -> bool {
         self.sides
             .iter()
             .flatten()
-            .any(|s| s.status == Status::Fainted)
+            .any(|s| matches!(s.status, Status::Fainted | Status::Missed))
     }
 }
 
@@ -63,6 +66,9 @@ fn status(p: &Pokemon) -> Status {
 /// Pairs up the players' Pokémon by met location. Per player and location only
 /// the first Pokémon counts (party before boxes); eggs are ignored. Links are
 /// sorted by location id. Players without a save yet are passed as `None`.
+///
+/// A player without a Pokémon from a location where they met a wild one has
+/// missed that encounter.
 pub fn links(players: &[Option<&SaveSnapshot>]) -> Vec<Link> {
     let mut by_loc: BTreeMap<u16, Vec<Option<Side>>> = BTreeMap::new();
     for (i, snap) in players.iter().enumerate() {
@@ -75,6 +81,17 @@ pub fn links(players: &[Option<&SaveSnapshot>]) -> Vec<Link> {
                 sides[i] = Some(Side {
                     pokemon: p.clone(),
                     status: status(p),
+                });
+            }
+        }
+        for wild in snap.encounters.iter().filter(|w| !snap.owns(w.pid)) {
+            let sides = by_loc
+                .entry(wild.met_location)
+                .or_insert_with(|| vec![None; players.len()]);
+            if sides[i].is_none() {
+                sides[i] = Some(Side {
+                    pokemon: wild.clone(),
+                    status: Status::Missed,
                 });
             }
         }
@@ -120,11 +137,13 @@ mod tests {
         SaveSnapshot {
             trainer: Trainer {
                 name: "x".into(),
+                id: 0,
                 badges: 0,
                 game: None,
             },
             party,
             boxes,
+            encounters: vec![],
         }
     }
 
