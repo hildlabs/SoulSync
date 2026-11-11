@@ -3,10 +3,10 @@
 use crate::crypto::{self, PARTY_SIZE, STORED_SIZE};
 use crate::dex;
 use crate::lang::{Lang, Names};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Where a Pokémon sits in the save.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum Place {
     /// Party slot 0..6.
@@ -16,7 +16,7 @@ pub enum Place {
 }
 
 /// Battle stats, stored for party Pokémon only.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BattleStats {
     pub level: u8,
     pub hp: u16,
@@ -24,7 +24,7 @@ pub struct BattleStats {
 }
 
 /// A Pokémon from a save file.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Pokemon {
     /// Personality value, unique per Pokémon. SoulSync uses it to recognise a
     /// Pokémon across evolutions and nickname changes.

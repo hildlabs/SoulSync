@@ -1,6 +1,7 @@
 //! `soulsync`: read and watch Pokémon save files.
 
 mod i18n;
+mod sync;
 
 use i18n::{text, Text};
 use soulsync_core::{diff, parse_b2w2, Event, Lang, Place, Pokemon, SaveSnapshot};
@@ -11,6 +12,9 @@ use std::time::{Duration, SystemTime};
 struct Opts {
     json: bool,
     lang: Lang,
+    server: String,
+    code: Option<String>,
+    name: Option<String>,
 }
 
 fn env_lang() -> Lang {
@@ -28,6 +32,10 @@ fn main() -> ExitCode {
     let mut opts = Opts {
         json: false,
         lang: env_lang(),
+        server: std::env::var("SOULSYNC_SERVER")
+            .unwrap_or_else(|_| sync::DEFAULT_SERVER.to_owned()),
+        code: None,
+        name: None,
     };
     while let Some(a) = args.next() {
         match a.as_str() {
@@ -40,6 +48,14 @@ fn main() -> ExitCode {
                 }
                 None => pos.push(a),
             },
+            "--server" | "--code" | "--name" => match args.next() {
+                Some(v) => match a.as_str() {
+                    "--server" => opts.server = v,
+                    "--code" => opts.code = Some(v),
+                    _ => opts.name = Some(v),
+                },
+                None => pos.push(a),
+            },
             _ => pos.push(a),
         }
     }
@@ -47,6 +63,15 @@ fn main() -> ExitCode {
     let result = match (pos.first().map(String::as_str), pos.get(1)) {
         (Some("inspect"), Some(p)) => inspect(Path::new(p), &opts),
         (Some("watch"), Some(p)) => watch(PathBuf::from(p), &opts),
+        (Some("new"), None) => sync::new_run(&opts.server, t),
+        (Some("sync"), Some(p)) if opts.code.is_some() && opts.name.is_some() => sync::sync(
+            PathBuf::from(p),
+            &opts.server,
+            opts.code.as_deref().unwrap_or_default(),
+            opts.name.as_deref().unwrap_or_default(),
+            opts.lang,
+            t,
+        ),
         _ => {
             eprintln!("{}", t.usage);
             return ExitCode::from(2);
@@ -61,9 +86,9 @@ fn main() -> ExitCode {
     }
 }
 
-type Res<T = ()> = Result<T, Box<dyn std::error::Error>>;
+pub(crate) type Res<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
-fn load(path: &Path) -> Res<SaveSnapshot> {
+pub(crate) fn load(path: &Path) -> Res<SaveSnapshot> {
     let data = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
     Ok(parse_b2w2(&data)?)
 }
@@ -123,7 +148,7 @@ fn line(p: &Pokemon, lang: Lang, t: &Text) -> String {
     format!("{place:<12} {name}{stats} · {} {met}{egg}", t.met)
 }
 
-fn describe(e: &Event, lang: Lang, t: &Text) -> String {
+pub(crate) fn describe(e: &Event, lang: Lang, t: &Text) -> String {
     match e {
         Event::Caught { pokemon } => format!("{}: {}", t.ev_caught, line(pokemon, lang, t)),
         Event::Fainted { pokemon } => format!("{}: {}", t.ev_fainted, pokemon.label(lang)),
@@ -148,7 +173,7 @@ fn describe(e: &Event, lang: Lang, t: &Text) -> String {
     }
 }
 
-fn modified(path: &Path) -> Option<SystemTime> {
+pub(crate) fn modified(path: &Path) -> Option<SystemTime> {
     std::fs::metadata(path).and_then(|m| m.modified()).ok()
 }
 

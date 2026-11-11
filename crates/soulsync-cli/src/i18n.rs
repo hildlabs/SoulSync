@@ -25,6 +25,13 @@ pub struct Text {
     pub ev_to_box: &'static str,
     pub ev_gone: &'static str,
     pub ev_badges: &'static str,
+    pub run_created: &'static str,
+    pub run_share: &'static str,
+    pub connecting: &'static str,
+    pub connected: &'static str,
+    pub disconnected: &'static str,
+    pub sent: &'static str,
+    pub server_error: &'static str,
 }
 
 const EN: Text = Text {
@@ -34,10 +41,13 @@ SoulSync: track Pokémon Soul Link runs live
 Usage:
   soulsync inspect <save> [--json] [--lang en|de]   Show party, boxes and badges
   soulsync watch   <save> [--json] [--lang en|de]   Watch the save and report changes
+  soulsync new     [--server <url>]                 Create a run and get its code
+  soulsync sync    <save> --code <code> --name <name> [--server <url>]
+                                                    Sync your save with the run
 
 <save> is the .dsv from DeSmuME's Battery folder, or a .sav file.
 Supported: Pokémon Black 2 / White 2.
-Language: --lang, or the SOULSYNC_LANG / LANG environment variables.",
+Server: --server, or SOULSYNC_SERVER (default http://localhost:3000).\nLanguage: --lang, or the SOULSYNC_LANG / LANG environment variables.",
     trainer: "Trainer",
     badges: "badges",
     party: "Party",
@@ -59,6 +69,13 @@ Language: --lang, or the SOULSYNC_LANG / LANG environment variables.",
     ev_to_box: "went to box",
     ev_gone: "No longer in the save",
     ev_badges: "Badges",
+    run_created: "Run created: {code}",
+    run_share: "Send this code to your partner. Both of you then run:\n  soulsync sync <save> --code {code} --name <your name>{server}\nDashboard: {dashboard}",
+    connecting: "Connecting to {url} ...",
+    connected: "Connected as {name}. Watching {path}. Save in-game to sync. Ctrl+C to stop.",
+    disconnected: "Connection lost, retrying in {secs} s ...",
+    sent: "Synced",
+    server_error: "Server",
 };
 
 const DE: Text = Text {
@@ -68,10 +85,13 @@ SoulSync: Soul-Link-Runs live verfolgen
 Benutzung:
   soulsync inspect <spielstand> [--json] [--lang en|de]   Team, Boxen und Orden anzeigen
   soulsync watch   <spielstand> [--json] [--lang en|de]   Spielstand beobachten und Änderungen melden
+  soulsync new     [--server <url>]                       Run erstellen und Code erhalten
+  soulsync sync    <spielstand> --code <code> --name <name> [--server <url>]
+                                                          Spielstand mit dem Run synchronisieren
 
 <spielstand> ist die .dsv aus dem Battery-Ordner von DeSmuME oder eine .sav.
 Unterstützt: Pokémon Schwarz 2 / Weiß 2.
-Sprache: --lang oder die Umgebungsvariablen SOULSYNC_LANG / LANG.",
+Server: --server oder SOULSYNC_SERVER (Standard http://localhost:3000).\nSprache: --lang oder die Umgebungsvariablen SOULSYNC_LANG / LANG.",
     trainer: "Trainer",
     badges: "Orden",
     party: "Team",
@@ -93,6 +113,13 @@ Sprache: --lang oder die Umgebungsvariablen SOULSYNC_LANG / LANG.",
     ev_to_box: "liegt jetzt in Box",
     ev_gone: "Nicht mehr im Spielstand",
     ev_badges: "Orden",
+    run_created: "Run erstellt: {code}",
+    run_share: "Schick den Code deinem Partner. Danach startet ihr beide:\n  soulsync sync <spielstand> --code {code} --name <dein Name>{server}\nDashboard: {dashboard}",
+    connecting: "Verbinde mit {url} ...",
+    connected: "Verbunden als {name}. Beobachte {path}. Speichere im Spiel, um zu synchronisieren. Strg+C beendet.",
+    disconnected: "Verbindung verloren, neuer Versuch in {secs} s ...",
+    sent: "Synchronisiert",
+    server_error: "Server",
 };
 
 pub fn text(lang: Lang) -> &'static Text {

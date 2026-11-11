@@ -5,7 +5,7 @@
 
 use crate::crypto::{PARTY_SIZE, STORED_SIZE};
 use crate::pk5::{self, Place, Pokemon};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 const SAVE_SIZE: usize = 0x80000;
@@ -40,14 +40,14 @@ impl fmt::Display for SaveError {
 impl std::error::Error for SaveError {}
 
 /// Trainer data from the save.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Trainer {
     pub name: String,
     pub badges: u8,
 }
 
 /// Everything SoulSync reads from a save file.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SaveSnapshot {
     pub trainer: Trainer,
     pub party: Vec<Pokemon>,

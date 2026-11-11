@@ -14,7 +14,7 @@ pub struct Species {
 }
 
 /// The 17 types of generation 5.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Type {
     Normal,
