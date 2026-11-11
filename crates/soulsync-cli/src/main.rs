@@ -63,6 +63,7 @@ fn main() -> ExitCode {
     let result = match (pos.first().map(String::as_str), pos.get(1)) {
         (Some("inspect"), Some(p)) => inspect(Path::new(p), &opts),
         (Some("watch"), Some(p)) => watch(PathBuf::from(p), &opts),
+        (Some("rom"), Some(p)) => rom(Path::new(p), &opts),
         (Some("new"), None) => sync::new_run(&opts.server, t),
         (Some("sync"), Some(p)) if opts.code.is_some() && opts.name.is_some() => sync::sync(
             PathBuf::from(p),
@@ -93,6 +94,32 @@ pub(crate) fn load(path: &Path) -> Res<SaveSnapshot> {
     Ok(parse_b2w2(&data)?)
 }
 
+/// Tells which game a ROM is. Reads only the first bytes of the file.
+fn rom(path: &Path, o: &Opts) -> Res {
+    use std::io::Read;
+    let mut header = [0u8; soulsync_core::ROM_HEADER_LEN];
+    std::fs::File::open(path)
+        .and_then(|mut f| f.read_exact(&mut header))
+        .map_err(|e| format!("{}: {e}", path.display()))?;
+    let t = text(o.lang);
+    let info = soulsync_core::read_rom_header(&header).ok_or(t.rom_unknown)?;
+    if o.json {
+        println!("{}", serde_json::to_string_pretty(&info)?);
+        return Ok(());
+    }
+    match info.game {
+        Some(g) => println!(
+            "Pokémon {} · {} {} · {}",
+            g.label(o.lang),
+            t.generation,
+            g.generation(),
+            info.code
+        ),
+        None => println!("{} · {} ({})", info.title, info.code, t.rom_unsupported),
+    }
+    Ok(())
+}
+
 fn inspect(path: &Path, o: &Opts) -> Res {
     let snap = load(path)?;
     if o.json {
@@ -100,8 +127,13 @@ fn inspect(path: &Path, o: &Opts) -> Res {
         return Ok(());
     }
     let t = text(o.lang);
+    let game = snap
+        .trainer
+        .game
+        .map(|g| format!(" · Pokémon {}", g.label(o.lang)))
+        .unwrap_or_default();
     println!(
-        "{} {} · {} {}",
+        "{} {} · {} {}{game}",
         t.trainer, snap.trainer.name, snap.trainer.badges, t.badges
     );
     println!("\n{} ({})", t.party, snap.party.len());

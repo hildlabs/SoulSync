@@ -58,6 +58,8 @@ pub struct NewRun {
 pub struct RunState {
     pub code: String,
     pub seed: u64,
+    /// Which try this is, starting at 1. Goes up when the players start over.
+    pub attempt: u32,
     pub settings: RunSettings,
     /// In join order.
     pub players: Vec<PlayerState>,

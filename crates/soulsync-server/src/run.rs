@@ -20,6 +20,7 @@ pub struct Run {
     pub code: String,
     pub seed: u64,
     pub settings: RunSettings,
+    pub attempt: u32,
     players: Vec<Player>,
     log: VecDeque<LogEntry>,
 }
@@ -45,8 +46,20 @@ impl Run {
             code,
             seed,
             settings,
+            attempt: 1,
             players: Vec::new(),
             log: VecDeque::new(),
+        }
+    }
+
+    /// Starts over: counts a new attempt and forgets saves and log. Players
+    /// keep their seats.
+    pub fn restart(&mut self) {
+        self.attempt += 1;
+        self.log.clear();
+        for p in &mut self.players {
+            p.snapshot = None;
+            p.updated_at = None;
         }
     }
 
@@ -114,6 +127,7 @@ impl Run {
         RunState {
             code: self.code.clone(),
             seed: self.seed,
+            attempt: self.attempt,
             settings: self.settings.clone(),
             players: self
                 .players
@@ -152,10 +166,23 @@ mod tests {
             trainer: Trainer {
                 name: "x".into(),
                 badges: 0,
+                game: None,
             },
             party: vec![p],
             boxes: vec![],
         }
+    }
+
+    #[test]
+    fn restart_counts_attempts() {
+        let mut r = Run::new("ZORUA-1234".into(), 7, RunSettings::default());
+        r.join("Hannes").unwrap();
+        r.update("Hannes", snap(20), 1);
+        r.restart();
+        let s = r.state();
+        assert_eq!(s.attempt, 2);
+        assert_eq!(s.players.len(), 1);
+        assert!(s.players[0].snapshot.is_none() && s.links.is_empty() && s.log.is_empty());
     }
 
     #[test]

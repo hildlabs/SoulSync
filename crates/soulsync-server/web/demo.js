@@ -18,9 +18,9 @@ window.SoulSyncDemo = function (apply) {
     7: ["Castelia Sewers", "Stratos-Kanalisation"], 8: ["Route 4", "Route 4"],
   };
   const names = a => ({ en: a[0], de: a[1] });
-  const players = ["Hannes", "Mika"].map(name => ({ name, joined: false, badges: 0, mons: [], at: null }));
+  const players = [["Hannes", "black2"], ["Mika", "white2"]].map(([name, game]) => ({ name, game, joined: false, badges: 0, mons: [], at: null }));
   const log = [];
-  let pid = 1;
+  let pid = 1, attempt = 3, timer = null;
 
   function emit(who) {
     if (who) who.at = Date.now();
@@ -33,10 +33,10 @@ window.SoulSyncDemo = function (apply) {
       }),
     })).filter(l => l.sides.some(Boolean));
     apply(JSON.parse(JSON.stringify({
-      code: "DEMO-0000", seed: 4821, settings: { caps: [13, 18, 24, 30, 33, 39, 48, 51] },
+      code: "DEMO-0000", seed: 4821, attempt, settings: { caps: [13, 18, 24, 30, 33, 39, 48, 51] },
       players: joined.map(p => ({
         name: p.name, connected: true, updated_at: p.at,
-        snapshot: { trainer: { name: p.name, badges: p.badges }, party: p.mons.filter(m => m.battle), boxes: p.mons.filter(m => !m.battle) },
+        snapshot: { trainer: { name: p.name, badges: p.badges, game: p.game }, party: p.mons.filter(m => m.battle), boxes: p.mons.filter(m => !m.battle) },
       })),
       links, log: log.slice(0, 30),
     })));
@@ -105,11 +105,18 @@ window.SoulSyncDemo = function (apply) {
     const r = Math.random();
     if (r < .3 && m.battle.level < 24) level(p, m.species, 1);
     else hurt(p, m.species, r < .65 ? .35 + Math.random() * .5 : 1);
-    setTimeout(idle, 1800 + Math.random() * 1600);
+    timer = setTimeout(idle, 1800 + Math.random() * 1600);
   }
-  (function next() {
-    if (i >= steps.length) return setTimeout(idle, 2500);
+  function next() {
+    if (i >= steps.length) { timer = setTimeout(idle, 2500); return; }
     const [wait, fn] = steps[i++];
-    setTimeout(() => { fn(); next(); }, wait);
-  })();
+    timer = setTimeout(() => { fn(); next(); }, wait);
+  }
+  // "Start next attempt" in the demo: count up and play the run again.
+  window.SoulSyncDemoRestart = () => {
+    clearTimeout(timer); attempt++; i = 0; log.length = 0;
+    players.forEach(p => { p.mons = []; p.badges = 0; p.at = null; });
+    emit(); next();
+  };
+  next();
 };

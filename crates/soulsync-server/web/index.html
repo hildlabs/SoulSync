@@ -13,7 +13,7 @@
   --bg:#0D0F13;--surface:#14171D;--raised:#1D2129;--line:#272C36;
   --text:#EDEFF3;--muted:#9CA3B0;--faint:#7A8292;
   --a:#FF8D4D;--b:#56C2F0;--ok:#5FD38D;--danger:#F2617A;
-  --inverse:#EDEFF3;--inverse-text:#0D0F13;--band:#191C23;
+  --inverse:#EDEFF3;--inverse-text:#0D0F13;--band:#191C23;--warn:#F2B544;
   --out:cubic-bezier(.22,1,.36,1);--spring:cubic-bezier(.34,1.56,.64,1);
 }
 @media (prefers-color-scheme:light){:root:not([data-theme=dark]){
@@ -21,14 +21,14 @@
   --bg:#F5F4F0;--surface:#FFFFFF;--raised:#EDEBE5;--line:#E2DFD8;
   --text:#16181D;--muted:#5A606C;--faint:#858A94;
   --a:#C9500F;--b:#0A76AD;--ok:#1B8A4A;--danger:#C22B48;
-  --inverse:#16181D;--inverse-text:#FFFFFF;--band:#F7F6F2;
+  --inverse:#16181D;--inverse-text:#FFFFFF;--band:#F7F6F2;--warn:#A86400;
 }}
 :root[data-theme=light]{
   color-scheme:light;
   --bg:#F5F4F0;--surface:#FFFFFF;--raised:#EDEBE5;--line:#E2DFD8;
   --text:#16181D;--muted:#5A606C;--faint:#858A94;
   --a:#C9500F;--b:#0A76AD;--ok:#1B8A4A;--danger:#C22B48;
-  --inverse:#16181D;--inverse-text:#FFFFFF;--band:#F7F6F2;
+  --inverse:#16181D;--inverse-text:#FFFFFF;--band:#F7F6F2;--warn:#A86400;
 }
 
 *,*::before,*::after{box-sizing:border-box}
@@ -91,6 +91,7 @@ main{display:flex;flex-direction:column;min-height:0}
 .pl.b .pl-n{text-align:right}
 .pl-n{min-width:0}
 .pl-n div{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:600;letter-spacing:-.01em}
+.pl-n em{font-size:13px;font-weight:400;font-style:normal;letter-spacing:0;color:var(--muted);white-space:nowrap}
 .pl-n i{flex:none;width:10px;height:10px;border-radius:50%;background:var(--c);transition:opacity .3s}
 .pl.off .pl-n i{opacity:.35}
 .pl-n small{display:block;margin-top:2px;font-size:13px;color:var(--muted);white-space:pre;overflow:hidden;text-overflow:ellipsis}
@@ -100,6 +101,8 @@ main{display:flex;flex-direction:column;min-height:0}
 .badges i.on{background:var(--c)}
 .badges i.pop{animation:pop .6s var(--spring)}
 .cap{text-align:center;font-size:13px;color:var(--muted)}
+.cap b{display:block;font-size:15px;font-weight:600;letter-spacing:-.01em;color:var(--text)}
+.game{font-size:13px;color:var(--muted);white-space:nowrap}
 
 .sec{padding-bottom:8px}
 .sec h3{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:10px;margin-bottom:6px;padding:9px 24px;background:var(--band);border-bottom:1px solid var(--line);font-size:13px;font-weight:600}
@@ -149,6 +152,23 @@ main{display:flex;flex-direction:column;min-height:0}
 .hpn{font-size:12px;min-width:38px}
 .side.b .hpn{text-align:right}
 .note.bad{color:var(--danger)}
+.note.warn{color:var(--warn)}
+.wait b{font-weight:500;color:var(--c)}
+.row:not(.lost)[data-b="0"] .seg.b{animation:march .9s linear infinite}
+.row:not(.lost)[data-a="0"] .seg.a{animation:march .9s linear infinite reverse}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:2px 20px;padding:2px 24px 4px}
+.tile{display:flex;align-items:center;gap:12px;min-width:0;height:48px}
+.tile.enter{animation:rise .5s var(--out) both}
+.duo{flex:none;display:flex;align-items:center}
+.duo u{width:10px;height:2px;background:linear-gradient(90deg,var(--a) 50%,var(--b) 50%)}
+.tt{min-width:0}
+.tt b,.tt small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tt b{font-weight:500;line-height:1.3}
+.tt small{font-size:13px;line-height:1.35;color:var(--muted)}
+.tile.lost .duo u{background:radial-gradient(circle,var(--faint) 1px,transparent 1.2px) 0 50%/4px 2px repeat-x}
+.tile.lost .slot img{filter:grayscale(1);opacity:.45}
+.tile.lost .tt b{color:var(--muted)}
+.row.leaving{transition:opacity .35s var(--out) .9s;opacity:0}
 
 /* the tether: a dotted base with a solid line drawn over it from each sprite */
 .tether{display:flex;align-items:center;gap:8px;padding:0 4px;min-width:0}
@@ -238,6 +258,33 @@ main{display:flex;flex-direction:column;min-height:0}
 .rblock ol.steps{margin:10px 0 0;padding-left:18px;color:var(--muted)}
 .rblock ol.steps li{padding:3px 0}
 
+.btn2{height:36px;margin-top:14px;padding:0 14px;border:1px solid var(--line);border-radius:8px;font-weight:500;transition:color .2s,border-color .2s,transform .12s var(--out)}
+.btn2.arm{border-color:var(--danger);color:var(--danger)}
+.types{display:flex;flex-direction:column;padding:18px 24px 22px}
+.types>*{flex:none}
+.types>p{color:var(--muted)}
+.tpick{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 4px}
+.tpick button{display:flex;align-items:center;gap:8px;height:36px;padding:0 12px 0 4px;border:1px solid var(--line);border-radius:10px;font-weight:500;transition:background .2s,border-color .2s,transform .12s var(--out)}
+.tpick button[aria-pressed=true]{background:var(--raised);border-color:var(--c)}
+.tpick .slot{width:28px;height:28px;border-radius:7px}
+.tpick .slot img{width:40px;height:40px;margin:-20px 0 0 -20px}
+.tsum{display:flex;flex-wrap:wrap;gap:6px 20px;min-height:30px;margin:8px 0 14px;align-items:center}
+.tsum span{display:flex;align-items:center;gap:6px;color:var(--muted)}
+.tchip{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:999px;background:var(--raised);color:var(--text);font-size:13px}
+.tchip i,.tgrid i{flex:none;width:8px;height:8px;border-radius:50%;background:var(--tc)}
+.tgrid{flex:1 0 auto;display:grid;grid-template-columns:104px repeat(17,minmax(26px,1fr));grid-template-rows:38px repeat(17,minmax(20px,27px));gap:2px;font-size:12px}
+.types .tgrid{flex:1 1 0;min-height:398px}
+.tgrid>*{display:flex;align-items:center;justify-content:center;min-height:0;border-radius:4px;transition:background .15s,color .15s}
+.tgrid .rh{justify-content:flex-start;gap:8px;padding-left:6px;font-size:13px}
+.tgrid .ch{flex-direction:column;gap:3px;color:var(--muted);font-weight:500}
+.tgrid .tc{background:var(--band)}
+.tgrid .se{background:color-mix(in srgb,var(--ok) 26%,var(--band));font-weight:600}
+.tgrid .nve{background:color-mix(in srgb,var(--danger) 22%,var(--band));color:var(--muted)}
+.tgrid .no{background:var(--text);color:var(--bg);font-weight:600}
+.tgrid .hi.rh,.tgrid .hi.ch,.tgrid .sel{background:var(--raised);color:var(--text)}
+.tgrid .tc.hi{box-shadow:inset 0 0 0 1px var(--line)}
+.tgrid .tc.at{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--text) 40%,transparent)}
+
 /* ---------- start */
 .stage{flex:1;overflow-y:auto;display:flex;justify-content:center;align-items:flex-start;padding:56px 16px 80px}
 .form{width:100%;max-width:420px;display:flex;flex-direction:column;gap:28px}
@@ -266,6 +313,7 @@ main{display:flex;flex-direction:column;min-height:0}
 @keyframes flash{0%{opacity:0;transform:scale(.8)}30%{opacity:1;transform:none}100%{opacity:0}}
 @keyframes ping{0%{transform:none;opacity:.5}70%,100%{transform:scale(2.6);opacity:0}}
 @keyframes roll-out{to{transform:translateY(-100%);opacity:0}}
+@keyframes march{to{background-position:8px 50%}}
 @keyframes roll-in{from{transform:translateY(100%);opacity:0}}
 
 @media (max-width:1040px){
@@ -274,6 +322,8 @@ main{display:flex;flex-direction:column;min-height:0}
   .body{display:block;padding:28px 20px 48px}
   .rail{margin-top:40px}
   .scroll,.feed{overflow:visible}
+  .types{display:block;overflow-x:auto}
+  .types .tgrid{min-width:560px}
   .view,.panel{display:block}
   .nav{overflow-x:auto}
 }
@@ -296,7 +346,11 @@ main{display:flex;flex-direction:column;min-height:0}
   .body{padding:24px 12px 40px}
   .players,.row{grid-template-columns:minmax(0,1fr) 110px minmax(0,1fr);padding-inline:12px}
   .sec h3{padding-inline:12px}
-  .stat,.pl-b span,.cap{display:none}
+  .stat,.pl-b span,.cap>:not(b),.top .game{display:none}
+  .cap{font-size:13px}
+  .pl-n{max-width:100%;min-width:0}
+  .pl-n small{white-space:normal}
+  .pl-n div{flex-wrap:wrap;row-gap:4px}
   .row{height:auto;padding-block:8px}
   .idg,.side.b .idg{flex-direction:column-reverse;gap:6px;margin:0 auto}
   .names,.side.b .names{text-align:center}
@@ -319,12 +373,17 @@ const T = {
     links: "Links", run: "Run", activity: "Activity", copy: "Copy", copied: "Copied",
     live2: "Both players live", live1: "1 of 2 players live", live0: "Waiting for players", offline: "Reconnecting", missing: "Run not found",
     theme: "Switch theme",
-    tabs: { links: "Links", encounters: "Encounters", timeline: "Timeline", rules: "Rules" },
+    tabs: { links: "Links", encounters: "Encounters", timeline: "Timeline", types: "Types", rules: "Rules" },
     area: "Area", status: "Status",
-    hint: { team: "both in the team", boxed: "at least one in a box", open: "waiting for the partner’s catch", lost: "one fainted, both are out" },
+    hint: { team: "linked and in play", boxed: "linked, both resting", open: "one catch is still missing", lost: "one fainted, both are out" },
+    turn: n => `<b>${n}</b> is up`, partnerInTeam: "partner is in the team", and: "&",
+    attempt: n => `Attempt ${n}`, kAttempt: "Attempt", kGame: "Game", gen: n => `Gen ${n}`,
+    games: { black: "Black", white: "White", black2: "Black 2", white2: "White 2" },
+    rRetry: "Wiped? Start the next attempt. Links and timeline are cleared, the code stays.", retry: "Start next attempt", retrySure: "Click again to confirm",
+    tLead: "Rows attack, columns defend. Pick a team member to see what it is weak to.", weak: "Weak to", resist: "Resists", immune: "Immune to",
     rCaps: "Level caps", rNoCaps: "This run has no level caps.", rCapsHint: "The highlighted cap applies until both players have the next badge.", gym: n => `Gym ${n}`,
     rRules: "Soul Link rules", rNote: "SoulSync tracks links, levels and losses. The other rules are on your honour for now.",
-    rList: [["First encounter only", "In each area you may catch only the first Pokémon you meet."], ["Same area, linked", "Your catch and your partner’s catch from the same area form a link."], ["Shared fate", "If one of them faints, its partner is lost too."], ["Failed catch", "If one of you fails the catch, the area is closed for both."], ["Level cap", "No Pokémon may be above the strongest Pokémon of the next gym leader."]],
+    rList: [["First encounter only", "In each area you may catch only the first Pokémon you meet."], ["Same area, linked", "Your catch and your partner’s catch from the same area form a link."], ["Shared fate", "If one of them faints, its partner is lost too."], ["Together or not at all", "Linked partners are in the team together or in the box together."], ["Failed catch", "If one of you fails the catch, the area is closed for both."], ["Level cap", "No Pokémon may be above the strongest Pokémon of the next gym leader."]],
     team: "Team", boxed: "Boxed", open: "Open", lost: "Lost",
     sum: (l, o, x) => [`<b>${l} linked</b>`, `${o} open`, x ? `<span class="bad">${x} lost</span>` : `0 lost`].join("  ·  "),
     badges: n => n === 1 ? "1 badge" : `${n} badges`, cap: n => `Level cap ${n}`,
@@ -332,7 +391,7 @@ const T = {
     ago: s => s < 10 ? "just now" : s < 60 ? `${Math.floor(s)} s ago` : s < 3600 ? `${Math.floor(s / 60)} min ago` : `${Math.floor(s / 3600)} h ago`,
     short: s => s < 45 ? "now" : s < 3600 ? `${Math.max(1, Math.round(s / 60))} min` : s < 86400 ? `${Math.floor(s / 3600)} h` : `${Math.floor(s / 86400)} d`,
     lv: "Lv", box: n => `Box ${n}`, fainted: "Fainted", faintedAt: n => `Fainted at Lv ${n}`, lostWith: "Lost with the link",
-    waitCatch: n => `Waiting for ${n}’s catch`, waitPlayer: "Waiting for player two", playerTwo: "Player two", notJoined: "not joined yet",
+waitPlayer: "Waiting for player two", playerTwo: "Player two", notJoined: "not joined yet",
     noLinks: "No catches yet. Links show up here after the first save.", noEvents: "Nothing yet.",
     setup: "Connect your game", step1: "Save in DeSmuME. The .dsv file is in its Battery folder.", step2: "Run this on each player’s computer:", step3: "Every in-game save updates this page.",
     yourSave: "<save file>", yourName: "<your name>",
@@ -352,12 +411,17 @@ const T = {
     links: "Links", run: "Run", activity: "Verlauf", copy: "Kopieren", copied: "Kopiert",
     live2: "Beide Spieler live", live1: "1 von 2 Spielern live", live0: "Warte auf Spieler", offline: "Verbinde neu", missing: "Run nicht gefunden",
     theme: "Farbschema wechseln",
-    tabs: { links: "Links", encounters: "Begegnungen", timeline: "Verlauf", rules: "Regeln" },
+    tabs: { links: "Links", encounters: "Begegnungen", timeline: "Verlauf", types: "Typen", rules: "Regeln" },
     area: "Gebiet", status: "Status",
-    hint: { team: "beide im Team", boxed: "mindestens eins in der Box", open: "wartet auf den Fang des Partners", lost: "eins besiegt, beide raus" },
+    hint: { team: "verbunden und im Einsatz", boxed: "verbunden, beide in der Box", open: "ein Fang fehlt noch", lost: "eins besiegt, beide raus" },
+    turn: n => `<b>${n}</b> ist dran`, partnerInTeam: "Partner ist im Team", and: "&",
+    attempt: n => `Versuch ${n}`, kAttempt: "Versuch", kGame: "Spiel", gen: n => `Gen ${n}`,
+    games: { black: "Schwarz", white: "Weiß", black2: "Schwarz 2", white2: "Weiß 2" },
+    rRetry: "Alles verloren? Starte den nächsten Versuch. Links und Verlauf werden geleert, der Code bleibt.", retry: "Nächsten Versuch starten", retrySure: "Zum Bestätigen nochmal klicken",
+    tLead: "Zeilen greifen an, Spalten verteidigen. Wähle ein Team-Pokémon, um seine Schwächen zu sehen.", weak: "Schwach gegen", resist: "Resistent gegen", immune: "Immun gegen",
     rCaps: "Level-Caps", rNoCaps: "Dieser Run hat keine Level-Caps.", rCapsHint: "Der markierte Cap gilt, bis beide Spieler den nächsten Orden haben.", gym: n => `Arena ${n}`,
     rRules: "Soul-Link-Regeln", rNote: "SoulSync verfolgt Links, Level und Verluste. Die übrigen Regeln laufen vorerst auf Vertrauen.",
-    rList: [["Nur die erste Begegnung", "In jedem Gebiet darfst du nur das erste Pokémon fangen, das dir begegnet."], ["Gleiches Gebiet, verbunden", "Dein Fang und der Fang deines Partners aus demselben Gebiet bilden einen Link."], ["Geteiltes Schicksal", "Wird eins besiegt, ist auch sein Partner verloren."], ["Fehlgeschlagener Fang", "Misslingt einem von euch der Fang, ist das Gebiet für beide gesperrt."], ["Level-Cap", "Kein Pokémon darf über dem stärksten Pokémon des nächsten Arenaleiters liegen."]],
+    rList: [["Nur die erste Begegnung", "In jedem Gebiet darfst du nur das erste Pokémon fangen, das dir begegnet."], ["Gleiches Gebiet, verbunden", "Dein Fang und der Fang deines Partners aus demselben Gebiet bilden einen Link."], ["Geteiltes Schicksal", "Wird eins besiegt, ist auch sein Partner verloren."], ["Zusammen oder gar nicht", "Verbundene Partner sind gemeinsam im Team oder gemeinsam in der Box."], ["Fehlgeschlagener Fang", "Misslingt einem von euch der Fang, ist das Gebiet für beide gesperrt."], ["Level-Cap", "Kein Pokémon darf über dem stärksten Pokémon des nächsten Arenaleiters liegen."]],
     team: "Team", boxed: "In der Box", open: "Offen", lost: "Verloren",
     sum: (l, o, x) => [`<b>${l} verbunden</b>`, `${o} offen`, x ? `<span class="bad">${x} verloren</span>` : `0 verloren`].join("  ·  "),
     badges: n => `${n} Orden`, cap: n => `Level-Cap ${n}`,
@@ -365,7 +429,7 @@ const T = {
     ago: s => s < 10 ? "gerade eben" : s < 60 ? `vor ${Math.floor(s)} s` : s < 3600 ? `vor ${Math.floor(s / 60)} Min.` : `vor ${Math.floor(s / 3600)} Std.`,
     short: s => s < 45 ? "jetzt" : s < 3600 ? `${Math.max(1, Math.round(s / 60))} Min.` : s < 86400 ? `${Math.floor(s / 3600)} Std.` : `${Math.floor(s / 86400)} T.`,
     lv: "Lv", box: n => `Box ${n}`, fainted: "Besiegt", faintedAt: n => `Besiegt auf Lv ${n}`, lostWith: "Mit dem Link verloren",
-    waitCatch: n => `Warte auf den Fang von ${n}`, waitPlayer: "Warte auf Spieler zwei", playerTwo: "Spieler zwei", notJoined: "noch nicht dabei",
+waitPlayer: "Warte auf Spieler zwei", playerTwo: "Spieler zwei", notJoined: "noch nicht dabei",
     noLinks: "Noch keine Fänge. Links erscheinen hier nach dem ersten Speichern.", noEvents: "Noch nichts passiert.",
     setup: "Spiel verbinden", step1: "In DeSmuME speichern. Die .dsv-Datei liegt im Ordner Battery.", step2: "Auf dem Rechner jedes Spielers ausführen:", step3: "Jedes Speichern im Spiel aktualisiert diese Seite.",
     yourSave: "<spielstand>", yourName: "<dein Name>",
@@ -394,7 +458,7 @@ const OUT = "cubic-bezier(.22,1,.36,1)";
 const DEMO = location.pathname === "/demo" || window.SOULSYNC_DEMO === true;
 const codeFromPath = DEMO ? "DEMO-0000" : (location.pathname.match(/^\/run\/([^/]+)/) || [])[1];
 
-const VIEWS = ["links", "encounters", "timeline", "rules"];
+const VIEWS = ["links", "encounters", "timeline", "types", "rules"];
 let view = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "links";
 let state = null, conn = "offline", sprites = window.SOULSYNC_SPRITES || null, mounted = false;
 const theme = store.get("soulsync.theme");
@@ -415,7 +479,7 @@ function topBar() {
     <div class="top-l"><a class="brand" href="/"><span class="mark"><i></i><i></i></span>SoulSync</a>
     ${run ? `<nav class="nav" id="nav">${VIEWS.map(v => `<button type="button" data-v="${v}">${t().tabs[v]}</button>`).join("")}</nav>` : ""}</div>
     <div class="top-r">
-      ${run ? `<span class="status" id="status"><i></i><span></span></span>
+      ${run ? `<span class="game" id="game"></span><span class="status" id="status"><i></i><span></span></span>
       <span class="chip"><span class="mono" id="code">${esc(codeFromPath.toUpperCase())}</span><button type="button" id="copy">${t().copy}</button></span>` : ""}
       <span class="pair" id="lang"><button type="button" data-l="en" aria-pressed="${lang === "en"}">EN</button><button type="button" data-l="de" aria-pressed="${lang === "de"}">DE</button></span>
       <button type="button" class="icon-btn" id="theme" aria-label="${t().theme}" title="${t().theme}"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="3.2"/><path d="M8 1.5v1.3M8 13.2v1.3M1.5 8h1.3M13.2 8h1.3M3.4 3.4l.9.9M11.7 11.7l.9.9M3.4 12.6l.9-.9M11.7 4.3l.9-.9"/></svg></button>
@@ -490,7 +554,8 @@ function renderStart() {
 }
 
 /* ---------- run page */
-const SECTIONS = ["team", "boxed", "open", "lost"];
+const SECTIONS = ["open", "team", "boxed", "lost"];
+const TILED = { boxed: true, lost: true };
 const rows = new Map();   // location id -> row element
 const feed = new Map();   // event key -> element
 
@@ -503,12 +568,13 @@ function mount() {
         <div class="players"><div class="pl a" style="--c:var(--a)"></div><div class="cap" id="cap"></div><div class="pl b" style="--c:var(--b)"></div></div>
         <div class="scroll">
           <div id="setup"></div>
-          ${SECTIONS.map(s => `<section class="sec" data-sec="${s}" hidden><h3><span class="glyph"><i></i><u></u><i></i></span><span>${t()[s]}</span><em></em><small>${t().hint[s]}</small></h3><div class="rows"></div></section>`).join("")}
+          ${SECTIONS.map(s => `<section class="sec" data-sec="${s}" hidden><h3><span class="glyph"><i></i><u></u><i></i></span><span>${t()[s]}</span><em></em><small>${t().hint[s]}</small></h3><div class="${TILED[s] ? "tiles" : "rows"}"></div></section>`).join("")}
           <p class="empty-list" id="none" hidden>${t().noLinks}</p>
         </div>
       </div></div>
       <div class="view" data-view="encounters" hidden><div class="panel"><div class="thead" id="ehead"></div><div class="scroll" id="enc"></div></div></div>
       <div class="view" data-view="timeline" hidden><div class="panel"><div class="scroll" id="tl"></div></div></div>
+      <div class="view" data-view="types" hidden><div class="panel"><div class="scroll types" id="types"></div></div></div>
       <div class="view" data-view="rules" hidden><div class="scroll rules" id="rules"></div></div>
     </main>
     <aside class="rail">
@@ -547,20 +613,37 @@ function updateTimeline() {
   }).join("") : `<p class="empty-list">${t().noEvents}</p>`;
 }
 
+let armUntil = 0;
+const armed = () => Date.now() < armUntil;
+
 function updateRules() {
   const caps = state.settings && state.settings.caps || [];
   const withSave = state.players.filter(p => p.snapshot);
   const badges = withSave.length ? Math.min(...withSave.map(p => p.snapshot.trainer.badges)) : 0;
   const now = Math.min(badges, caps.length - 1);
-  const sig = [lang, caps.join(), now, state.code].join("|"), el = $("#rules");
+  const sig = [lang, caps.join(), now, state.code, state.attempt].join("|"), el = $("#rules");
   if (el._sig === sig) return;
   el._sig = sig;
   el.innerHTML = `<section class="rblock"><h2>${t().rCaps}</h2>${caps.length
       ? `<div class="caps">${caps.map((c, i) => `<span class="capc ${i < now ? "done" : i === now ? "now" : ""}"><small>${t().gym(i + 1)}</small><b>${c}</b></span>`).join("")}</div><p>${t().rCapsHint}</p>`
       : `<p>${t().rNoCaps}</p>`}</section>
     <section class="rblock"><h2>${t().rRules}</h2><ol class="rlist">${t().rList.map(([a, b]) => `<li><b>${a}</b><span>${b}</span></li>`).join("")}</ol><p>${t().rNote}</p></section>
+    <section class="rblock"><h2>${t().attempt(state.attempt || 1)}</h2><p>${t().rRetry}</p><button type="button" class="btn2 ${armed() ? "arm" : ""}" id="retry">${armed() ? t().retrySure : t().retry}</button></section>
     <section class="rblock"><h2>${t().setup}</h2><ol class="steps"><li>${t().step1}</li><li>${t().step2}<div class="cmd"><code>${esc(syncCmd())}</code><button type="button">${t().copy}</button></div></li><li>${t().step3}</li></ol></section>`;
   $(".cmd button", el).onclick = e => copyText(syncCmd(), e.currentTarget);
+  const retry = $("#retry");
+  retry.onclick = () => {
+    if (!armed()) {
+      armUntil = Date.now() + 4000;
+      retry.classList.add("arm"); retry.textContent = t().retrySure;
+      setTimeout(() => { const b = $("#retry"); if (b && !armed()) { b.classList.remove("arm"); b.textContent = t().retry; } }, 4100);
+      return;
+    }
+    armUntil = 0;
+    retry.disabled = true;
+    if (window.SoulSyncDemoRestart) window.SoulSyncDemoRestart();
+    else fetch(`/api/runs/${encodeURIComponent(state.code)}/attempt`, { method: "POST" }).catch(() => {}).finally(() => { retry.disabled = false; });
+  };
 }
 
 function capNow() {
@@ -577,7 +660,7 @@ function model() {
     const sides = [l.sides[0] || null, l.sides[1] || null];
     const dead = sides.some(s => s && s.status === "fainted");
     const complete = sides.every(Boolean);
-    const sec = dead ? "lost" : !complete ? "open" : sides.every(s => s.status === "party") ? "team" : "boxed";
+    const sec = dead ? "lost" : !complete ? "open" : sides.some(s => s.status === "party") ? "team" : "boxed";
     return { key: String(l.location), link: l, sides, dead, sec, cap };
   });
 }
@@ -592,19 +675,23 @@ function sideSig(m, i) {
   const s = m.sides[i];
   if (!s) return ["empty", lang, state.players.map(p => p.name).join()].join("|");
   const p = s.pokemon;
-  return [p.pid, p.species, p.nickname, p.is_nicknamed, s.status, m.dead, p.place.kind, p.place.box, lang].join("|");
+  const o = m.sides[i ? 0 : 1];
+  return [p.pid, p.species, p.nickname, p.is_nicknamed, s.status, m.dead, p.place.kind, p.place.box, o && o.status, lang].join("|");
 }
 
 function sideHtml(m, i) {
   const s = m.sides[i];
   if (!s) {
     const other = state.players[i];
-    return `<div class="idg"><span class="wait">${esc(other ? t().waitCatch(other.name) : t().waitPlayer)}</span><span class="slot empty"></span></div>`;
+    return `<div class="idg"><span class="wait">${other ? t().turn(esc(other.name)) : esc(t().waitPlayer)}</span><span class="slot empty"></span></div>`;
   }
   const p = s.pokemon, b = p.battle;
   let stat;
   if (m.dead) stat = s.status === "fainted" ? `<span class="note bad">${b ? t().faintedAt(b.level) : t().fainted}</span>` : `<span class="note">${t().lostWith}</span>`;
-  else if (!b) stat = `<span class="note">${t().box(p.place.box ?? "")}</span>`;
+  else if (!b) {
+    const o = m.sides[i ? 0 : 1], split = o && o.status === "party";
+    stat = `<span class="note ${split ? "warn" : ""}">${t().box(p.place.box ?? "")}${split ? "  ·  " + t().partnerInTeam : ""}</span>`;
+  }
   else stat = `<span class="lv"><span>${t().lv}</span><b class="roll" data-v="${b.level}"><span>${b.level}</span></b></span><span class="hp"><i class="ghost"></i><i class="fill"></i></span><span class="hpn"></span>`;
   const sub = p.is_nicknamed && p.nickname ? species(p) : (p.types || []).map(typeName).join(" · ");
   return `<div class="stat">${stat}</div><div class="idg"><div class="names"><b>${esc(label(p))}</b><small>${esc(sub)}</small></div><span class="slot">${spriteImg(p)}</span></div>`;
@@ -652,50 +739,145 @@ function patchRow(el, m, fresh) {
 
 function newRow() {
   const el = document.createElement("div");
-  el.className = "row enter";
+  el.className = "row enter"; el._kind = "row";
   el.innerHTML = `<div class="side a" style="--c:var(--a)"></div><div class="tether"><i class="seg a"></i><span class="loc"></span><i class="seg b"></i></div><div class="side b" style="--c:var(--b)"></div>`;
   el.addEventListener("animationend", e => { if (e.target === el) el.classList.remove("enter"); });
   return el;
 }
 
+function newTile() {
+  const el = document.createElement("div");
+  el.className = "tile enter"; el._kind = "tile";
+  el.addEventListener("animationend", e => { if (e.target === el) el.classList.remove("enter"); });
+  return el;
+}
+
+function patchTile(el, m) {
+  const [a, b] = m.sides.map(s => s.pokemon);
+  const fallen = m.sides.find(s => s.status === "fainted");
+  const sig = [a.pid, b.pid, a.species, b.species, a.nickname, b.nickname, m.sec, fallen && fallen.pokemon.pid, lang].join("|");
+  if (el._sig === sig) return;
+  el._sig = sig;
+  el.classList.toggle("lost", m.dead);
+  const sub = locName(m.link) + (fallen ? "  ·  " + t().evFainted(label(fallen.pokemon)).replace(/<[^>]+>/g, "").replace(/\.$/, "") : "");
+  el.innerHTML = `<span class="duo"><span class="slot sm">${spriteImg(a)}</span><u></u><span class="slot sm">${spriteImg(b)}</span></span><span class="tt"><b>${esc(label(a))} ${t().and} ${esc(label(b))}</b><small>${esc(sub)}</small></span>`;
+  el.title = `${species(a)} ${t().and} ${species(b)}`;
+}
+
+// Full rows where stats matter (open, team); compact tiles for box and lost.
 function updateLinks() {
   const ms = model();
   const before = new Map();
-  rows.forEach((el, k) => before.set(k, el.getBoundingClientRect().top));
+  rows.forEach((el, k) => before.set(k, el.getBoundingClientRect()));
   const seen = new Set();
   let fresh = 0;
+  for (const m of ms) {
+    m.home = m.sec;
+    const el = rows.get(m.key);
+    if (!el) continue;
+    // A link that just died stays in place while the tether snaps, then moves to Lost.
+    if (el._kind === "row" && m.sec === "lost") {
+      m.home = el._home;
+      if (!el._dying) {
+        el._dying = true; el.classList.add("leaving");
+        setTimeout(() => { if (rows.get(m.key) === el) rows.delete(m.key); el.remove(); if (state && mounted) updateLinks(); }, 1300);
+      }
+    } else if ((el._kind === "tile") !== !!TILED[m.sec]) { rows.delete(m.key); el.remove(); }
+  }
   for (const sec of SECTIONS) {
-    const box = $(`.sec[data-sec=${sec}]`), list = $(".rows", box), mine = ms.filter(m => m.sec === sec);
+    const box = $(`.sec[data-sec=${sec}]`), list = box.lastElementChild, mine = ms.filter(m => m.home === sec);
     box.hidden = !mine.length;
-    $("em", box).textContent = mine.length;
+    $("em", box).textContent = ms.filter(m => m.sec === sec).length;
     mine.forEach((m, idx) => {
       seen.add(m.key);
       let el = rows.get(m.key);
       const isNew = !el;
-      if (isNew) { el = newRow(); el.style.setProperty("--i", Math.min(fresh++, 12)); rows.set(m.key, el); }
+      if (isNew) { el = TILED[sec] ? newTile() : newRow(); el.style.setProperty("--i", Math.min(fresh++, 12)); rows.set(m.key, el); }
+      el._home = sec;
       if (list.children[idx] !== el) list.insertBefore(el, list.children[idx] || null);
-      patchRow(el, m, isNew);
+      if (el._kind === "tile") patchTile(el, m); else patchRow(el, m, isNew);
     });
   }
   rows.forEach((el, k) => { if (!seen.has(k)) { rows.delete(k); el.remove(); } });
   rows.forEach((el, k) => {
-    const y = before.get(k); if (y == null) return;
-    const d = y - el.getBoundingClientRect().top;
-    if (Math.abs(d) > 1) el.animate([{ transform: `translateY(${d}px)` }, { transform: "none" }], { duration: 480, easing: OUT });
+    const r = before.get(k); if (!r) return;
+    const n = el.getBoundingClientRect(), dx = r.left - n.left, dy = r.top - n.top;
+    if (Math.abs(dx) > 1 || Math.abs(dy) > 1) el.animate([{ transform: `translate(${dx}px,${dy}px)` }, { transform: "none" }], { duration: 480, easing: OUT });
   });
   $("#none").hidden = ms.length > 0 || state.players.length < 2;
   const n = s => ms.filter(m => m.sec === s).length;
   $("#sum").innerHTML = t().sum(n("team") + n("boxed"), n("open"), n("lost"));
 }
 
+/* ---------- type chart (generations 2 to 5) */
+const TYPES = ["normal", "fire", "water", "electric", "grass", "ice", "fighting", "poison", "ground", "flying", "psychic", "bug", "rock", "ghost", "dragon", "dark", "steel"];
+const TCOL = { normal: "#A8A77A", fire: "#EE8130", water: "#6390F0", electric: "#F7D02C", grass: "#7AC74C", ice: "#96D9D6", fighting: "#C22E28", poison: "#A33EA1", ground: "#E2BF65", flying: "#A98FF3", psychic: "#F95587", bug: "#A6B91A", rock: "#B6A136", ghost: "#735797", dragon: "#6F35FC", dark: "#705746", steel: "#B7B7CE" };
+const CHART = (() => {
+  const raw = {
+    normal: ["", "rock steel", "ghost"], fire: ["grass ice bug steel", "fire water rock dragon", ""], water: ["fire ground rock", "water grass dragon", ""],
+    electric: ["water flying", "electric grass dragon", "ground"], grass: ["water ground rock", "fire grass poison flying bug dragon steel", ""],
+    ice: ["grass ground flying dragon", "fire water ice steel", ""], fighting: ["normal ice rock dark steel", "poison flying psychic bug", "ghost"],
+    poison: ["grass", "poison ground rock ghost", "steel"], ground: ["fire electric poison rock steel", "grass bug", "flying"],
+    flying: ["grass fighting bug", "electric rock steel", ""], psychic: ["fighting poison", "psychic steel", "dark"],
+    bug: ["grass psychic dark", "fire fighting poison flying ghost steel", ""], rock: ["fire ice flying bug", "fighting ground steel", ""],
+    ghost: ["psychic ghost", "dark steel", "normal"], dragon: ["dragon", "steel", ""], dark: ["psychic ghost", "fighting dark steel", ""],
+    steel: ["ice rock", "fire water electric steel", ""],
+  };
+  const out = {};
+  for (const [a, [se, nve, no]] of Object.entries(raw)) {
+    out[a] = {};
+    se.split(" ").filter(Boolean).forEach(d => { out[a][d] = 2; });
+    nve.split(" ").filter(Boolean).forEach(d => { out[a][d] = .5; });
+    no.split(" ").filter(Boolean).forEach(d => { out[a][d] = 0; });
+  }
+  return out;
+})();
+const eff = (a, d) => CHART[a][d] ?? 1;
+const tchip = (ty, x) => `<span class="tchip" style="--tc:${TCOL[ty]}"><i></i>${esc(typeName(ty))}${x ? " " + x : ""}</span>`;
+let pick = null;
+
+function updateTypes() {
+  const el = $("#types");
+  const team = state.players.flatMap((p, i) => (p.snapshot ? p.snapshot.party : []).filter(m => !m.is_egg).map(m => ({ m, i })));
+  if (pick != null && !team.some(x => x.m.pid === pick)) pick = null;
+  const sig = [lang, pick, team.map(x => x.m.pid + ":" + x.m.species).join()].join("|");
+  if (el._sig === sig) return;
+  el._sig = sig;
+  const sel = team.find(x => x.m.pid === pick), selTypes = sel ? sel.m.types || [] : [];
+  let sum = "";
+  if (sel) {
+    const mult = TYPES.map(a => [a, selTypes.reduce((x, d) => x * eff(a, d), 1)]);
+    const list = (label, f, fmt) => { const xs = mult.filter(([, x]) => f(x)); return xs.length ? `<span>${label}${xs.map(([a, x]) => tchip(a, fmt(x))).join("")}</span>` : ""; };
+    sum = list(t().weak, x => x > 1, x => "×" + x) + list(t().resist, x => x < 1 && x > 0, x => x === .25 ? "×¼" : "×½") + list(t().immune, x => x === 0, () => "");
+  }
+  el.innerHTML = `<p>${t().tLead}</p>
+    <div class="tpick">${team.map(({ m, i }) => `<button type="button" data-pid="${m.pid}" aria-pressed="${m.pid === pick}" style="--c:var(--${i ? "b" : "a"})"><span class="slot">${spriteImg(m)}</span>${esc(label(m))}</button>`).join("")}</div>
+    <div class="tsum">${sum}</div>
+    <div class="tgrid"><span></span>${TYPES.map((d, c) => `<span class="ch ${selTypes.includes(d) ? "sel" : ""}" data-c="${c}" style="--tc:${TCOL[d]}" title="${esc(typeName(d))}"><i></i>${esc(typeName(d).slice(0, 3))}</span>`).join("")}
+    ${TYPES.map((a, r) => `<span class="rh" data-r="${r}" style="--tc:${TCOL[a]}"><i></i>${esc(typeName(a))}</span>` + TYPES.map((d, c) => { const x = eff(a, d); return `<span class="tc ${x === 2 ? "se" : x === .5 ? "nve" : x === 0 ? "no" : ""} ${selTypes.includes(d) ? "at" : ""}" data-r="${r}" data-c="${c}">${x === 2 ? "2" : x === .5 ? "½" : x === 0 ? "0" : ""}</span>`; }).join("")).join("")}</div>`;
+  $(".tpick", el).onclick = e => { const b = e.target.closest("button"); if (!b) return; pick = +b.dataset.pid === pick ? null : +b.dataset.pid; updateTypes(); };
+  const grid = $(".tgrid", el);
+  grid.onmouseover = e => {
+    const c = e.target.closest(".tc");
+    grid.querySelectorAll(".hi").forEach(x => x.classList.remove("hi"));
+    if (c) grid.querySelectorAll(`[data-r="${c.dataset.r}"],[data-c="${c.dataset.c}"]`).forEach(x => x.classList.add("hi"));
+  };
+  grid.onmouseleave = () => grid.querySelectorAll(".hi").forEach(x => x.classList.remove("hi"));
+}
+
+function gameOf(p) { const g = p && p.snapshot && p.snapshot.trainer.game; return g ? t().games[g] || g : null; }
+
 function updatePlayers() {
   const cap = capNow();
-  $("#cap").textContent = cap != null ? t().cap(cap) : "";
+  $("#cap").innerHTML = `<b>${t().attempt(state.attempt || 1)}</b>${cap != null ? t().cap(cap) : ""}`;
+  const games = [...new Set(state.players.map(gameOf).filter(Boolean))];
+  $("#game").textContent = games.length ? `Pokémon ${games.join(" / ")}  ·  ${t().gen(5)}` : "";
   for (const i of [0, 1]) {
     const el = $(i ? ".pl.b" : ".pl.a"), p = state.players[i];
-    if (!el.firstChild) el.innerHTML = `<div class="pl-n"><div><i></i><span></span></div><small></small></div><div class="pl-b"><div class="badges">${"<i></i>".repeat(8)}</div><span></span></div>`;
+    if (!el.firstChild) el.innerHTML = `<div class="pl-n"><div><i></i><span></span><em></em></div><small></small></div><div class="pl-b"><div class="badges">${"<i></i>".repeat(8)}</div><span></span></div>`;
     el.classList.toggle("off", !p || !p.connected);
     $(".pl-n span", el).textContent = p ? p.name : t().playerTwo;
+    $(".pl-n em", el).textContent = gameOf(p) || "";
     const secs = p && p.updated_at ? Math.max(0, (Date.now() - p.updated_at) / 1000) : null;
     $("small", el).textContent = !p ? t().notJoined : [p.connected ? null : t().away, secs == null ? t().never : `${t().saved} ${t().ago(secs)}`].filter(Boolean).join("  ·  ");
     const has = !!(p && p.snapshot), badges = has ? p.snapshot.trainer.badges : 0;
@@ -733,7 +915,7 @@ function updateSetup() {
 
 function updateRail() {
   const cap = capNow();
-  $("#kv").innerHTML = [[t().kPlayers, state.players.map(p => esc(p.name)).join(", ") || "–"], [t().kCap, cap != null ? cap : t().none], [t().kSeed, `<span class="mono" style="font-size:13px">${esc(state.seed)}</span>`]]
+  $("#kv").innerHTML = [[t().kAttempt, state.attempt || 1], [t().kPlayers, state.players.map(p => esc(p.name)).join(", ") || "–"], [t().kCap, cap != null ? cap : t().none], [t().kSeed, `<span class="mono" style="font-size:13px">${esc(state.seed)}</span>`]]
     .map(([k, v]) => `<div class="kv"><span>${k}</span><b>${v}</b></div>`).join("");
   updateFeed();
 }
@@ -789,7 +971,7 @@ function render() {
     bindChrome(); updateStatus(); mounted = false; return;
   }
   if (!mounted) mount();
-  updateStatus(); updatePlayers(); updateSetup(); updateLinks(); updateRail(); updateEncounters(); updateTimeline(); updateRules();
+  updateStatus(); updatePlayers(); updateSetup(); updateLinks(); updateRail(); updateEncounters(); updateTimeline(); updateTypes(); updateRules();
 }
 
 function apply(next) { state = next; conn = "live"; render(); }

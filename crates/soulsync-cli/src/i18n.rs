@@ -32,6 +32,9 @@ pub struct Text {
     pub disconnected: &'static str,
     pub sent: &'static str,
     pub server_error: &'static str,
+    pub generation: &'static str,
+    pub rom_unknown: &'static str,
+    pub rom_unsupported: &'static str,
 }
 
 const EN: Text = Text {
@@ -41,6 +44,7 @@ SoulSync: track Pokémon Soul Link runs live
 Usage:
   soulsync inspect <save> [--json] [--lang en|de]   Show party, boxes and badges
   soulsync watch   <save> [--json] [--lang en|de]   Watch the save and report changes
+  soulsync rom     <rom> [--json]                   Tell which game a ROM is (reads the header only)
   soulsync new     [--server <url>]                 Create a run and get its code
   soulsync sync    <save> --code <code> --name <name> [--server <url>]
                                                     Sync your save with the run
@@ -76,6 +80,9 @@ Server: --server, or SOULSYNC_SERVER (default http://localhost:3000).\nLanguage:
     disconnected: "Connection lost, retrying in {secs} s ...",
     sent: "Synced",
     server_error: "Server",
+    generation: "Generation",
+    rom_unknown: "this does not look like a Nintendo DS ROM",
+    rom_unsupported: "not supported yet",
 };
 
 const DE: Text = Text {
@@ -85,6 +92,7 @@ SoulSync: Soul-Link-Runs live verfolgen
 Benutzung:
   soulsync inspect <spielstand> [--json] [--lang en|de]   Team, Boxen und Orden anzeigen
   soulsync watch   <spielstand> [--json] [--lang en|de]   Spielstand beobachten und Änderungen melden
+  soulsync rom     <rom> [--json]                         Spiel einer ROM erkennen (liest nur den Header)
   soulsync new     [--server <url>]                       Run erstellen und Code erhalten
   soulsync sync    <spielstand> --code <code> --name <name> [--server <url>]
                                                           Spielstand mit dem Run synchronisieren
@@ -120,6 +128,9 @@ Server: --server oder SOULSYNC_SERVER (Standard http://localhost:3000).\nSprache
     disconnected: "Verbindung verloren, neuer Versuch in {secs} s ...",
     sent: "Synchronisiert",
     server_error: "Server",
+    generation: "Generation",
+    rom_unknown: "das sieht nicht nach einer Nintendo-DS-ROM aus",
+    rom_unsupported: "noch nicht unterstützt",
 };
 
 pub fn text(lang: Lang) -> &'static Text {

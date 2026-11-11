@@ -89,6 +89,7 @@ pub fn app(state: AppState) -> Router {
         .route("/api/config", get(config))
         .route("/api/runs", post(create_run))
         .route("/api/runs/{code}", get(get_run))
+        .route("/api/runs/{code}/attempt", post(new_attempt))
         .route("/api/runs/{code}/ws", get(ws))
         .with_state(state)
 }
@@ -167,6 +168,22 @@ async fn get_run(State(app): State<AppState>, Path(code): Path<String>) -> Respo
         Some(e) => Json(e.run.state()).into_response(),
         None => (StatusCode::NOT_FOUND, "run not found").into_response(),
     }
+}
+
+/// The players wiped and start over under the same code.
+async fn new_attempt(State(app): State<AppState>, Path(code): Path<String>) -> Response {
+    let code = normalize(&code);
+    let attempt = {
+        let mut runs = app.runs.lock().unwrap();
+        let Some(e) = runs.get_mut(&code) else {
+            return (StatusCode::NOT_FOUND, "run not found").into_response();
+        };
+        e.run.restart();
+        e.run.attempt
+    };
+    tracing::info!(%code, attempt, "new attempt");
+    app.broadcast(&code);
+    Json(serde_json::json!({ "attempt": attempt })).into_response()
 }
 
 #[derive(Deserialize)]
@@ -328,6 +345,7 @@ mod tests {
             trainer: Trainer {
                 name: "x".into(),
                 badges: 0,
+                game: None,
             },
             party: vec![p],
             boxes: vec![],

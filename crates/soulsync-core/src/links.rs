@@ -121,6 +121,7 @@ mod tests {
             trainer: Trainer {
                 name: "x".into(),
                 badges: 0,
+                game: None,
             },
             party,
             boxes,

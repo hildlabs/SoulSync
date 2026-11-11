@@ -94,6 +94,7 @@ mod tests {
             trainer: Trainer {
                 name: "Hannes".into(),
                 badges,
+                game: None,
             },
             party,
             boxes,
