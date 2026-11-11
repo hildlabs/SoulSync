@@ -1,19 +1,19 @@
-//! Artnamen, Typen und Ortsnamen (Schwarz 2 / Weiß 2).
+//! Species names, types and location names (Black 2 / White 2).
 
+use crate::lang::Names;
 use std::sync::OnceLock;
 
-/// Ein Eintrag im Pokédex (nationale Nummer 1..=649).
+/// A Pokédex entry (National Dex 1..=649).
 #[derive(Debug, Clone)]
 pub struct Species {
     pub id: u16,
-    pub name_de: String,
-    pub name_en: String,
+    pub name: Names,
     pub types: Vec<Type>,
-    /// Gemeinsame Kennung einer Entwicklungsreihe.
+    /// Shared id of an evolution family.
     pub family: u16,
 }
 
-/// Die 17 Typen der fünften Generation.
+/// The 17 types of generation 5.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Type {
@@ -62,54 +62,46 @@ impl Type {
             .ok()
             .and_then(|i| Self::ALL.get(i).copied())
     }
-
-    /// Deutscher Typname.
-    pub fn name_de(self) -> &'static str {
-        [
-            "Normal", "Kampf", "Flug", "Gift", "Boden", "Gestein", "Käfer", "Geist", "Stahl",
-            "Feuer", "Wasser", "Pflanze", "Elektro", "Psycho", "Eis", "Drache", "Unlicht",
-        ][self as usize]
-    }
 }
 
-fn species_table() -> &'static Vec<Species> {
+fn species_table() -> &'static [Species] {
     static T: OnceLock<Vec<Species>> = OnceLock::new();
     T.get_or_init(|| {
         let raw: Vec<(String, String, i64, i64, u16)> =
             serde_json::from_str(include_str!("../data/species.json")).expect("species.json");
         raw.into_iter()
-            .enumerate()
-            .map(|(i, (de, en, t1, t2, fam))| Species {
-                id: i as u16 + 1,
-                name_de: de,
-                name_en: en,
+            .zip(1u16..)
+            .map(|((en, de, t1, t2, family), id)| Species {
+                id,
+                name: Names { en, de },
                 types: [t1, t2].into_iter().filter_map(Type::from_index).collect(),
-                family: fam,
+                family,
             })
             .collect()
     })
 }
 
-fn location_table() -> &'static Vec<String> {
-    static T: OnceLock<Vec<String>> = OnceLock::new();
+fn location_table() -> &'static [Names] {
+    static T: OnceLock<Vec<Names>> = OnceLock::new();
     T.get_or_init(|| {
-        serde_json::from_str(include_str!("../data/locations_de.json")).expect("locations_de.json")
+        let raw: Vec<(String, String)> =
+            serde_json::from_str(include_str!("../data/locations.json")).expect("locations.json");
+        raw.into_iter().map(|(en, de)| Names { en, de }).collect()
     })
 }
 
-/// Art zur nationalen Pokédex-Nummer.
+/// Species by National Dex number.
 pub fn species(id: u16) -> Option<&'static Species> {
     id.checked_sub(1)
         .and_then(|i| species_table().get(i as usize))
 }
 
-/// Deutscher Name eines Fang- oder Kartenorts. Sonderorte (Tausch, Ei,
-/// Event ab 30000) und unbekannte Nummern ergeben `None`.
-pub fn location_name_de(id: u16) -> Option<&'static str> {
+/// Name of a met location or map. Special locations (link trade, egg,
+/// event: 30000 and up) and unknown ids give `None`.
+pub fn location(id: u16) -> Option<&'static Names> {
     location_table()
         .get(id as usize)
-        .map(String::as_str)
-        .filter(|s| !s.starts_with('－') && !s.contains('\\'))
+        .filter(|n| !n.en.starts_with('－') && !n.en.contains('\\'))
 }
 
 #[cfg(test)]
@@ -119,18 +111,24 @@ mod tests {
     #[test]
     fn species_lookup() {
         let s = species(1).unwrap();
-        assert_eq!(s.name_de, "Bisasam");
+        assert_eq!(s.name.en, "Bulbasaur");
+        assert_eq!(s.name.de, "Bisasam");
         assert_eq!(s.types, vec![Type::Grass, Type::Poison]);
-        assert_eq!(species(649).unwrap().name_en, "Genesect");
+        assert_eq!(species(649).unwrap().name.en, "Genesect");
         assert!(species(0).is_none());
         assert!(species(650).is_none());
     }
 
     #[test]
     fn location_lookup() {
-        assert_eq!(location_name_de(14), Some("Route 1"));
-        assert_eq!(location_name_de(0), None);
-        assert_eq!(location_name_de(3), None);
-        assert_eq!(location_name_de(30001), None);
+        assert_eq!(location(14).unwrap().en, "Route 1");
+        let aspertia = location(117).unwrap();
+        assert_eq!(
+            (aspertia.en.as_str(), aspertia.de.as_str()),
+            ("Aspertia City", "Eventura City")
+        );
+        assert!(location(0).is_none());
+        assert!(location(3).is_none());
+        assert!(location(30001).is_none());
     }
 }

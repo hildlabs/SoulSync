@@ -1,6 +1,6 @@
 [package]
 name = "soulsync-cli"
-description = "Kommandozeile für SoulSync: Spielstände lesen und beobachten"
+description = "SoulSync command line: read and watch Pokémon save files"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

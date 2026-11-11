@@ -1,7 +1,7 @@
-//! Spielstände von Pokémon Schwarz 2 und Weiß 2 lesen.
+//! Reading Pokémon Black 2 and White 2 save files.
 //!
-//! Unterstützt rohe 512-KiB-Spielstände (`.sav`) und DeSmuME-Batteriedateien
-//! (`.dsv`, Spielstand plus 122 Byte DeSmuME-Fußzeile).
+//! Accepts raw 512 KiB saves (`.sav`) and DeSmuME battery files (`.dsv`,
+//! the save followed by a 122-byte DeSmuME footer).
 
 use crate::crypto::{PARTY_SIZE, STORED_SIZE};
 use crate::pk5::{self, Place, Pokemon};
@@ -17,7 +17,7 @@ const PARTY_BLOCK: usize = 0x18E00;
 const TRAINER_BLOCK: usize = 0x19400;
 const BADGE_FLAGS: usize = 0x21104;
 
-/// Warum ein Spielstand nicht gelesen werden konnte.
+/// Why a save file could not be read.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SaveError {
     TooSmall(usize),
@@ -29,24 +29,24 @@ impl fmt::Display for SaveError {
         match self {
             SaveError::TooSmall(n) => write!(
                 f,
-                "Die Datei ist mit {n} Byte zu klein für einen Schwarz-2-/Weiß-2-Spielstand. \
-                 Nimm die .dsv aus dem Battery-Ordner von DeSmuME."
+                "the file is {n} bytes, too small for a Black 2 / White 2 save; \
+                 use the .dsv from DeSmuME's Battery folder"
             ),
-            SaveError::NotB2W2 => write!(f, "Das ist kein Spielstand von Schwarz 2 oder Weiß 2."),
+            SaveError::NotB2W2 => write!(f, "this is not a Black 2 / White 2 save"),
         }
     }
 }
 
 impl std::error::Error for SaveError {}
 
-/// Trainerdaten aus dem Spielstand.
+/// Trainer data from the save.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Trainer {
     pub name: String,
     pub badges: u8,
 }
 
-/// Alles, was SoulSync aus einem Spielstand liest.
+/// Everything SoulSync reads from a save file.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SaveSnapshot {
     pub trainer: Trainer,
@@ -55,13 +55,13 @@ pub struct SaveSnapshot {
 }
 
 impl SaveSnapshot {
-    /// Alle Pokémon ohne Eier, Team zuerst.
+    /// All Pokémon except eggs, party first.
     pub fn all_pokemon(&self) -> impl Iterator<Item = &Pokemon> {
         self.party.iter().chain(&self.boxes).filter(|p| !p.is_egg)
     }
 }
 
-/// Liest einen Spielstand. `data` darf eine `.sav`- oder `.dsv`-Datei sein.
+/// Reads a save. `data` may be a `.sav` or `.dsv` file.
 pub fn parse_b2w2(data: &[u8]) -> Result<SaveSnapshot, SaveError> {
     if data.len() < SAVE_SIZE {
         return Err(SaveError::TooSmall(data.len()));
@@ -164,7 +164,8 @@ mod tests {
         assert!(snap.party[1].is_fainted());
         assert_eq!(snap.boxes.len(), 1);
         assert_eq!(snap.boxes[0].place, Place::Box { r#box: 3, slot: 4 });
-        assert_eq!(snap.boxes[0].species_de.as_deref(), Some("Zorua"));
+        assert_eq!(snap.boxes[0].label(crate::Lang::En), "Trick");
+        assert_eq!(snap.boxes[0].species_label(crate::Lang::De), "Zorua");
         assert_eq!(snap.all_pokemon().count(), 3);
     }
 

@@ -1,5 +1,5 @@
 /target
-# ROMs und Spielstände gehören nie ins Repo
+# ROMs and save files never belong in the repo
 *.nds
 *.dsv
 *.sav

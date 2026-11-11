@@ -1,6 +1,6 @@
 [package]
 name = "soulsync-core"
-description = "Spielstand- und Pokémon-Datenmodell für SoulSync (Gen 5)"
+description = "SoulSync core: generation 5 save parser and data model"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

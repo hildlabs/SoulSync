@@ -1,20 +1,21 @@
-//! Lesbare Sicht auf einen entschlüsselten Gen-5-Pokémon-Datensatz.
+//! Readable view of a decrypted generation 5 Pokémon record.
 
 use crate::crypto::{self, PARTY_SIZE, STORED_SIZE};
 use crate::dex;
+use crate::lang::{Lang, Names};
 use serde::Serialize;
 
-/// Wo ein Pokémon im Spielstand liegt.
+/// Where a Pokémon sits in the save.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum Place {
-    /// Team-Platz 0..6.
+    /// Party slot 0..6.
     Party { slot: u8 },
-    /// Box 1..=24, Platz 0..30.
+    /// Box 1..=24, slot 0..30.
     Box { r#box: u8, slot: u8 },
 }
 
-/// Kampfwerte, die nur Team-Pokémon gespeichert haben.
+/// Battle stats, stored for party Pokémon only.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct BattleStats {
     pub level: u8,
@@ -22,30 +23,45 @@ pub struct BattleStats {
     pub max_hp: u16,
 }
 
-/// Ein Pokémon aus dem Spielstand.
+/// A Pokémon from a save file.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Pokemon {
-    /// Persönlichkeitswert, eindeutig pro Pokémon. Damit erkennt SoulSync ein
-    /// Pokémon wieder, auch nach Entwicklung oder Umbenennung.
+    /// Personality value, unique per Pokémon. SoulSync uses it to recognise a
+    /// Pokémon across evolutions and nickname changes.
     pub pid: u32,
     pub species: u16,
-    pub species_de: Option<String>,
-    pub species_en: Option<String>,
+    pub species_name: Option<Names>,
     pub nickname: String,
     pub is_nicknamed: bool,
     pub is_egg: bool,
     pub met_location: u16,
-    pub met_location_de: Option<String>,
+    pub met_location_name: Option<Names>,
     pub met_level: u8,
     pub place: Place,
-    /// Nur bei Team-Pokémon vorhanden.
+    /// Present for party Pokémon only.
     pub battle: Option<BattleStats>,
 }
 
 impl Pokemon {
-    /// `true`, wenn das Team-Pokémon 0 KP hat (in einem Nuzlocke also tot ist).
+    /// `true` if a party Pokémon has 0 HP (dead, in Nuzlocke terms).
     pub fn is_fainted(&self) -> bool {
         self.battle.as_ref().is_some_and(|b| b.hp == 0)
+    }
+
+    /// Species name in the given language.
+    pub fn species_label(&self, lang: Lang) -> String {
+        self.species_name
+            .as_ref()
+            .map_or_else(|| format!("#{}", self.species), |n| n.get(lang).to_owned())
+    }
+
+    /// Nickname if the player gave one, otherwise the species name.
+    pub fn label(&self, lang: Lang) -> String {
+        if self.is_nicknamed && !self.nickname.is_empty() {
+            self.nickname.clone()
+        } else {
+            self.species_label(lang)
+        }
     }
 }
 
@@ -57,7 +73,7 @@ fn u32_at(d: &[u8], o: usize) -> u32 {
     u32::from_le_bytes([d[o], d[o + 1], d[o + 2], d[o + 3]])
 }
 
-/// Liest einen Gen-5-Text (UTF-16LE, Ende bei 0xFFFF oder 0).
+/// Reads a generation 5 string (UTF-16LE, ends at 0xFFFF or 0).
 pub(crate) fn read_string(d: &[u8], max_chars: usize) -> String {
     let units: Vec<u16> = (0..max_chars)
         .map(|i| u16_at(d, i * 2))
@@ -71,8 +87,8 @@ pub(crate) fn read_string(d: &[u8], max_chars: usize) -> String {
     String::from_utf16_lossy(&units)
 }
 
-/// Entschlüsselt und liest einen Datensatz. Leere Plätze, defekte Daten
-/// (falsche Prüfsumme) und ungültige Artnummern ergeben `None`.
+/// Decrypts and reads a record. Empty slots, corrupt data (bad checksum) and
+/// invalid species give `None`.
 pub fn parse(raw: &[u8], place: Place) -> Option<Pokemon> {
     let pid = u32_at(raw, 0);
     let chk = u16_at(raw, 6);
@@ -89,7 +105,6 @@ pub fn parse(raw: &[u8], place: Place) -> Option<Pokemon> {
     }
     let iv = u32_at(&d, 0x38);
     let met_location = u16_at(&d, 0x80);
-    let sp = dex::species(species);
     let battle = (d.len() == PARTY_SIZE).then(|| BattleStats {
         level: d[0x8C],
         hp: u16_at(&d, 0x8E),
@@ -98,21 +113,19 @@ pub fn parse(raw: &[u8], place: Place) -> Option<Pokemon> {
     Some(Pokemon {
         pid,
         species,
-        species_de: sp.map(|s| s.name_de.clone()),
-        species_en: sp.map(|s| s.name_en.clone()),
+        species_name: dex::species(species).map(|s| s.name.clone()),
         nickname: read_string(&d[0x48..], 11),
         is_nicknamed: (iv >> 31) & 1 == 1,
         is_egg: (iv >> 30) & 1 == 1,
         met_location,
-        met_location_de: dex::location_name_de(met_location).map(str::to_owned),
+        met_location_name: dex::location(met_location).cloned(),
         met_level: d[0x84] & 0x7F,
         place,
         battle,
     })
 }
 
-/// Baut einen verschlüsselten Datensatz für Tests und für den späteren
-/// Spielstand-Editor.
+/// Builds an encrypted record. Used by tests and, later, the save editor.
 #[doc(hidden)]
 pub fn build_raw(
     pid: u32,
@@ -132,8 +145,10 @@ pub fn build_raw(
     ];
     p[0..4].copy_from_slice(&pid.to_le_bytes());
     p[0x08..0x0A].copy_from_slice(&species.to_le_bytes());
-    let mut units: Vec<u16> = nickname.encode_utf16().take(10).collect();
-    units.push(0xFFFF);
+    if !nickname.is_empty() {
+        p[0x3B] |= 0x80; // nickname flag (bit 31 of the IV word)
+    }
+    let units: Vec<u16> = nickname.encode_utf16().take(10).chain([0xFFFF]).collect();
     for (i, u) in units.iter().enumerate() {
         p[0x48 + i * 2..0x4A + i * 2].copy_from_slice(&u.to_le_bytes());
     }
@@ -160,9 +175,10 @@ mod tests {
         };
         let raw = build_raw(0xDEAD_BEEF, 488, "Mondi", 14, 5, Some(&b));
         let m = parse(&raw, Place::Party { slot: 2 }).unwrap();
-        assert_eq!(m.species_de.as_deref(), Some("Cresselia"));
-        assert_eq!(m.nickname, "Mondi");
-        assert_eq!(m.met_location_de.as_deref(), Some("Route 1"));
+        assert_eq!(m.species_label(Lang::En), "Cresselia");
+        assert_eq!(m.label(Lang::En), "Mondi");
+        assert!(m.is_nicknamed);
+        assert_eq!(m.met_location_name.as_ref().unwrap().en, "Route 1");
         assert_eq!(m.met_level, 5);
         assert_eq!(m.battle, Some(b));
         assert!(m.is_fainted());

@@ -1,7 +1,8 @@
-//! Ereignisse aus dem Vergleich zweier Spielstände.
+//! Events derived from comparing two snapshots of the same player's save.
 //!
-//! Das ist die Grundlage für den Sync: Statt ganzer Spielstände schickt
-//! SoulSync später nur diese Ereignisse an den Run-Server.
+//! This is the basis for syncing: instead of whole saves, SoulSync will send
+//! these events to the run server. Each event carries the Pokémon as it is
+//! now (or was last seen, for `Gone`), so clients can show it in any language.
 
 use crate::pk5::{Place, Pokemon};
 use crate::save::SaveSnapshot;
@@ -11,38 +12,27 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Event {
-    /// Ein Pokémon ist neu im Spielstand (gefangen, geschenkt, geschlüpft).
+    /// A Pokémon appeared (caught, gifted, hatched).
     Caught { pokemon: Pokemon },
-    /// Ein Team-Pokémon ist auf 0 KP gefallen.
-    Fainted { pid: u32, name: String },
-    /// Ein Pokémon hat sich entwickelt.
-    Evolved { pid: u32, from: u16, to: u16 },
-    /// Ein Team-Pokémon ist im Level gestiegen.
-    LevelUp { pid: u32, name: String, level: u8 },
-    /// Ein Pokémon ist zwischen Team und Box gewechselt.
-    Moved { pid: u32, name: String, to: Place },
-    /// Ein Pokémon ist nicht mehr im Spielstand (freigelassen, getauscht).
-    Gone { pid: u32, name: String },
-    /// Neue Orden.
+    /// A party Pokémon dropped to 0 HP.
+    Fainted { pokemon: Pokemon },
+    /// A Pokémon evolved from species `from`.
+    Evolved { pokemon: Pokemon, from: u16 },
+    /// A party Pokémon gained one or more levels.
+    LevelUp { pokemon: Pokemon },
+    /// A Pokémon moved between party and box.
+    Moved { pokemon: Pokemon },
+    /// A Pokémon is no longer in the save (released, traded away).
+    Gone { pokemon: Pokemon },
+    /// The badge count went up.
     Badges { count: u8 },
-}
-
-fn label(p: &Pokemon) -> String {
-    if p.is_nicknamed && !p.nickname.is_empty() {
-        p.nickname.clone()
-    } else {
-        p.species_de
-            .clone()
-            .unwrap_or_else(|| format!("#{}", p.species))
-    }
 }
 
 fn is_party(p: &Pokemon) -> bool {
     matches!(p.place, Place::Party { .. })
 }
 
-/// Vergleicht zwei Spielstände desselben Spielers. Pokémon werden über ihre
-/// PID wiedererkannt.
+/// Compares two snapshots of the same player's save. Pokémon are matched by PID.
 pub fn diff(old: &SaveSnapshot, new: &SaveSnapshot) -> Vec<Event> {
     let before: HashMap<u32, &Pokemon> = old.all_pokemon().map(|p| (p.pid, p)).collect();
     let after: HashMap<u32, &Pokemon> = new.all_pokemon().map(|p| (p.pid, p)).collect();
@@ -55,40 +45,25 @@ pub fn diff(old: &SaveSnapshot, new: &SaveSnapshot) -> Vec<Event> {
         };
         if o.species != p.species {
             events.push(Event::Evolved {
-                pid: p.pid,
+                pokemon: p.clone(),
                 from: o.species,
-                to: p.species,
             });
         }
         if is_party(o) != is_party(p) {
-            events.push(Event::Moved {
-                pid: p.pid,
-                name: label(p),
-                to: p.place,
-            });
+            events.push(Event::Moved { pokemon: p.clone() });
         }
         if let (Some(a), Some(b)) = (&o.battle, &p.battle) {
             if b.level > a.level {
-                events.push(Event::LevelUp {
-                    pid: p.pid,
-                    name: label(p),
-                    level: b.level,
-                });
+                events.push(Event::LevelUp { pokemon: p.clone() });
             }
             if a.hp > 0 && b.hp == 0 {
-                events.push(Event::Fainted {
-                    pid: p.pid,
-                    name: label(p),
-                });
+                events.push(Event::Fainted { pokemon: p.clone() });
             }
         }
     }
     for o in old.all_pokemon() {
         if !after.contains_key(&o.pid) {
-            events.push(Event::Gone {
-                pid: o.pid,
-                name: label(o),
-            });
+            events.push(Event::Gone { pokemon: o.clone() });
         }
     }
     if new.trainer.badges > old.trainer.badges {
@@ -125,6 +100,20 @@ mod tests {
         }
     }
 
+    fn kinds(ev: &[Event]) -> Vec<(&'static str, u32)> {
+        ev.iter()
+            .map(|e| match e {
+                Event::Caught { pokemon } => ("caught", pokemon.pid),
+                Event::Fainted { pokemon } => ("fainted", pokemon.pid),
+                Event::Evolved { pokemon, .. } => ("evolved", pokemon.pid),
+                Event::LevelUp { pokemon } => ("level_up", pokemon.pid),
+                Event::Moved { pokemon } => ("moved", pokemon.pid),
+                Event::Gone { pokemon } => ("gone", pokemon.pid),
+                Event::Badges { count } => ("badges", *count as u32),
+            })
+            .collect()
+    }
+
     #[test]
     fn detects_changes() {
         let p0 = Place::Party { slot: 0 };
@@ -133,36 +122,34 @@ mod tests {
         let old = snap(
             1,
             vec![mon(1, 570, 10, 30, p0), mon(2, 25, 12, 20, p1)],
-            vec![mon(3, 1, 0, 0, bx)],
+            vec![mon(3, 1, 0, 0, bx), mon(5, 4, 0, 0, bx)],
         );
         let new = snap(
             2,
-            vec![mon(1, 571, 30, 30, p0), mon(2, 25, 12, 0, p1)],
+            vec![
+                mon(1, 571, 30, 30, p0),
+                mon(2, 25, 12, 0, p1),
+                mon(5, 4, 9, 30, Place::Party { slot: 2 }),
+            ],
             vec![mon(4, 60, 0, 0, bx)],
         );
         let ev = diff(&old, &new);
+        let k = kinds(&ev);
+        for want in [
+            ("evolved", 1),
+            ("level_up", 1),
+            ("fainted", 2),
+            ("moved", 5),
+            ("caught", 4),
+            ("gone", 3),
+            ("badges", 2),
+        ] {
+            assert!(k.contains(&want), "missing {want:?} in {k:?}");
+        }
         assert!(ev.contains(&Event::Evolved {
-            pid: 1,
-            from: 570,
-            to: 571
+            pokemon: new.party[0].clone(),
+            from: 570
         }));
-        assert!(ev.contains(&Event::LevelUp {
-            pid: 1,
-            name: "Zoroark".into(),
-            level: 30
-        }));
-        assert!(ev.contains(&Event::Fainted {
-            pid: 2,
-            name: "Pikachu".into()
-        }));
-        assert!(ev
-            .iter()
-            .any(|e| matches!(e, Event::Caught { pokemon } if pokemon.pid == 4)));
-        assert!(ev.contains(&Event::Gone {
-            pid: 3,
-            name: "Bisasam".into()
-        }));
-        assert!(ev.contains(&Event::Badges { count: 2 }));
         assert!(diff(&new, &new).is_empty());
     }
 }

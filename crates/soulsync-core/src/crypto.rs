@@ -1,18 +1,18 @@
-//! Ver- und Entschlüsselung von Gen-5-Pokémon-Datensätzen (PK5).
+//! Encryption and decryption of generation 5 Pokémon records (PK5).
 //!
-//! Ein Datensatz besteht aus einem 8-Byte-Kopf (PID, Prüfsumme), vier
-//! 32-Byte-Blöcken, die abhängig von der PID vertauscht und mit einem
-//! linearen Kongruenzgenerator verschlüsselt sind, und bei Team-Pokémon
-//! zusätzlich 84 Byte Kampfwerten, die mit der PID als Seed verschlüsselt sind.
+//! A record is an 8-byte header (PID, checksum) followed by four 32-byte
+//! blocks that are shuffled by the PID and encrypted with a linear
+//! congruential generator seeded by the checksum. Party records add 84 bytes
+//! of battle stats, encrypted with the PID as seed.
 
-/// Größe eines Box-Datensatzes.
+/// Size of a stored (box) record.
 pub const STORED_SIZE: usize = 136;
-/// Größe eines Team-Datensatzes (Box-Datensatz plus Kampfwerte).
+/// Size of a party record (stored record plus battle stats).
 pub const PARTY_SIZE: usize = 220;
 
 const BLOCK: usize = 32;
 
-/// Für jede der 24 Vertauschungen: welcher gespeicherte Block an Position 0..4 gehört.
+/// For each of the 24 shuffles: which stored block belongs at position 0..4.
 const UNSHUFFLE: [[u8; 4]; 24] = [
     [0, 1, 2, 3],
     [0, 1, 3, 2],
@@ -44,7 +44,7 @@ fn shuffle_index(pid: u32) -> usize {
     (((pid >> 13) & 31) % 24) as usize
 }
 
-/// XOR mit dem Gen-4/5-LCG, zwei Byte pro Schritt.
+/// XOR with the gen 4/5 LCG, two bytes per step.
 fn crypt(data: &mut [u8], mut seed: u32) {
     for chunk in data.chunks_exact_mut(2) {
         seed = seed.wrapping_mul(0x41C6_4E6D).wrapping_add(0x6073);
@@ -54,15 +54,15 @@ fn crypt(data: &mut [u8], mut seed: u32) {
     }
 }
 
-/// Prüfsumme über die 128 Byte Blockdaten (Summe der u16-Werte).
+/// Checksum over the 128 bytes of block data (sum of u16 words).
 pub fn checksum(blocks: &[u8]) -> u16 {
     blocks.chunks_exact(2).fold(0u16, |s, c| {
         s.wrapping_add(u16::from_le_bytes([c[0], c[1]]))
     })
 }
 
-/// Entschlüsselt einen Datensatz (136 oder 220 Byte). Die Blöcke liegen danach
-/// in der Reihenfolge A, B, C, D. Gibt `None` zurück bei falscher Länge.
+/// Decrypts a record (136 or 220 bytes) and puts the blocks in A, B, C, D
+/// order. Returns `None` for any other length.
 pub fn decrypt(raw: &[u8]) -> Option<Vec<u8>> {
     if raw.len() != STORED_SIZE && raw.len() != PARTY_SIZE {
         return None;
@@ -83,8 +83,8 @@ pub fn decrypt(raw: &[u8]) -> Option<Vec<u8>> {
     Some(out)
 }
 
-/// Gegenstück zu [`decrypt`]: vertauscht und verschlüsselt einen Datensatz in
-/// Reihenfolge A, B, C, D. Die Prüfsumme im Kopf wird neu berechnet.
+/// Inverse of [`decrypt`]: shuffles and encrypts a record given in A, B, C, D
+/// order. The header checksum is recomputed.
 pub fn encrypt(plain: &[u8]) -> Option<Vec<u8>> {
     if plain.len() != STORED_SIZE && plain.len() != PARTY_SIZE {
         return None;

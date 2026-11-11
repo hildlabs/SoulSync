@@ -1,57 +1,51 @@
 # SoulSync
 
-**Soul-Link-Runs live verfolgen, ohne etwas von Hand einzutragen.**
-*Track Pokémon Soul Link runs live, straight from your emulator. Open source, written in Rust.*
+Track Pokémon Soul Link runs live, straight from your emulator.
 
-SoulSync liest den Spielzustand beider Spieler direkt aus dem Spiel und zeigt ihn in einem gemeinsamen Dashboard: Teams als Link-Paare, Begegnungen pro Route, Tode, Level-Cap und eure Regeln. Ziel ist ein Tool, das man seinem Kumpel schickt: Run-Code eingeben, eigene ROM wählen, losspielen.
+SoulSync reads both players' game state and shows it on one shared dashboard: linked pairs, encounters per route, deaths, level caps and your house rules. No manual bookkeeping. The goal is a single app you send to your partner: enter the run code, pick your own ROM, play.
 
-> **Stand:** frühe Entwicklung. Aktuell gibt es den Spielstand-Parser für Schwarz 2 / Weiß 2 und eine Kommandozeile. Sync, Dashboard und Live-Anbindung folgen, siehe [Fahrplan](docs/ROADMAP.md).
+> **Status:** early development. The save parser for Black 2 / White 2 and a command-line tool work today. Sync, dashboard and live emulator support are next, see the [roadmap](docs/ROADMAP.md).
 
-## Was schon geht
+## Usage
 
 ```sh
-# Team, Boxen und Orden aus der DeSmuME-Batteriedatei lesen
-soulsync inspect "Battery/SoulLink.dsv"
+# Show party, boxes and badges from a DeSmuME battery file
+soulsync inspect Battery/SoulLink.dsv
 
-# Spielstand beobachten: jedes Speichern im Spiel meldet Fänge, Tode, Level-ups, Orden
-soulsync watch "Battery/SoulLink.dsv"
+# Watch the save: every in-game save reports catches, faints, evolutions, level-ups and badges
+soulsync watch Battery/SoulLink.dsv
 
-# Dasselbe maschinenlesbar
-soulsync inspect "Battery/SoulLink.dsv" --json
+# Machine-readable output
+soulsync inspect Battery/SoulLink.dsv --json
 ```
 
-Beispielausgabe:
-
 ```
-Trainer Hannes · 0 Orden
+Trainer Red · 0 badges
 
-Team (1)
-  Team 1       Metang · Lv 5 · KP 21/21 · gefangen: Eventura City
+Party (1)
+  Party 1      Metang · Lv 5 · HP 21/21 · met at Aspertia City
 ```
 
-## Bauen
+Output is available in English and German. Use `--lang de`, or set `SOULSYNC_LANG=de`.
 
-Voraussetzung: [Rust](https://rustup.rs) 1.75 oder neuer.
+## Building
+
+Requires [Rust](https://rustup.rs) 1.75 or newer.
 
 ```sh
 cargo build --release
 cargo test
-./target/release/soulsync inspect <spielstand>
 ```
 
-## Aufbau
+## Project layout
 
-| Crate | Aufgabe |
+| Crate | Purpose |
 | --- | --- |
-| `soulsync-core` | Gen-5-Datenmodell: PK5 ver-/entschlüsseln, Spielstand lesen, Artnamen/Typen/Orte, Ereignisse aus dem Vergleich zweier Spielstände |
-| `soulsync-cli` | Kommandozeile `soulsync` |
+| [`soulsync-core`](crates/soulsync-core) | Generation 5 data model: PK5 encryption, save parsing, species/types/locations, events from comparing two saves |
+| [`soulsync-cli`](crates/soulsync-cli) | The `soulsync` command-line tool |
 
-Geplant: `soulsync-bridge` (DeSmuME-Lua, Datei-Watcher), `soulsync-save` (Startpaket wie 999 Sonderbonbons eintragen), `soulsync-rando` (Universal Pokemon Randomizer mit gemeinsamem Seed), `soulsync-server` (Lobby, Run-Code, Sync, Leaderboard) und eine Tauri-Desktop-App. Details in [docs/ROADMAP.md](docs/ROADMAP.md).
+## License
 
-## ROMs und Spielstände
+[GPL-3.0-or-later](LICENSE). SoulSync does not include or distribute ROMs; every player uses their own.
 
-SoulSync enthält und verteilt keine ROMs. Jeder Spieler nutzt seine eigene. ROMs, Spielstände und Randomizer-Logs gehören nicht ins Repo (siehe `.gitignore`) und werden nie auf einen Server geladen.
-
-## Lizenz
-
-[GPL-3.0-or-later](LICENSE). Pokémon ist eine Marke von Nintendo, Creatures und GAME FREAK. SoulSync ist ein inoffizielles Fanprojekt.
+Pokémon is a trademark of Nintendo, Creatures and GAME FREAK. SoulSync is an unofficial fan project.
