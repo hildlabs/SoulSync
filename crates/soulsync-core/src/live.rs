@@ -26,9 +26,10 @@ pub const WINDOW: usize = 0x800;
 const TRAINER_IN_SAVE: usize = 0x600;
 /// Size of the trainer block.
 const TRAINER_LEN: usize = 0xB0;
-/// Where the position block has the map the player is on. The game keeps
-/// this one current as the player walks. The map at 0x80, next to the
-/// coordinates, is only brought up to date when the game is saved.
+/// Where the report has the map the player is on. The script puts it there:
+/// the save data's own maps do not keep up, the one at this place changes
+/// only with doors and the one at 0x80 only when the game is saved. 0xFFFF
+/// while the script does not know the map.
 const MAP: usize = 0x04;
 /// Remembered PIDs, so that a Pokémon is judged once.
 const SEEN_LIMIT: usize = 2000;
