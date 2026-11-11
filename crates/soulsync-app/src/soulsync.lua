@@ -136,6 +136,34 @@ local function find_party()
   party_cursor = stop >= last and RAM_START or stop
 end
 
+-- Where the player is. The game keeps the map and the coordinates it is
+-- working with outside of the save data, followed by a copy of the trainer.
+-- The save data after the party has two maps as well, but neither keeps up:
+-- one changes with every door, the other only when the game is saved.
+local PLACE_TRAINER, PLACE_IN_WINDOW = 0x1C, 0x704
+local place = nil
+
+local function is_place(addr)
+  if not trainer_id or not is_trainer(addr + PLACE_TRAINER) then return false end
+  local map = memory.readdword(addr)
+  -- Coordinates are in the middle of a tile.
+  return map > 0 and map < 0x1000
+    and memory.readword(addr + 4) == 0x8000 and memory.readword(addr + 12) == 0x8000
+end
+
+-- The party and what follows it, with the map the player is on where the
+-- app looks for it. While that map is not known there is none, so that
+-- nothing is judged by a place the player has left.
+local function window()
+  local data = read(party, WINDOW)
+  if not trainer_id or not is_trainer(party + 0x600) then return data end
+  if place and not is_place(place) then place = nil end
+  local map = place and memory.readdword(place) or 0xFFFF
+  return data:sub(1, PLACE_IN_WINDOW)
+    .. string.char(map % 256, floor(map / 256))
+    .. data:sub(PLACE_IN_WINDOW + 3)
+end
+
 -- Pokémon besides the party. The game keeps the opponent of a battle in
 -- memory like one of yours, so every Pokémon that turns up while the script
 -- runs is reported, and the app tells wild ones from the rest.
@@ -260,6 +288,9 @@ local function sweep()
     local pid = new_pokemon(addr)
     if pid and notice(addr, pid) then found = true end
     if hunting and battle_copy(addr) then found = true end
+    if not place and trainer_id and memory.readdword(addr + 0x30) == trainer_id and is_place(addr) then
+      place, found = addr, true
+    end
   end
   if stop >= last then
     cursor = RAM_START
@@ -307,7 +338,7 @@ local function refresh()
 end
 
 local function report()
-  local parts = { "SSL3", read(party, WINDOW) }
+  local parts = { "SSL3", window() }
   for i = 1, #reported do
     parts[#parts + 1] = string.char(reported[i].present and 1 or 0) .. reported[i].data
   end

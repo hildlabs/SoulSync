@@ -950,7 +950,16 @@ mod tests {
         trainer.name = "Hi".into();
         let note = soulsync_core::live::trainer_note(&trainer);
         std::fs::write(dir.join("live-trainer.txt"), note).unwrap();
-        ram[at + 0x704] = 3;
+        // The save data says map 7, the one of the last door. The game's own
+        // record of where the player is, with a copy of the trainer behind
+        // it, says map 3.
+        ram[at + 0x704] = 7;
+        let live = 0x9000;
+        ram[live] = 3;
+        ram[live + 4..live + 8].copy_from_slice(&0x0055_8000u32.to_le_bytes());
+        ram[live + 12..live + 16].copy_from_slice(&0x02B1_8000u32.to_le_bytes());
+        ram[live + 0x20..live + 0x26].copy_from_slice(&[b'H', 0, b'i', 0, 0xFF, 0xFF]);
+        ram[live + 0x30..live + 0x34].copy_from_slice(&trainer_id.to_le_bytes());
         // Left over from a battle before the script started.
         ram[0x8000..0x8000 + 220].copy_from_slice(&wild(50, 519));
 
