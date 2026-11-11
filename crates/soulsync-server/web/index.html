@@ -128,9 +128,11 @@ main{display:flex;flex-direction:column;min-height:0}
 .side.b .idg{margin-left:0;margin-right:auto}
 .names{min-width:0;text-align:right}
 .side.b .names{text-align:left}
-.names b,.names small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.names b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .names b{font-size:15px;font-weight:500;line-height:1.3;transition:color .4s}
-.names small{font-size:13px;line-height:1.35;color:var(--muted);transition:color .4s}
+.tys{display:flex;justify-content:flex-end;gap:4px;margin-top:3px;min-height:18px}
+.side.b .tys{justify-content:flex-start}
+.ty{padding:0 7px;border-radius:999px;font-size:11.5px;line-height:18px;font-weight:500;white-space:nowrap;background:color-mix(in srgb,var(--tc) 22%,var(--surface));color:color-mix(in srgb,var(--tc) 38%,var(--text));transition:background .4s,color .4s}
 .slot{position:relative;flex:none;display:grid;place-items:center;width:44px;height:44px;border-radius:10px;background:var(--raised);overflow:hidden}
 .slot img{max-width:none;position:absolute;left:50%;top:50%;width:60px;height:60px;margin:-30px 0 0 -30px;image-rendering:pixelated;transition:filter .5s,opacity .5s}
 .slot.empty{background:none;border:1px dashed var(--line)}
@@ -182,7 +184,7 @@ main{display:flex;flex-direction:column;min-height:0}
 .row.lost .loc{background:transparent;border-color:var(--line);color:var(--faint);text-decoration:line-through}
 .row.lost .loc.snap{animation:snap .5s var(--out)}
 .row.lost .names b{color:var(--muted)}
-.row.lost .names small{color:var(--faint)}
+.row.lost .ty{background:var(--raised);color:var(--faint)}
 .row.lost .slot img{filter:grayscale(1);opacity:.45}
 
 .empty-list{padding:28px 24px 34px;color:var(--muted)}
@@ -195,11 +197,11 @@ main{display:flex;flex-direction:column;min-height:0}
 .cmd button{flex:none;font-size:13px;font-weight:500;color:var(--muted)}
 
 /* ---------- rail */
-.rail{display:flex;flex-direction:column;gap:32px;padding-top:6px;min-width:0;min-height:0}
+.rail{display:flex;flex-direction:column;gap:26px;padding-top:6px;min-width:0;min-height:0}
 .rail section{flex:none}
 .rail section:last-child{flex:1;min-height:0;display:flex;flex-direction:column}
 .rail h2{font-size:15px;font-weight:600;letter-spacing:-.01em}
-.kv{display:flex;justify-content:space-between;gap:16px;padding:11px 0;border-bottom:1px solid var(--line)}
+.kv{display:flex;justify-content:space-between;gap:16px;padding:8px 0;border-bottom:1px solid var(--line)}
 .kv span{color:var(--muted)}
 .kv b{font-weight:400;text-align:right;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .feed{flex:1;min-height:0;margin-top:16px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
@@ -211,6 +213,32 @@ main{display:flex;flex-direction:column;min-height:0}
 .ev .bad{color:var(--danger)}
 .ev.new{grid-template-rows:0fr}
 .ev.new>div{opacity:0;transform:translateY(-6px)}
+#kv{margin-top:4px}
+.catch{position:relative}
+.catch h2{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.catch h2 small{font-size:12px;font-weight:400;letter-spacing:0;color:var(--muted);white-space:nowrap}
+.cin{width:100%;height:36px;margin-top:12px;padding:0 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);outline:0;transition:border-color .15s}
+.cin:focus{border-color:var(--muted)}
+.cin::placeholder{color:var(--faint)}
+.clist{position:absolute;z-index:5;left:0;right:0;margin-top:4px;padding:4px;border:1px solid var(--line);border-radius:10px;background:var(--surface);box-shadow:0 12px 32px rgba(0,0,0,.28)}
+.clist button{display:flex;justify-content:space-between;width:100%;padding:6px 8px;border-radius:6px;text-align:left}
+.clist button small{color:var(--muted)}
+.clist button.cur,.clist button:hover{background:var(--raised)}
+.crow{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:13px;color:var(--muted)}
+.crow>span:first-child{flex:none;width:44px}
+.crow input[type=range]{flex:1;min-width:0;height:18px;margin:0;accent-color:var(--hpc,var(--ok))}
+.crow output{flex:none;width:40px;text-align:right;color:var(--text)}
+.seg3{flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:2px;padding:2px;border:1px solid var(--line);border-radius:8px}
+.seg3 button{height:24px;border-radius:5px;font-size:12px;font-weight:500;color:var(--muted);white-space:nowrap;transition:background .15s,color .15s}
+.seg3 button[aria-pressed=true]{background:var(--raised);color:var(--text)}
+.crow label{display:flex;align-items:center;gap:8px;cursor:pointer}
+.crow input[type=checkbox]{margin:0;accent-color:var(--text)}
+.cres{margin-top:12px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 12px;align-items:baseline;font-size:13px}
+.cres span small{color:var(--faint);margin-left:6px}
+.cres b{font-weight:600;font-size:14px;text-align:right}
+.cres u{grid-column:1/-1;height:3px;margin-bottom:3px;border-radius:2px;background:var(--raised);text-decoration:none;overflow:hidden}
+.cres u i{display:block;height:100%;border-radius:2px;background:var(--ok);transition:width .45s var(--out),background .3s}
+.cres.off{opacity:.35}
 .feed-empty{margin-top:14px;color:var(--muted)}
 
 /* ---------- encounters, timeline, rules */
@@ -260,22 +288,19 @@ main{display:flex;flex-direction:column;min-height:0}
 
 .btn2{height:36px;margin-top:14px;padding:0 14px;border:1px solid var(--line);border-radius:8px;font-weight:500;transition:color .2s,border-color .2s,transform .12s var(--out)}
 .btn2.arm{border-color:var(--danger);color:var(--danger)}
-.types{display:flex;flex-direction:column;padding:18px 24px 22px}
-.types>*{flex:none}
+.types{padding:18px 24px 22px}
 .types>p{color:var(--muted)}
-.tpick{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 4px}
-.tpick button{display:flex;align-items:center;gap:8px;height:36px;padding:0 12px 0 4px;border:1px solid var(--line);border-radius:10px;font-weight:500;transition:background .2s,border-color .2s,transform .12s var(--out)}
-.tpick button[aria-pressed=true]{background:var(--raised);border-color:var(--c)}
-.tpick .slot{width:28px;height:28px;border-radius:7px}
-.tpick .slot img{width:40px;height:40px;margin:-20px 0 0 -20px}
-.tsum{display:flex;flex-wrap:wrap;gap:6px 20px;min-height:30px;margin:8px 0 14px;align-items:center}
-.tsum span{display:flex;align-items:center;gap:6px;color:var(--muted)}
-.tchip{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:999px;background:var(--raised);color:var(--text);font-size:13px}
-.tchip i,.tgrid i{flex:none;width:8px;height:8px;border-radius:50%;background:var(--tc)}
-.tgrid{flex:1 0 auto;display:grid;grid-template-columns:104px repeat(17,minmax(26px,1fr));grid-template-rows:38px repeat(17,minmax(20px,27px));gap:2px;font-size:12px}
-.types .tgrid{flex:1 1 0;min-height:398px}
-.tgrid>*{display:flex;align-items:center;justify-content:center;min-height:0;border-radius:4px;transition:background .15s,color .15s}
-.tgrid .rh{justify-content:flex-start;gap:8px;padding-left:6px;font-size:13px}
+.tgrid{display:grid;grid-template-columns:112px repeat(17,minmax(26px,1fr));grid-template-rows:40px repeat(17,30px);gap:2px;max-width:1000px;margin-top:14px;font-size:12.5px}
+.tgrid i{flex:none;width:8px;height:8px;border-radius:50%;background:var(--tc)}
+.tleg{display:flex;flex-wrap:wrap;gap:6px 22px;margin-top:14px;font-size:13px;color:var(--muted)}
+.tleg span{display:flex;align-items:center;gap:8px}
+.tleg b{display:inline-flex;align-items:center;justify-content:center;width:26px;height:20px;border-radius:4px;font-size:12px;font-weight:600;color:var(--text)}
+.tleg .se{background:color-mix(in srgb,var(--ok) 26%,var(--band))}
+.tleg .nve{background:color-mix(in srgb,var(--danger) 22%,var(--band));color:var(--muted)}
+.tleg .no{background:var(--text);color:var(--bg)}
+.tgrid>*{display:flex;align-items:center;justify-content:center;min-height:0;border-radius:4px;transition:background .15s,color .15s,opacity .25s,box-shadow .15s}
+.tgrid button:active{transform:none}
+.tgrid .rh{justify-content:flex-start;gap:8px;padding-left:8px;font-size:13px;font-weight:500}
 .tgrid .ch{flex-direction:column;gap:3px;color:var(--muted);font-weight:500}
 .tgrid .tc{background:var(--band)}
 .tgrid .se{background:color-mix(in srgb,var(--ok) 26%,var(--band));font-weight:600}
@@ -283,7 +308,10 @@ main{display:flex;flex-direction:column;min-height:0}
 .tgrid .no{background:var(--text);color:var(--bg);font-weight:600}
 .tgrid .hi.rh,.tgrid .hi.ch,.tgrid .sel{background:var(--raised);color:var(--text)}
 .tgrid .tc.hi{box-shadow:inset 0 0 0 1px var(--line)}
-.tgrid .tc.at{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--text) 40%,transparent)}
+.tgrid .tc{cursor:pointer}
+.tgrid.focus .tc:not(.on){opacity:.28}
+.tgrid.focus .rh:not(.sel),.tgrid.focus .ch:not(.sel){opacity:.45}
+.tgrid .tc.x{box-shadow:inset 0 0 0 1.5px var(--text)}
 
 /* ---------- start */
 .stage{flex:1;overflow-y:auto;display:flex;justify-content:center;align-items:flex-start;padding:56px 16px 80px}
@@ -322,8 +350,8 @@ main{display:flex;flex-direction:column;min-height:0}
   .body{display:block;padding:28px 20px 48px}
   .rail{margin-top:40px}
   .scroll,.feed{overflow:visible}
-  .types{display:block;overflow-x:auto}
-  .types .tgrid{min-width:560px}
+  .types{overflow-x:auto}
+  .types .tgrid{min-width:580px;grid-template-rows:40px repeat(17,26px)}
   .view,.panel{display:block}
   .nav{overflow-x:auto}
 }
@@ -354,6 +382,7 @@ main{display:flex;flex-direction:column;min-height:0}
   .row{height:auto;padding-block:8px}
   .idg,.side.b .idg{flex-direction:column-reverse;gap:6px;margin:0 auto}
   .names,.side.b .names{text-align:center}
+  .tys,.side.b .tys{justify-content:center;flex-wrap:wrap}
   .loc{max-width:100%;padding-inline:8px}
   .seg{display:none}
   .tether{justify-content:center}
@@ -380,7 +409,9 @@ const T = {
     attempt: n => `Attempt ${n}`, kAttempt: "Attempt", kGame: "Game", gen: n => `Gen ${n}`,
     games: { black: "Black", white: "White", black2: "Black 2", white2: "White 2" },
     rRetry: "Wiped? Start the next attempt. Links and timeline are cleared, the code stays.", retry: "Start next attempt", retrySure: "Click again to confirm",
-    tLead: "Rows attack, columns defend. Pick a team member to see what it is weak to.", weak: "Weak to", resist: "Resists", immune: "Immune to",
+    tLead: "Rows attack, columns defend. Click a type to highlight it.", tSe: "super effective", tNve: "not very effective", tNo: "no effect",
+    cTitle: "Catch chance", cFind: "Wild Pokémon…", cHp: "HP", cStatus: "Status", cNone: "None", cMinor: "PAR PSN BRN", cMajor: "SLP FRZ", cGrass: "Dark grass", cRate: r => `Catch rate ${r}`, cRom: "from your ROM", cStd: "original value",
+    balls: [["Poké Ball", ""], ["Great Ball", ""], ["Ultra Ball", ""], ["Quick Ball", "turn 1"], ["Dusk Ball", "cave or night"]],
     rCaps: "Level caps", rNoCaps: "This run has no level caps.", rCapsHint: "The highlighted cap applies until both players have the next badge.", gym: n => `Gym ${n}`,
     rRules: "Soul Link rules", rNote: "SoulSync tracks links, levels and losses. The other rules are on your honour for now.",
     rList: [["First encounter only", "In each area you may catch only the first Pokémon you meet."], ["Same area, linked", "Your catch and your partner’s catch from the same area form a link."], ["Shared fate", "If one of them faints, its partner is lost too."], ["Together or not at all", "Linked partners are in the team together or in the box together."], ["Failed catch", "If one of you fails the catch, the area is closed for both."], ["Level cap", "No Pokémon may be above the strongest Pokémon of the next gym leader."]],
@@ -395,7 +426,7 @@ waitPlayer: "Waiting for player two", playerTwo: "Player two", notJoined: "not j
     noLinks: "No catches yet. Links show up here after the first save.", noEvents: "Nothing yet.",
     setup: "Connect your game", step1: "Save in DeSmuME. The .dsv file is in its Battery folder.", step2: "Run this on each player’s computer:", step3: "Every in-game save updates this page.",
     yourSave: "<save file>", yourName: "<your name>",
-    kCap: "Level cap", kSeed: "Shared seed", kPlayers: "Players", none: "none",
+    kCap: "Level cap", kSeed: "Shared seed", none: "none",
     evCaught: (p, m, l) => `<b>${p}</b> caught <b>${m}</b> in ${l}.`, evLinked: m => ` Linked with ${m}.`,
     evFainted: m => `<b>${m}</b> fainted.`, evLost: m => ` <span class="bad">Link with ${m} is lost.</span>`,
     evEvolved: (m, s) => `<b>${m}</b> evolved into ${s}`, evLevel: (m, n) => `<b>${m}</b> grew to Lv ${n}`,
@@ -418,7 +449,9 @@ waitPlayer: "Waiting for player two", playerTwo: "Player two", notJoined: "not j
     attempt: n => `Versuch ${n}`, kAttempt: "Versuch", kGame: "Spiel", gen: n => `Gen ${n}`,
     games: { black: "Schwarz", white: "Weiß", black2: "Schwarz 2", white2: "Weiß 2" },
     rRetry: "Alles verloren? Starte den nächsten Versuch. Links und Verlauf werden geleert, der Code bleibt.", retry: "Nächsten Versuch starten", retrySure: "Zum Bestätigen nochmal klicken",
-    tLead: "Zeilen greifen an, Spalten verteidigen. Wähle ein Team-Pokémon, um seine Schwächen zu sehen.", weak: "Schwach gegen", resist: "Resistent gegen", immune: "Immun gegen",
+    tLead: "Zeilen greifen an, Spalten verteidigen. Klick auf einen Typ hebt ihn hervor.", tSe: "sehr effektiv", tNve: "nicht sehr effektiv", tNo: "keine Wirkung",
+    cTitle: "Fangchance", cFind: "Wildes Pokémon…", cHp: "KP", cStatus: "Status", cNone: "Kein", cMinor: "PAR GIF BRT", cMajor: "SLF GFR", cGrass: "Dunkles Gras", cRate: r => `Fangrate ${r}`, cRom: "aus deiner ROM", cStd: "Originalwert",
+    balls: [["Pokéball", ""], ["Superball", ""], ["Hyperball", ""], ["Flottball", "Runde 1"], ["Finsterball", "Höhle oder Nacht"]],
     rCaps: "Level-Caps", rNoCaps: "Dieser Run hat keine Level-Caps.", rCapsHint: "Der markierte Cap gilt, bis beide Spieler den nächsten Orden haben.", gym: n => `Arena ${n}`,
     rRules: "Soul-Link-Regeln", rNote: "SoulSync verfolgt Links, Level und Verluste. Die übrigen Regeln laufen vorerst auf Vertrauen.",
     rList: [["Nur die erste Begegnung", "In jedem Gebiet darfst du nur das erste Pokémon fangen, das dir begegnet."], ["Gleiches Gebiet, verbunden", "Dein Fang und der Fang deines Partners aus demselben Gebiet bilden einen Link."], ["Geteiltes Schicksal", "Wird eins besiegt, ist auch sein Partner verloren."], ["Zusammen oder gar nicht", "Verbundene Partner sind gemeinsam im Team oder gemeinsam in der Box."], ["Fehlgeschlagener Fang", "Misslingt einem von euch der Fang, ist das Gebiet für beide gesperrt."], ["Level-Cap", "Kein Pokémon darf über dem stärksten Pokémon des nächsten Arenaleiters liegen."]],
@@ -433,7 +466,7 @@ waitPlayer: "Warte auf Spieler zwei", playerTwo: "Spieler zwei", notJoined: "noc
     noLinks: "Noch keine Fänge. Links erscheinen hier nach dem ersten Speichern.", noEvents: "Noch nichts passiert.",
     setup: "Spiel verbinden", step1: "In DeSmuME speichern. Die .dsv-Datei liegt im Ordner Battery.", step2: "Auf dem Rechner jedes Spielers ausführen:", step3: "Jedes Speichern im Spiel aktualisiert diese Seite.",
     yourSave: "<spielstand>", yourName: "<dein Name>",
-    kCap: "Level-Cap", kSeed: "Gemeinsamer Seed", kPlayers: "Spieler", none: "keins",
+    kCap: "Level-Cap", kSeed: "Gemeinsamer Seed", none: "keins",
     evCaught: (p, m, l) => `<b>${p}</b> hat <b>${m}</b> gefangen (${l}).`, evLinked: m => ` Verbunden mit ${m}.`,
     evFainted: m => `<b>${m}</b> wurde besiegt.`, evLost: m => ` <span class="bad">Der Link mit ${m} ist verloren.</span>`,
     evEvolved: (m, s) => `<b>${m}</b> hat sich zu ${s} entwickelt`, evLevel: (m, n) => `<b>${m}</b> ist jetzt Lv ${n}`,
@@ -578,11 +611,13 @@ function mount() {
       <div class="view" data-view="rules" hidden><div class="scroll rules" id="rules"></div></div>
     </main>
     <aside class="rail">
-      <section><h2>${t().run}</h2><div id="kv" style="margin-top:4px"></div></section>
+      <section><h2>${t().run}</h2><div id="kv"></div></section>
+      <section class="catch" id="catch"></section>
       <section><h2>${t().activity}</h2><div class="feed" id="feed"></div><p class="feed-empty" id="nofeed" hidden>${t().noEvents}</p></section>
     </aside>
   </div>`;
   bindChrome();
+  mountCatch();
   mounted = true;
   showView();
 }
@@ -693,8 +728,8 @@ function sideHtml(m, i) {
     stat = `<span class="note ${split ? "warn" : ""}">${t().box(p.place.box ?? "")}${split ? "  ·  " + t().partnerInTeam : ""}</span>`;
   }
   else stat = `<span class="lv"><span>${t().lv}</span><b class="roll" data-v="${b.level}"><span>${b.level}</span></b></span><span class="hp"><i class="ghost"></i><i class="fill"></i></span><span class="hpn"></span>`;
-  const sub = p.is_nicknamed && p.nickname ? species(p) : (p.types || []).map(typeName).join(" · ");
-  return `<div class="stat">${stat}</div><div class="idg"><div class="names"><b>${esc(label(p))}</b><small>${esc(sub)}</small></div><span class="slot">${spriteImg(p)}</span></div>`;
+  const tys = (p.types || []).map(ty => `<span class="ty" style="--tc:${TCOL[ty]}">${esc(typeName(ty))}</span>`).join("");
+  return `<div class="stat">${stat}</div><div class="idg"><div class="names"><b title="${esc(species(p))}">${esc(label(p))}</b><div class="tys">${tys}</div></div><span class="slot">${spriteImg(p)}</span></div>`;
 }
 
 function patchStat(el, m, i, fresh) {
@@ -833,36 +868,143 @@ const CHART = (() => {
   return out;
 })();
 const eff = (a, d) => CHART[a][d] ?? 1;
-const tchip = (ty, x) => `<span class="tchip" style="--tc:${TCOL[ty]}"><i></i>${esc(typeName(ty))}${x ? " " + x : ""}</span>`;
-let pick = null;
+let tRow = null, tCol = null;
 
 function updateTypes() {
   const el = $("#types");
-  const team = state.players.flatMap((p, i) => (p.snapshot ? p.snapshot.party : []).filter(m => !m.is_egg).map(m => ({ m, i })));
-  if (pick != null && !team.some(x => x.m.pid === pick)) pick = null;
-  const sig = [lang, pick, team.map(x => x.m.pid + ":" + x.m.species).join()].join("|");
-  if (el._sig === sig) return;
-  el._sig = sig;
-  const sel = team.find(x => x.m.pid === pick), selTypes = sel ? sel.m.types || [] : [];
-  let sum = "";
-  if (sel) {
-    const mult = TYPES.map(a => [a, selTypes.reduce((x, d) => x * eff(a, d), 1)]);
-    const list = (label, f, fmt) => { const xs = mult.filter(([, x]) => f(x)); return xs.length ? `<span>${label}${xs.map(([a, x]) => tchip(a, fmt(x))).join("")}</span>` : ""; };
-    sum = list(t().weak, x => x > 1, x => "×" + x) + list(t().resist, x => x < 1 && x > 0, x => x === .25 ? "×¼" : "×½") + list(t().immune, x => x === 0, () => "");
+  if (el._sig !== lang) {
+    el._sig = lang;
+    const mark = x => x === 2 ? "2" : x === .5 ? "½" : x === 0 ? "0" : "";
+    el.innerHTML = `<p>${t().tLead}</p>
+      <div class="tgrid"><span></span>${TYPES.map((d, c) => `<button type="button" class="ch" data-c="${c}" style="--tc:${TCOL[d]}" title="${esc(typeName(d))}"><i></i>${esc(typeName(d).slice(0, 3))}</button>`).join("")}
+      ${TYPES.map((a, r) => `<button type="button" class="rh" data-r="${r}" style="--tc:${TCOL[a]}"><i></i>${esc(typeName(a))}</button>` + TYPES.map((d, c) => { const x = eff(a, d); return `<span class="tc ${x === 2 ? "se" : x === .5 ? "nve" : x === 0 ? "no" : ""}" data-r="${r}" data-c="${c}">${mark(x)}</span>`; }).join("")).join("")}</div>
+      <p class="tleg"><span><b class="se">2</b>${t().tSe}</span><span><b class="nve">½</b>${t().tNve}</span><span><b class="no">0</b>${t().tNo}</span></p>`;
+    const grid = $(".tgrid", el);
+    grid.onclick = e => {
+      const x = e.target.closest("[data-r],[data-c]");
+      if (!x) tRow = tCol = null;
+      else if (x.classList.contains("tc")) {
+        const same = tRow === +x.dataset.r && tCol === +x.dataset.c;
+        tRow = same ? null : +x.dataset.r; tCol = same ? null : +x.dataset.c;
+      }
+      else if (x.dataset.r != null) tRow = tRow === +x.dataset.r ? null : +x.dataset.r;
+      else tCol = tCol === +x.dataset.c ? null : +x.dataset.c;
+      paintTypes();
+    };
+    grid.onmouseover = e => {
+      const c = e.target.closest(".tc");
+      grid.querySelectorAll(".hi").forEach(x => x.classList.remove("hi"));
+      if (c) grid.querySelectorAll(`.rh[data-r="${c.dataset.r}"],.ch[data-c="${c.dataset.c}"]`).forEach(x => x.classList.add("hi"));
+    };
+    grid.onmouseleave = () => grid.querySelectorAll(".hi").forEach(x => x.classList.remove("hi"));
   }
-  el.innerHTML = `<p>${t().tLead}</p>
-    <div class="tpick">${team.map(({ m, i }) => `<button type="button" data-pid="${m.pid}" aria-pressed="${m.pid === pick}" style="--c:var(--${i ? "b" : "a"})"><span class="slot">${spriteImg(m)}</span>${esc(label(m))}</button>`).join("")}</div>
-    <div class="tsum">${sum}</div>
-    <div class="tgrid"><span></span>${TYPES.map((d, c) => `<span class="ch ${selTypes.includes(d) ? "sel" : ""}" data-c="${c}" style="--tc:${TCOL[d]}" title="${esc(typeName(d))}"><i></i>${esc(typeName(d).slice(0, 3))}</span>`).join("")}
-    ${TYPES.map((a, r) => `<span class="rh" data-r="${r}" style="--tc:${TCOL[a]}"><i></i>${esc(typeName(a))}</span>` + TYPES.map((d, c) => { const x = eff(a, d); return `<span class="tc ${x === 2 ? "se" : x === .5 ? "nve" : x === 0 ? "no" : ""} ${selTypes.includes(d) ? "at" : ""}" data-r="${r}" data-c="${c}">${x === 2 ? "2" : x === .5 ? "½" : x === 0 ? "0" : ""}</span>`; }).join("")).join("")}</div>`;
-  $(".tpick", el).onclick = e => { const b = e.target.closest("button"); if (!b) return; pick = +b.dataset.pid === pick ? null : +b.dataset.pid; updateTypes(); };
-  const grid = $(".tgrid", el);
-  grid.onmouseover = e => {
-    const c = e.target.closest(".tc");
-    grid.querySelectorAll(".hi").forEach(x => x.classList.remove("hi"));
-    if (c) grid.querySelectorAll(`[data-r="${c.dataset.r}"],[data-c="${c.dataset.c}"]`).forEach(x => x.classList.add("hi"));
+  paintTypes();
+}
+
+function paintTypes() {
+  const grid = $("#types .tgrid");
+  grid.classList.toggle("focus", tRow != null || tCol != null);
+  for (const x of grid.children) {
+    const r = x.dataset.r != null ? +x.dataset.r : null, c = x.dataset.c != null ? +x.dataset.c : null;
+    if (x.classList.contains("tc")) {
+      x.classList.toggle("on", r === tRow || c === tCol);
+      x.classList.toggle("x", r === tRow && c === tCol);
+    } else if (r != null || c != null) {
+      const sel = r != null ? r === tRow : c === tCol;
+      x.classList.toggle("sel", sel); x.setAttribute("aria-pressed", sel);
+    }
+  }
+}
+
+/* ---------- catch chance (generation 5) */
+const BALLS = [1, 1.5, 2, 5, 3.5];
+const catchUi = { list: null, fromRom: false, sp: null, hp: 100, status: 0, grass: false, loaded: null };
+
+// Chance per throw. `hp` is the remaining share of HP, `caught` the number of
+// species owned, which decides critical captures and the dark grass penalty.
+function catchChance(rate, hp, status, ball, grass, caught) {
+  const tier = caught > 600 ? 5 : caught > 450 ? 4 : caught > 300 ? 3 : caught > 150 ? 2 : caught > 30 ? 1 : 0;
+  const g = grass ? [1229, 2048, 2867, 3277, 3686, 4096][tier] / 4096 : 1;
+  const x = (1 - 2 * hp / 3) * g * rate * ball * [1, 1.5, 2.5][status];
+  if (x >= 255) return 1;
+  const y = Math.floor(65536 / Math.pow(255 / x, .25)) / 65536;
+  const crit = Math.floor(Math.min(255, x) * [0, .5, 1, 1.5, 2, 2.5][tier] / 6) / 256;
+  return crit * y + (1 - crit) * y ** 3;
+}
+
+function caughtCount() {
+  return Math.max(0, ...state.players.map(p => p.snapshot ? new Set([...p.snapshot.party, ...p.snapshot.boxes].filter(m => !m.is_egg).map(m => m.species)).size : 0));
+}
+
+function mountCatch() {
+  const el = $("#catch"), u = catchUi;
+  el.innerHTML = `<h2>${t().cTitle}<small id="crate"></small></h2>
+    <input class="cin" id="cin" type="text" autocomplete="off" spellcheck="false" placeholder="${t().cFind}" aria-label="${t().cFind}" value="${u.sp ? esc(u.sp[lang === "de" ? 1 : 0]) : ""}">
+    <div class="clist" id="clist" hidden></div>
+    <div class="crow"><span>${t().cHp}</span><input type="range" id="chp" min="1" max="100" value="${u.hp}" aria-label="${t().cHp}"><output id="chpo"></output></div>
+    <div class="crow"><span>${t().cStatus}</span><div class="seg3" id="cst">${[t().cNone, t().cMinor, t().cMajor].map((x, i) => `<button type="button" data-s="${i}">${x}</button>`).join("")}</div></div>
+    <div class="crow"><label><input type="checkbox" id="cgr" ${u.grass ? "checked" : ""}>${t().cGrass}</label></div>
+    <div class="cres" id="cres">${t().balls.map(([n, note]) => `<span>${n}${note ? `<small>${note}</small>` : ""}</span><b></b><u><i></i></u>`).join("")}</div>`;
+  const input = $("#cin"), list = $("#clist");
+  let cur = 0, hits = [];
+  const close = () => { list.hidden = true; };
+  const choose = sp => { u.sp = sp; input.value = sp[lang === "de" ? 1 : 0]; close(); updateCatch(); };
+  const search = () => {
+    const q = input.value.trim().toLowerCase(), k = lang === "de" ? 1 : 0;
+    const all = u.list || [];
+    hits = q ? [...all.filter(sp => sp[k].toLowerCase().startsWith(q)), ...all.filter(sp => !sp[k].toLowerCase().startsWith(q) && sp[k].toLowerCase().includes(q))].slice(0, 6) : [];
+    cur = 0; list.hidden = !hits.length;
+    list.innerHTML = hits.map((sp, i) => `<button type="button" data-i="${i}" class="${i ? "" : "cur"}"><span>${esc(sp[k])}</span><small>${sp[2]}</small></button>`).join("");
   };
-  grid.onmouseleave = () => grid.querySelectorAll(".hi").forEach(x => x.classList.remove("hi"));
+  input.oninput = () => { u.sp = null; search(); updateCatch(); };
+  input.onfocus = () => { input.select(); };
+  input.onkeydown = e => {
+    if (e.key === "Escape") { close(); return; }
+    if (!hits.length || list.hidden) return;
+    if (e.key === "Enter") { e.preventDefault(); choose(hits[cur]); }
+    else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault(); cur = (cur + (e.key === "ArrowDown" ? 1 : hits.length - 1)) % hits.length;
+      [...list.children].forEach((b, i) => b.classList.toggle("cur", i === cur));
+    }
+  };
+  input.onblur = () => setTimeout(close, 150);
+  list.onmousedown = e => { const b = e.target.closest("button"); if (b) { e.preventDefault(); choose(hits[+b.dataset.i]); } };
+  $("#chp").oninput = e => { u.hp = +e.target.value; updateCatch(); };
+  $("#cst").onclick = e => { const b = e.target.closest("button"); if (b) { u.status = +b.dataset.s; updateCatch(); } };
+  $("#cgr").onchange = e => { u.grass = e.target.checked; updateCatch(); };
+}
+
+function loadSpecies() {
+  const u = catchUi, key = state.code + "|" + !!state.rom_data;
+  if (u.loaded === key) return;
+  u.loaded = key;
+  const take = d => {
+    u.list = d.species; u.fromRom = !!d.from_rom;
+    if (u.sp) u.sp = u.list.find(sp => sp[0] === u.sp[0]) || null;
+    updateCatch();
+  };
+  if (window.SoulSyncDemoSpecies) take(window.SoulSyncDemoSpecies);
+  else fetch(`/api/runs/${encodeURIComponent(state.code)}/species`).then(r => r.json()).then(take).catch(() => { u.loaded = null; });
+}
+
+function updateCatch() {
+  if (!$("#cres")) return;
+  loadSpecies();
+  const u = catchUi, hp = u.hp;
+  $("#chpo").textContent = hp + " %";
+  $("#chp").style.setProperty("--hpc", `var(--${hp > 50 ? "ok" : hp > 20 ? "warn" : "danger"})`);
+  $("#cst").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", +b.dataset.s === u.status));
+  $("#crate").textContent = u.sp ? `${t().cRate(u.sp[2])}  ·  ${u.fromRom ? t().cRom : t().cStd}` : "";
+  const res = $("#cres"), caught = caughtCount();
+  res.classList.toggle("off", !u.sp);
+  BALLS.forEach((ball, i) => {
+    const p = u.sp ? catchChance(u.sp[2], hp / 100, u.status, ball, u.grass, caught) : 0;
+    const pct = p * 100;
+    res.children[i * 3 + 1].textContent = u.sp ? (pct >= 99.95 ? "100" : pct < 10 ? pct.toFixed(1) : Math.round(pct)) + " %" : "–";
+    const bar = res.children[i * 3 + 2].firstChild;
+    bar.style.width = pct + "%";
+    bar.style.background = `var(--${pct >= 50 ? "ok" : pct >= 20 ? "warn" : "danger"})`;
+  });
 }
 
 function gameOf(p) { const g = p && p.snapshot && p.snapshot.trainer.game; return g ? t().games[g] || g : null; }
@@ -915,7 +1057,7 @@ function updateSetup() {
 
 function updateRail() {
   const cap = capNow();
-  $("#kv").innerHTML = [[t().kAttempt, state.attempt || 1], [t().kPlayers, state.players.map(p => esc(p.name)).join(", ") || "–"], [t().kCap, cap != null ? cap : t().none], [t().kSeed, `<span class="mono" style="font-size:13px">${esc(state.seed)}</span>`]]
+  $("#kv").innerHTML = [[t().kAttempt, state.attempt || 1], [t().kCap, cap != null ? cap : t().none], [t().kSeed, `<span class="mono" style="font-size:13px">${esc(state.seed)}</span>`]]
     .map(([k, v]) => `<div class="kv"><span>${k}</span><b>${v}</b></div>`).join("");
   updateFeed();
 }
@@ -971,7 +1113,7 @@ function render() {
     bindChrome(); updateStatus(); mounted = false; return;
   }
   if (!mounted) mount();
-  updateStatus(); updatePlayers(); updateSetup(); updateLinks(); updateRail(); updateEncounters(); updateTimeline(); updateTypes(); updateRules();
+  updateStatus(); updatePlayers(); updateSetup(); updateLinks(); updateRail(); updateEncounters(); updateTimeline(); updateTypes(); updateRules(); updateCatch();
 }
 
 function apply(next) { state = next; conn = "live"; render(); }

@@ -15,6 +15,7 @@ struct Opts {
     server: String,
     code: Option<String>,
     name: Option<String>,
+    rom: Option<PathBuf>,
 }
 
 fn env_lang() -> Lang {
@@ -36,6 +37,7 @@ fn main() -> ExitCode {
             .unwrap_or_else(|_| sync::DEFAULT_SERVER.to_owned()),
         code: None,
         name: None,
+        rom: None,
     };
     while let Some(a) = args.next() {
         match a.as_str() {
@@ -48,10 +50,11 @@ fn main() -> ExitCode {
                 }
                 None => pos.push(a),
             },
-            "--server" | "--code" | "--name" => match args.next() {
+            "--server" | "--code" | "--name" | "--rom" => match args.next() {
                 Some(v) => match a.as_str() {
                     "--server" => opts.server = v,
                     "--code" => opts.code = Some(v),
+                    "--rom" => opts.rom = Some(PathBuf::from(v)),
                     _ => opts.name = Some(v),
                 },
                 None => pos.push(a),
@@ -70,6 +73,7 @@ fn main() -> ExitCode {
             &opts.server,
             opts.code.as_deref().unwrap_or_default(),
             opts.name.as_deref().unwrap_or_default(),
+            opts.rom.as_deref().and_then(|p| catch_rates(p, t)),
             opts.lang,
             t,
         ),
@@ -94,7 +98,36 @@ pub(crate) fn load(path: &Path) -> Res<SaveSnapshot> {
     Ok(parse_b2w2(&data)?)
 }
 
-/// Tells which game a ROM is. Reads only the first bytes of the file.
+/// Reads the catch rates from a ROM and says how many differ from the
+/// original game. `None`, with a note, if the ROM cannot be read.
+fn catch_rates(path: &Path, t: &Text) -> Option<Vec<u8>> {
+    let rates = std::fs::File::open(path)
+        .map_err(soulsync_core::RomError::Io)
+        .and_then(|mut f| soulsync_core::read_catch_rates(&mut f));
+    match rates {
+        Ok(rates) => {
+            let changed = (1u16..)
+                .zip(&rates)
+                .filter(|(id, r)| {
+                    soulsync_core::dex::species(*id).map(|s| s.catch_rate) != Some(**r)
+                })
+                .count();
+            eprintln!(
+                "{}",
+                t.rom_rates
+                    .replace("{changed}", &changed.to_string())
+                    .replace("{total}", &rates.len().to_string())
+            );
+            Some(rates)
+        }
+        Err(e) => {
+            eprintln!("{} ({e})", t.rom_rates_failed);
+            None
+        }
+    }
+}
+
+/// Tells which game a ROM is and checks that its catch rates can be read.
 fn rom(path: &Path, o: &Opts) -> Res {
     use std::io::Read;
     let mut header = [0u8; soulsync_core::ROM_HEADER_LEN];
@@ -106,6 +139,9 @@ fn rom(path: &Path, o: &Opts) -> Res {
     if o.json {
         println!("{}", serde_json::to_string_pretty(&info)?);
         return Ok(());
+    }
+    if info.game.is_some() {
+        catch_rates(path, t);
     }
     match info.game {
         Some(g) => println!(

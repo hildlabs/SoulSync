@@ -80,6 +80,7 @@ pub fn sync(
     server: &str,
     code: &str,
     name: &str,
+    catch_rates: Option<Vec<u8>>,
     lang: Lang,
     t: &'static Text,
 ) -> Res {
@@ -92,7 +93,17 @@ pub fn sync(
         let mut backoff = 1u64;
         loop {
             eprintln!("{}", t.connecting.replace("{url}", &url));
-            match session(&url, &path, name, &mut last, lang, t).await {
+            match session(
+                &url,
+                &path,
+                name,
+                catch_rates.as_deref(),
+                &mut last,
+                lang,
+                t,
+            )
+            .await
+            {
                 Ok(End::Refused(msg)) => return Err(format!("{}: {msg}", t.server_error).into()),
                 Ok(End::Lost) => backoff = 1,
                 Err(e) => eprintln!("{}: {e}", t.error),
@@ -108,12 +119,20 @@ async fn session(
     url: &str,
     path: &Path,
     name: &str,
+    catch_rates: Option<&[u8]>,
     last: &mut SaveSnapshot,
     lang: Lang,
     t: &Text,
 ) -> Result<End, Box<dyn std::error::Error>> {
     let (mut ws, _) = tokio_tungstenite::connect_async(url).await?;
     ws.send(snapshot_msg(last)).await?;
+    if let Some(rates) = catch_rates {
+        let msg = ClientMsg::CatchRates {
+            rates: rates.to_vec(),
+        };
+        let text = serde_json::to_string(&msg).expect("serializable");
+        ws.send(Message::Text(text.into())).await?;
+    }
     eprintln!(
         "{}",
         t.connected

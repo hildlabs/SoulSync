@@ -89,6 +89,7 @@ pub fn app(state: AppState) -> Router {
         .route("/api/config", get(config))
         .route("/api/runs", post(create_run))
         .route("/api/runs/{code}", get(get_run))
+        .route("/api/runs/{code}/species", get(species))
         .route("/api/runs/{code}/attempt", post(new_attempt))
         .route("/api/runs/{code}/ws", get(ws))
         .with_state(state)
@@ -168,6 +169,21 @@ async fn get_run(State(app): State<AppState>, Path(code): Path<String>) -> Respo
         Some(e) => Json(e.run.state()).into_response(),
         None => (StatusCode::NOT_FOUND, "run not found").into_response(),
     }
+}
+
+/// Names and catch rates of all species, for the catch calculator.
+async fn species(State(app): State<AppState>, Path(code): Path<String>) -> Response {
+    let runs = app.runs.lock().unwrap();
+    let Some(e) = runs.get(&normalize(&code)) else {
+        return (StatusCode::NOT_FOUND, "run not found").into_response();
+    };
+    let list: Vec<_> = (1..=run::SPECIES as u16)
+        .filter_map(|id| {
+            let s = soulsync_core::dex::species(id)?;
+            Some((&s.name.en, &s.name.de, e.run.catch_rate(id)?))
+        })
+        .collect();
+    Json(serde_json::json!({ "from_rom": e.run.has_rom_data(), "species": list })).into_response()
 }
 
 /// The players wiped and start over under the same code.
@@ -259,6 +275,16 @@ async fn session(app: AppState, code: String, player: Option<String>, mut socket
                         };
                         tracing::info!(%code, player = %name, events = n, "snapshot");
                         app.broadcast(&code);
+                    }
+                    Ok(ClientMsg::CatchRates { rates }) => {
+                        let changed = {
+                            let mut runs = app.runs.lock().unwrap();
+                            runs.get_mut(&code).is_some_and(|e| e.run.set_catch_rates(rates))
+                        };
+                        if changed {
+                            tracing::info!(%code, player = %name, "catch rates from ROM");
+                            app.broadcast(&code);
+                        }
                     }
                     Err(e) => {
                         let message = format!("invalid message: {e}");

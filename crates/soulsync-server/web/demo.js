@@ -1,6 +1,18 @@
 // Scripted run for /demo: feeds the dashboard the same state messages the
 // server would send, so the page can be seen without a save file.
 "use strict";
+// A few wild Pokémon for the catch calculator: [english, german, catch rate].
+window.SoulSyncDemoSpecies = {
+  from_rom: true,
+  species: [
+    ["Purrloin", "Felilou", 255], ["Patrat", "Nagelotz", 255], ["Sewaddle", "Strawickl", 255], ["Azurill", "Azurill", 150],
+    ["Riolu", "Riolu", 75], ["Psyduck", "Enton", 190], ["Magnemite", "Magnetilo", 190], ["Growlithe", "Fukano", 190],
+    ["Elekid", "Elekid", 45], ["Magby", "Magby", 45], ["Eevee", "Evoli", 45], ["Zorua", "Zorua", 75],
+    ["Sandile", "Ganovil", 180], ["Trapinch", "Knacklion", 255], ["Drilbur", "Rotomurf", 120], ["Onix", "Onix", 45],
+    ["Scyther", "Sichlor", 45], ["Larvitar", "Larvitar", 45], ["Axew", "Milza", 75], ["Metang", "Metang", 3],
+    ["Cresselia", "Cresselia", 3], ["Volcarona", "Ramoth", 15], ["Rotom", "Rotom", 45], ["Togetic", "Togetic", 75],
+  ],
+};
 window.SoulSyncDemo = function (apply) {
   const DEX = {
     375: ["Metang", "Metang", ["steel", "psychic"]], 570: ["Zorua", "Zorua", ["dark"]],

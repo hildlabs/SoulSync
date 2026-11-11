@@ -19,6 +19,9 @@ pub const MAX_PLAYERS: usize = 2;
 pub enum ClientMsg {
     /// The player's current save.
     Snapshot { snapshot: SaveSnapshot },
+    /// Catch rates read from the player's ROM, by National Dex number
+    /// (index 0 is species 1).
+    CatchRates { rates: Vec<u8> },
 }
 
 /// Sent by the server.
@@ -61,6 +64,10 @@ pub struct RunState {
     /// Which try this is, starting at 1. Goes up when the players start over.
     pub attempt: u32,
     pub settings: RunSettings,
+    /// Whether a player's ROM supplied the catch rates; otherwise they are the
+    /// values of the unmodified games.
+    #[serde(default)]
+    pub rom_data: bool,
     /// In join order.
     pub players: Vec<PlayerState>,
     /// Soul Link pairs, sides in the same order as `players`.

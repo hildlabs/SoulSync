@@ -6,6 +6,8 @@ use std::collections::VecDeque;
 
 /// Log entries kept per run.
 const LOG_LIMIT: usize = 200;
+/// Species in generation 5.
+pub const SPECIES: usize = 649;
 
 #[derive(Debug)]
 struct Player {
@@ -21,6 +23,8 @@ pub struct Run {
     pub seed: u64,
     pub settings: RunSettings,
     pub attempt: u32,
+    /// Catch rates from a player's ROM, by National Dex number minus one.
+    catch_rates: Option<Vec<u8>>,
     players: Vec<Player>,
     log: VecDeque<LogEntry>,
 }
@@ -47,6 +51,7 @@ impl Run {
             seed,
             settings,
             attempt: 1,
+            catch_rates: None,
             players: Vec::new(),
             log: VecDeque::new(),
         }
@@ -61,6 +66,28 @@ impl Run {
             p.snapshot = None;
             p.updated_at = None;
         }
+    }
+
+    /// Takes catch rates read from a ROM. Returns whether they changed anything.
+    pub fn set_catch_rates(&mut self, rates: Vec<u8>) -> bool {
+        if rates.len() != SPECIES || self.catch_rates.as_ref() == Some(&rates) {
+            return false;
+        }
+        self.catch_rates = Some(rates);
+        true
+    }
+
+    /// Catch rate of a species in this run.
+    pub fn catch_rate(&self, species: u16) -> Option<u8> {
+        let from_rom = self
+            .catch_rates
+            .as_ref()
+            .and_then(|r| r.get(usize::from(species).checked_sub(1)?).copied());
+        from_rom.or_else(|| soulsync_core::dex::species(species).map(|s| s.catch_rate))
+    }
+
+    pub fn has_rom_data(&self) -> bool {
+        self.catch_rates.is_some()
     }
 
     fn player_mut(&mut self, name: &str) -> Option<&mut Player> {
@@ -129,6 +156,7 @@ impl Run {
             seed: self.seed,
             attempt: self.attempt,
             settings: self.settings.clone(),
+            rom_data: self.has_rom_data(),
             players: self
                 .players
                 .iter()
@@ -183,6 +211,20 @@ mod tests {
         assert_eq!(s.attempt, 2);
         assert_eq!(s.players.len(), 1);
         assert!(s.players[0].snapshot.is_none() && s.links.is_empty() && s.log.is_empty());
+    }
+
+    #[test]
+    fn catch_rates_come_from_the_rom_when_given() {
+        let mut r = Run::new("ZORUA-1234".into(), 7, RunSettings::default());
+        assert_eq!(r.catch_rate(1), Some(45));
+        assert!(!r.state().rom_data);
+        assert!(!r.set_catch_rates(vec![3; 10]));
+        assert!(r.set_catch_rates(vec![190; SPECIES]));
+        assert!(!r.set_catch_rates(vec![190; SPECIES]));
+        assert_eq!(r.catch_rate(1), Some(190));
+        assert_eq!(r.catch_rate(650), None);
+        r.restart();
+        assert!(r.state().rom_data);
     }
 
     #[test]
