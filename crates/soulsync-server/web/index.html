@@ -191,6 +191,41 @@ button:active{transform:scale(.97)}
 .capbar .bar i.over{background:var(--danger)}
 .capbar b{font:400 22px var(--pix);color:var(--text)}
 
+/* overview sections: fold, move, hide (docs/design.md) */
+.chipsrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.laybtn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border-radius:var(--r-sm);border:1px solid var(--edge);background:var(--glass);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);font-size:12.5px;font-weight:500;color:var(--muted);transition:color .2s,border-color .2s}
+.laybtn:hover{color:var(--text);border-color:var(--edge-hi)}
+.laybtn svg{width:14px;height:14px}
+.laying .laybtn:not(.ghost){color:var(--text);border-color:var(--a);background:color-mix(in srgb,var(--a) 14%,var(--glass))}
+.layhint{margin-top:8px;font-size:12.5px;color:var(--muted)}
+.blk{position:relative}
+.blkbar{display:inline-flex;align-items:center;gap:2px;margin-left:6px}
+.col>h3 .blkbar{margin-left:auto}.col>h3 small+.blkbar{margin-left:6px}
+.orden>.blkbar{position:absolute;top:11px;right:10px;margin:0}
+.orden h4{padding-right:30px}
+.blkbar button{display:grid;place-items:center;width:26px;height:26px;border-radius:8px;color:var(--faint);transition:color .15s,background .15s,transform .3s var(--out)}
+.blkbar button:hover:not(:disabled){color:var(--text);background:var(--ov-2)}
+.blkbar button:disabled{opacity:.3;cursor:default}
+.blkbar svg{width:14px;height:14px}
+.layc{display:none;gap:2px}
+.laying .layc{display:inline-flex}
+.layc [data-lay=down] svg{transform:rotate(180deg)}
+.orden .layc [data-lay=up],.orden .layc [data-lay=down]{display:none}
+.layc [data-lay=eye] .slash{display:none}
+.layc [data-lay=eye][aria-pressed=false]{color:var(--danger)}
+.layc [data-lay=eye][aria-pressed=false] .slash{display:inline}
+.fold[aria-expanded=false] svg{transform:rotate(-90deg)}
+.laying .fold{display:none}
+.blk.off:not(.laying .blk){display:none}
+.laying .blk.off>*:not(h3):not(.blkbar),.laying .blk.off>h3>:not(.blkbar){opacity:.35}
+.laying .blk{outline:1px dashed color-mix(in srgb,var(--a) 55%,transparent);outline-offset:-1px}
+.col.folded>:not(h3){display:none}
+.col.folded>h3{margin-bottom:0}
+.orden.folded #orden>:not(h4){display:none}
+.orden.folded h4{margin-bottom:0}
+.hpanel.none{display:none}
+.hpanel>.col{border-right:0!important;border-top:0!important;box-shadow:-1px 0 0 var(--edge),0 -1px 0 var(--edge)}
+
 /* home panel: live | links | feed */
 .hpanel{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr) minmax(0,.8fr);grid-template-areas:"live links feed";overflow:hidden}
 .col{min-height:0;overflow:auto;padding:18px;border-right:1px solid var(--edge)}
@@ -716,6 +751,15 @@ details.adv .field{margin-top:12px}
   .view,.scroll,.col,.tablep{overflow:visible}
   .view{flex:none}
   .hpanel{display:flex;flex-direction:column;overflow:visible}
+  .view[data-view=links]{gap:14px}
+  .view[data-view=links]>.hero,.view[data-view=links]>.hpanel{display:contents}
+  .hero>.htitle{order:0;padding:6px 6px 0}
+  .hpanel>.col{box-shadow:none;background:var(--glass);border:1px solid var(--edge)!important;border-radius:var(--r-lg);backdrop-filter:blur(18px) saturate(1.3);-webkit-backdrop-filter:blur(18px) saturate(1.3)}
+  .top{flex-wrap:nowrap}
+  .top .tabbar{flex:0 1 auto;min-width:0}
+  .top .status{display:none}
+  .layc [data-lay=up] svg{transform:rotate(90deg)}.layc [data-lay=down] svg{transform:rotate(-90deg)}
+  .orden .layc [data-lay=up],.orden .layc [data-lay=down]{display:grid}
   .col{border-right:0!important;border-top:1px solid var(--edge)}
   .col:first-child{border-top:0}
   .tgrid{min-width:640px}
@@ -725,7 +769,7 @@ details.adv .field{margin-top:12px}
   .grid2,.pairs,.rcols{grid-template-columns:minmax(0,1fr)}
 }
 @media (max-width:720px){
-  .top{gap:6px}
+  .top{gap:6px;flex-wrap:wrap}
   .sbar{flex-wrap:nowrap}.sbar .srun{min-width:0}.sbar .newrun span{display:none}.sbar .newrun{flex:none;width:38px;height:38px;padding:0}
   .tabbar{order:9;width:100%}
   .top .sp{display:none}
@@ -803,6 +847,7 @@ const T = {
     liveAll: n => n === 2 ? "Both players live" : `All ${n} players live`, liveSome: (k, n) => `${k} of ${n} players live`, live0: "Waiting for players", offline: "Reconnecting", missing: "Run not found",
     theme: "Switch theme",
     ballHave: (b, n) => `${b}: ${n} in the bag`,
+    layEdit: "Customise", layDone: "Done", layReset: "Reset", layHint: "Fold a section with its arrow. Here you can also move and hide sections; this window remembers it.", layUp: "Move up", layDown: "Move down", layEye: "Show or hide", layFold: "Fold or unfold",
     tabs: { links: "Overview", encounters: "Encounters", team: "Team", timeline: "Timeline", types: "Types", rules: "Rules", settings: "Settings" },
     live: "Right now", liveSrc: "live from DeSmuME", inBattle: "In battle", exploring: "Exploring", offlineP: "Offline", wild: "wild", idleWild: n => `When ${n} meets a wild Pokémon, it shows up here with its catch chance.`,
     badgesT: "Badges", play: "Continue", playSub: "opens DeSmuME with your save", playOk: "DeSmuME is starting…", playFail: "DeSmuME could not be started", newRun: "New run", newRunSure: "Click again: this run pauses", source: "Source on GitHub",
@@ -871,6 +916,7 @@ waitPlayer: n => `Waiting for player ${n}`, playerN: n => `Player ${n}`, fPlayer
     liveAll: n => n === 2 ? "Beide Spieler live" : `Alle ${n} Spieler live`, liveSome: (k, n) => `${k} von ${n} Spielern live`, live0: "Warte auf Spieler", offline: "Verbinde neu", missing: "Run nicht gefunden",
     theme: "Farbschema wechseln",
     ballHave: (b, n) => `${b}: ${n} im Beutel`,
+    layEdit: "Anpassen", layDone: "Fertig", layReset: "Zurücksetzen", layHint: "Bereiche klappst du mit ihrem Pfeil ein. Hier kannst du sie auch verschieben und ausblenden; dieses Fenster merkt es sich.", layUp: "Nach vorn", layDown: "Nach hinten", layEye: "Ein- oder ausblenden", layFold: "Ein- oder ausklappen",
     tabs: { links: "Übersicht", encounters: "Begegnungen", team: "Team", timeline: "Verlauf", types: "Typen", rules: "Regeln", settings: "Einstellungen" },
     live: "Gerade unterwegs", liveSrc: "live aus DeSmuME", inBattle: "Im Kampf", exploring: "Unterwegs", offlineP: "Offline", wild: "wild", idleWild: n => `Sobald ${n} auf ein wildes Pokémon trifft, erscheint es hier mit Fangchance.`,
     badgesT: "Orden", play: "Weiterspielen", playSub: "öffnet DeSmuME mit deinem Spielstand", playOk: "DeSmuME startet…", playFail: "DeSmuME ließ sich nicht starten", newRun: "Neuer Run", newRunSure: "Nochmal klicken: dieser Run pausiert", source: "Quellcode auf GitHub",
@@ -977,6 +1023,10 @@ const ICON = {
   types: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>`,
   github: `<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.6 0 0 3.6 0 8c0 3.5 2.3 6.5 5.5 7.6.4.1.5-.2.5-.4v-1.4c-2.2.5-2.7-1-2.7-1-.4-.9-.9-1.2-.9-1.2-.7-.5.1-.5.1-.5.8.1 1.2.8 1.2.8.7 1.3 1.9.9 2.4.7.1-.5.3-.9.5-1.1-1.8-.2-3.6-.9-3.6-4 0-.9.3-1.6.8-2.1-.1-.2-.4-1 .1-2.1 0 0 .7-.2 2.2.8a7.4 7.4 0 0 1 4 0c1.5-1 2.2-.8 2.2-.8.4 1.1.2 1.9.1 2.1.5.6.8 1.3.8 2.1 0 3.1-1.9 3.8-3.6 4 .3.3.6.8.6 1.5v2.2c0 .2.1.5.6.4A8 8 0 0 0 16 8c0-4.4-3.6-8-8-8Z"/></svg>`,
   search: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3.5 3.5"/></svg>`,
+  chev: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"/></svg>`,
+  back: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m10 4-4 4 4 4"/></svg>`,
+  eye: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/><path class="slash" d="m2.5 2.5 11 11"/></svg>`,
+  sliders: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2.5 4.5h7M12.5 4.5h1M2.5 11.5h1M6.5 11.5h7"/><circle cx="11" cy="4.5" r="1.5"/><circle cx="5" cy="11.5" r="1.5"/></svg>`,
   up: `<svg viewBox="0 0 10 10"><path d="M5 1 9 7H1z" fill="currentColor"/></svg>`,
   dn: `<svg viewBox="0 0 10 10"><path d="M5 9 1 3h8z" fill="currentColor"/></svg>`,
   physical: `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5 9.6 5.4l4.2.3-3.2 2.7 1 4.1L8 10.3l-3.6 2.2 1-4.1-3.2-2.7 4.2-.3z"/></svg>`,
@@ -1397,17 +1447,17 @@ function mount() {
   $app.innerHTML = frame(`
     <div class="view" data-view="links">
       <div class="hero">
-        <div><div class="chips" id="chips"></div><h1 id="title"></h1><p class="sum" id="sum"></p><div class="actions" id="actions" hidden></div></div>
-        <div class="orden glass" id="orden"></div>
+        <div class="htitle"><div class="chipsrow"><div class="chips" id="chips"></div><button type="button" class="laybtn" id="laybtn"></button><button type="button" class="laybtn ghost" id="layreset" hidden>${t().layReset}</button></div><p class="layhint" id="layhint" hidden>${t().layHint}</p><h1 id="title"></h1><p class="sum" id="sum"></p><div class="actions" id="actions" hidden></div></div>
+        <div class="orden glass blk" data-b="orden">${layBar("orden")}<div id="orden"></div></div>
       </div>
       <div class="hpanel glass">
-        <div class="col live"><h3>${t().live}<small id="livesrc"></small></h3><div id="pcards"></div></div>
-        <div class="col links"><h3>${t().links}<em id="nlinks"></em><small id="sum2"></small></h3>
+        <div class="col live blk" data-b="live"><h3>${t().live}<small id="livesrc"></small>${layBar("live")}</h3><div id="pcards"></div></div>
+        <div class="col links blk" data-b="links"><h3>${t().links}<em id="nlinks"></em><small id="sum2"></small>${layBar("links")}</h3>
           <div id="setup"></div>
           ${SECTIONS.map(s => `<section class="sec" data-sec="${s}" hidden><h3><span class="glyph"><i></i><u></u><i></i></span><span>${t()[s]}</span><em></em><small>${t().hint[s]}</small></h3><div class="${TILED[s] ? "tiles" : "rows"}"></div></section>`).join("")}
           <p class="empty-list" id="none" hidden>${t().noLinks}</p>
         </div>
-        <div class="col feedc"><h3>${t().activity}</h3><div class="feed" id="feed"></div><p class="feed-empty" id="nofeed" hidden>${t().noEvents}</p></div>
+        <div class="col feedc blk" data-b="feed"><h3>${t().activity}${layBar("feed")}</h3><div class="feed" id="feed"></div><p class="feed-empty" id="nofeed" hidden>${t().noEvents}</p></div>
       </div>
     </div>
     <div class="view" data-view="encounters" hidden>
@@ -1424,8 +1474,81 @@ function mount() {
   const find = $("#efind"); find.value = encUi.q;
   find.oninput = () => { encUi.q = find.value; updateEncounters(); };
   mounted = true;
+  applyLayout();
   showView();
 }
+
+/* ---------- Overview layout: each viewer folds, hides and orders the sections */
+const BLOCKS = ["orden", "live", "links", "feed"];
+const NARROW = matchMedia("(max-width:1040px)"), MID = matchMedia("(max-width:1499px)");
+let lay = (() => { try { const v = JSON.parse(store.get("soulsync.layout") || "null"); if (v && Array.isArray(v.hidden) && Array.isArray(v.folded)) return v; } catch {} return { order: null, hidden: [], folded: [] }; })();
+let laying = false;
+// Until someone orders the sections, a narrow window puts the links first.
+const layOrder = () => lay.order && lay.order.length === BLOCKS.length ? lay.order : NARROW.matches ? ["links", "live", "orden", "feed"] : BLOCKS.slice();
+const layBar = b => `<span class="blkbar"><span class="layc"><button type="button" data-lay="up" data-b="${b}" title="${t().layUp}" aria-label="${t().layUp}">${ICON.back}</button><button type="button" data-lay="down" data-b="${b}" title="${t().layDown}" aria-label="${t().layDown}">${ICON.back}</button><button type="button" data-lay="eye" data-b="${b}" title="${t().layEye}" aria-label="${t().layEye}">${ICON.eye}</button></span><button type="button" class="fold" data-fold="${b}" title="${t().layFold}" aria-label="${t().layFold}">${ICON.chev}</button></span>`;
+const blockEl = b => document.querySelector(`.blk[data-b="${b}"]`);
+
+function applyLayout() {
+  const panel = $(".hpanel"); if (!panel) return;
+  const order = layOrder(), shown = b => laying || !lay.hidden.includes(b), folded = b => !laying && lay.folded.includes(b);
+  document.body.classList.toggle("laying", laying);
+  // Moves skip the badges outside a narrow window: there they stay beside the title.
+  const seq = NARROW.matches ? order : order.filter(b => b !== "orden");
+  BLOCKS.forEach(b => {
+    const el = blockEl(b); if (!el) return;
+    el.classList.toggle("off", lay.hidden.includes(b));
+    el.classList.toggle("folded", folded(b));
+    el.style.order = order.indexOf(b) + 1;
+    const i = seq.indexOf(b);
+    el.querySelector('[data-lay="up"]').disabled = i <= 0;
+    el.querySelector('[data-lay="down"]').disabled = i < 0 || i >= seq.length - 1;
+    el.querySelector('[data-lay="eye"]').setAttribute("aria-pressed", String(!lay.hidden.includes(b)));
+    el.querySelector(".fold").setAttribute("aria-expanded", String(!lay.folded.includes(b)));
+  });
+  const cols = order.filter(b => b !== "orden" && shown(b));
+  panel.classList.toggle("none", !cols.length);
+  const st = panel.style;
+  if (NARROW.matches || !cols.length) { st.gridTemplateAreas = st.gridTemplateColumns = st.gridTemplateRows = ""; }
+  else {
+    const W = { live: 1, links: 1.5, feed: .8 }, fr = b => folded(b) ? "minmax(0,220px)" : `minmax(0,${W[b]}fr)`;
+    if (MID.matches && cols.length === 3) {
+      // Two columns: the links fill one side, the other two share the other.
+      const rest = cols.filter(b => b !== "links"), left = cols[0] === "links";
+      st.gridTemplateAreas = rest.map(b => left ? `"links ${b}"` : `"${b} links"`).join(" ");
+      st.gridTemplateColumns = left ? "minmax(0,1.45fr) minmax(0,1fr)" : "minmax(0,1fr) minmax(0,1.45fr)";
+      st.gridTemplateRows = rest.map((b, i) => folded(b) ? "auto" : i ? "minmax(0,.75fr)" : "minmax(0,1fr)").join(" ");
+    } else {
+      st.gridTemplateAreas = `"${cols.join(" ")}"`;
+      st.gridTemplateColumns = cols.map(fr).join(" ");
+      st.gridTemplateRows = "minmax(0,1fr)";
+    }
+  }
+  const btn = $("#laybtn");
+  if (btn) btn.innerHTML = laying ? t().layDone : `${ICON.sliders}${t().layEdit}`;
+  if ($("#layreset")) $("#layreset").hidden = !laying;
+  if ($("#layhint")) $("#layhint").hidden = !laying;
+}
+NARROW.addEventListener("change", applyLayout);
+MID.addEventListener("change", applyLayout);
+document.addEventListener("click", e => {
+  const el = e.target.closest && e.target.closest("[data-fold],[data-lay],#laybtn,#layreset");
+  if (!el) return;
+  const flip = (list, b) => { const i = list.indexOf(b); if (i < 0) list.push(b); else list.splice(i, 1); };
+  if (el.id === "laybtn") laying = !laying;
+  else if (el.id === "layreset") lay = { order: null, hidden: [], folded: [] };
+  else if (el.dataset.fold) flip(lay.folded, el.dataset.fold);
+  else if (el.dataset.lay === "eye") flip(lay.hidden, el.dataset.b);
+  else {
+    const o = layOrder().slice(), seq = NARROW.matches ? o.slice() : o.filter(b => b !== "orden");
+    const i = seq.indexOf(el.dataset.b), j = el.dataset.lay === "up" ? i - 1 : i + 1;
+    if (i < 0 || j < 0 || j >= seq.length) return;
+    [seq[i], seq[j]] = [seq[j], seq[i]];
+    if (!NARROW.matches) seq.splice(o.indexOf("orden"), 0, "orden");
+    lay.order = seq;
+  }
+  store.set("soulsync.layout", JSON.stringify(lay));
+  applyLayout();
+});
 
 function showView() {
   if (!VIEWS.includes(view)) view = "links";

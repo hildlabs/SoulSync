@@ -102,11 +102,31 @@ Type badges come from `tyChip(type)`, HP from `hpLine(hp, max)`, sprites from
 | ≥ 1700 | Wider sidebar and padding |
 | ≤ 1499 | Overview in two columns (feed under live); status text and language toggle leave the top bar (language stays in Settings) |
 | ≤ 1240 | Hero in one column, dialog header stacks |
-| ≤ 1040 | The page scrolls; the sidebar becomes a strip at the top; panels stack |
+| ≤ 1040 | The page scrolls; the sidebar becomes a strip at the top; overview sections become cards in one column; the top bar stays on one line (tabs scroll, live dot hides) |
 | ≤ 720 | Phone: tabs scroll on their own row, compact rows and tables |
 
 Check a change at 1920 × 1080, 1440 × 900, 1280 × 720, 1024 and 390 wide, in
 both themes. `/demo` plays a scripted run that covers every view.
+
+## Overview sections
+
+Every viewer can fold, hide and reorder the overview's sections (badges,
+live, links, feed). "Customise" next to the run chips turns on edit mode.
+
+- A section is an element with `class="blk"` and `data-b="<id>"`. Put
+  `${layBar("<id>")}` in its heading. That adds the fold chevron, plus the
+  move arrows and the eye button that only show in edit mode (`.laying`).
+- `applyLayout()` sets `.folded`, `.off` and `style.order`, and writes the
+  grid areas of `.hpanel` from the visible columns. A folded column shrinks
+  to its heading. Hidden sections stay visible, dimmed, while editing.
+- The choice is stored in `localStorage` under `soulsync.layout` as
+  `{order, hidden, folded}`. "Reset" clears it.
+- At ≤ 1040 px the hero and panel use `display:contents`, so all sections
+  become cards in one column and the order applies to all of them. The
+  default order there is links, live, badges, feed. Above that, badges stay
+  in the hero and only the three columns move.
+- To add a section, add its id to `BLOCKS` and to the narrow default order
+  in `layOrder()`.
 
 ## Adding a view
 
