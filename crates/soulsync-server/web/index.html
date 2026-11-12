@@ -1595,14 +1595,25 @@ function evIcon(e) {
   const ty = e.event.type;
   return ({ caught: ["+", "var(--ok)"], fainted: ["×", "var(--danger)"], evolved: ["★", "var(--p4)"], level_up: ["↑", "var(--b)"], moved: ["⇄", "var(--muted)"], gone: ["–", "var(--faint)"], encountered: ["!", "var(--a)"], badges: ["◆", "var(--warn)"] })[ty] || ["·", "var(--muted)"];
 }
+// An encounter the player removed as recorded by mistake leaves the
+// history too. Until a player's game has been seen, all of theirs stay.
+function shownLog() {
+  return state.log.filter(e => {
+    if (e.event.type !== "encountered") return true;
+    const pl = state.players.find(x => x.name === e.player), snap = pl && pl.snapshot;
+    return !snap || !snap.encounters || snap.encounters.some(w => w.pid === e.event.pokemon.pid);
+  });
+}
+
 function updateTimeline() {
+  const log = shownLog();
   const idx = Object.fromEntries(state.players.map((p, i) => [p.name, i]));
   const two = n => String(n).padStart(2, "0");
-  const sig = [lang, state.log.length, state.log.length && state.log[state.log.length - 1].at, state.players.map(p => p.name).join()].join("|"), el = $("#tl");
+  const sig = [lang, log.length, log.length && log[log.length - 1].at, state.players.map(p => p.name).join()].join("|"), el = $("#tl");
   if (el._sig === sig) return;
   el._sig = sig;
   let day = "";
-  el.innerHTML = state.log.length ? state.log.map((e, k) => {
+  el.innerHTML = log.length ? log.map((e, k) => {
     const d = new Date(e.at), dk = d.toLocaleDateString(lang, { weekday: "long", day: "numeric", month: "long" });
     const sep = dk !== day ? `<div class="tday">${esc(dk)}</div>` : "";
     day = dk;
@@ -2399,20 +2410,21 @@ function eventHtml(e) {
 }
 
 function updateFeed() {
+  const log = shownLog();
   const box = $("#feed"), first = feed.size === 0;
-  const keys = state.log.map(e => [e.at, e.player, e.event.type, e.event.pokemon ? e.event.pokemon.pid : e.event.count].join("|"));
+  const keys = log.map(e => [e.at, e.player, e.event.type, e.event.pokemon ? e.event.pokemon.pid : e.event.count].join("|"));
   const want = new Set(keys);
   feed.forEach((el, k) => { if (!want.has(k)) { feed.delete(k); el.remove(); } });
-  for (let i = state.log.length - 1; i >= 0; i--) {
+  for (let i = log.length - 1; i >= 0; i--) {
     const k = keys[i];
     if (feed.has(k)) continue;
-    const el = document.createElement("div"), [g, c] = evIcon(state.log[i]);
+    const el = document.createElement("div"), [g, c] = evIcon(log[i]);
     el.className = "ev" + (first ? "" : " new");
-    el.innerHTML = `<div><i class="evi" style="--c:${c}">${g}</i><p>${eventHtml(state.log[i])}<time data-at="${state.log[i].at}"></time></p></div>`;
+    el.innerHTML = `<div><i class="evi" style="--c:${c}">${g}</i><p>${eventHtml(log[i])}<time data-at="${log[i].at}"></time></p></div>`;
     box.prepend(el); feed.set(k, el);
     if (!first) nextFrame(() => el.classList.remove("new"));
   }
-  $("#nofeed").hidden = state.log.length > 0;
+  $("#nofeed").hidden = log.length > 0;
   tick();
 }
 

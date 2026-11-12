@@ -155,12 +155,19 @@ pub(crate) fn read_string(d: &[u8], max_chars: usize) -> String {
 /// Reads a Pokémon found in the game's memory and tells whether it is a wild
 /// one. Trainers' Pokémon have the same value in all six IVs, which a wild
 /// Pokémon practically never has; eggs are not wild either.
+///
+/// The game gives a wild Pokémon the player's trainer ID before the battle,
+/// so that it is theirs once caught. The Pokémon of a scripted battle the
+/// player only watches, like the catching lesson on Route 19, have none:
+/// seen so in a real memory dump, where the lesson's two Pokémon had ID 0
+/// and every wild one the player's.
 pub fn parse_wild(raw: &[u8]) -> Option<Pokemon> {
     let d = crypto::decrypt(raw)?;
     let iv = u32_at(&d, 0x38);
     let first = iv & 31;
     let trainer = (1..6).all(|i| (iv >> (5 * i)) & 31 == first);
-    parse(raw, Place::Party { slot: 0 }).filter(|p| !trainer && !p.is_egg)
+    let watched = u32_at(&d, 0x0C) == 0;
+    parse(raw, Place::Party { slot: 0 }).filter(|p| !trainer && !watched && !p.is_egg)
 }
 
 /// Decrypts and reads a record. Empty slots, corrupt data (bad checksum) and
@@ -249,6 +256,31 @@ pub fn build_raw_ivs(
     battle: Option<&BattleStats>,
     ivs: u32,
 ) -> Vec<u8> {
+    build_raw_ot(
+        pid,
+        species,
+        nickname,
+        met_location,
+        met_level,
+        battle,
+        ivs,
+        1,
+    )
+}
+
+/// Like [`build_raw_ivs`], with the trainer ID (and secret ID) it carries.
+#[doc(hidden)]
+#[allow(clippy::too_many_arguments)]
+pub fn build_raw_ot(
+    pid: u32,
+    species: u16,
+    nickname: &str,
+    met_location: u16,
+    met_level: u8,
+    battle: Option<&BattleStats>,
+    ivs: u32,
+    ot: u32,
+) -> Vec<u8> {
     let mut p = vec![
         0u8;
         if battle.is_some() {
@@ -259,6 +291,7 @@ pub fn build_raw_ivs(
     ];
     p[0..4].copy_from_slice(&pid.to_le_bytes());
     p[0x08..0x0A].copy_from_slice(&species.to_le_bytes());
+    p[0x0C..0x10].copy_from_slice(&ot.to_le_bytes());
     p[0x38..0x3C].copy_from_slice(&(ivs & 0x3FFF_FFFF).to_le_bytes());
     if !nickname.is_empty() {
         p[0x3B] |= 0x80; // nickname flag (bit 31 of the IV word)
