@@ -9,6 +9,10 @@
 local OUT = [[@OUT@]]
 -- Written by the app: the ID of the trainer whose save it syncs.
 local TRAINER = (OUT:gsub("[^\\/]+$", "live-trainer.txt"))
+-- Written by the app when the player reports a problem with a memory dump:
+-- the script then copies the game's main memory (4 MB, not the ROM) to DUMP.
+local REQUEST = (OUT:gsub("[^\\/]+$", "ram-request.txt"))
+local DUMP = (OUT:gsub("[^\\/]+$", "ram-dump.bin"))
 
 local RAM_START, RAM_END = 0x02000000, 0x02400000
 local MON, HEADER, SLOTS = 220, 8, 6
@@ -362,6 +366,31 @@ local function know_party()
   end
 end
 
+-- Copies the main memory to DUMP if the app asked for it. Written under
+-- another name first, so that the app never takes half a dump.
+local function dump_if_asked()
+  local ask = io.open(REQUEST, "r")
+  if not ask then return end
+  ask:close()
+  os.remove(REQUEST)
+  local part = DUMP .. ".part"
+  local file = io.open(part, "wb")
+  if not file then return end
+  local STEP = 0x1000
+  for offset = 0, RAM_END - RAM_START - 1, STEP do
+    local bytes = memory.readbyterange(RAM_START + offset, STEP)
+    local chunk = {}
+    for i = 1, STEP, 256 do
+      chunk[#chunk + 1] = string.char(unpack(bytes, i, i + 255))
+    end
+    file:write(table.concat(chunk))
+  end
+  file:close()
+  os.remove(DUMP)
+  os.rename(part, DUMP)
+  print("SoulSync: memory copied for your problem report.")
+end
+
 print("SoulSync: looking for your party ...")
 
 -- Checks in a row at which the party did not read as one. While the game
@@ -372,6 +401,7 @@ local sent, sent_at, frame, changed, misses = nil, 0, 0, false, 0
 read_trainer()
 while true do
   frame = frame + 1
+  if frame % 60 == 0 then dump_if_asked() end
   if frame % 300 == 0 then
     if read_trainer() then
       party, party_cursor = nil, RAM_START
