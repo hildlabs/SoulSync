@@ -30,6 +30,9 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:${SOULSYNC_PORT:-3000}:3000"
+    # Runs survive updates and restarts here.
+    volumes:
+      - runs:/data
 
   caddy:
     profiles: ["https"]
@@ -47,3 +50,4 @@ services:
 
 volumes:
   caddy_data:
+  runs:

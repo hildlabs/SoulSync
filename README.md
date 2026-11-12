@@ -30,6 +30,8 @@ SOULSYNC_DOMAIN=soulsync.example.org docker compose --profile https up -d --buil
 
 This runs the server behind Caddy with HTTPS. The domain must point to the machine, and ports 80 and 443 must be free and open.
 
+Runs are kept in the `runs` volume, so updating the server (`git pull`, then the same command again) does not end them. To update by itself whenever `main` changes, let cron run `deploy/update.sh`; the script says how. Outside Docker, set `SOULSYNC_DATA` to a directory to keep runs across restarts.
+
 The host name your provider gave the machine works as the domain too. Many customers share such a name's domain, so Let's Encrypt often refuses it with a rate limit. Add `SOULSYNC_EMAIL=you@example.org` and Caddy gets the certificate from ZeroSSL instead when that happens.
 
 For a quick test without HTTPS, `SOULSYNC_DOMAIN=:80` serves plain HTTP; players then enter `http://` and the machine's address as the server.
