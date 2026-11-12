@@ -39,49 +39,86 @@ fn main() {
     let addr = SocketAddr::from(([127, 0, 0, 1], PORT));
     let url = format!("http://127.0.0.1:{PORT}");
     update::tidy();
-    // Started by an update: the program it replaces is about to quit and
-    // still holds the port for a moment.
+    // Started by an update: the old program still holds the port. Its window
+    // stays until this one shows; then it is told to quit.
     let updated = std::env::args().any(|a| a == update::UPDATED_FLAG);
-    let bind = || runtime.block_on(tokio::net::TcpListener::bind(addr));
-    let mut listener = bind();
-    for _ in 0..40 {
-        if listener.is_ok() || !updated {
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(250));
-        listener = bind();
-    }
-    // If the port is taken, SoulSync is most likely running already, and the
-    // window shows that instance.
-    let mut kept = None;
-    if let Ok(listener) = listener {
-        let mut server = soulsync_server::AppState::from_env();
-        // Runs on this computer outlive the app, like runs on a server.
-        if let Some(dir) = local::data_dir().map(|d| d.join("runs")) {
-            if let Ok(stored) = server.clone().with_store(dir) {
-                server = stored;
+    let kept = std::sync::Arc::new(std::sync::Mutex::new(None));
+    let handle = runtime.handle().clone();
+    let serve = {
+        let (kept, url) = (kept.clone(), url.clone());
+        move |wait: bool| -> bool {
+            let _in_runtime = handle.enter();
+            let bind = || handle.block_on(tokio::net::TcpListener::bind(addr));
+            let mut listener = bind();
+            for _ in 0..120 {
+                if listener.is_ok() || !wait {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(250));
+                listener = bind();
             }
-        }
-        let saver = server.clone();
-        runtime.spawn(async move {
-            let mut tick = tokio::time::interval(std::time::Duration::from_secs(5));
-            loop {
-                tick.tick().await;
-                saver.save();
+            // If the port is taken, SoulSync is most likely running already,
+            // and the window shows that instance.
+            let Ok(listener) = listener else {
+                return false;
+            };
+            let mut server = soulsync_server::AppState::from_env();
+            // Runs on this computer outlive the app, like runs on a server.
+            if let Some(dir) = local::data_dir().map(|d| d.join("runs")) {
+                if let Ok(stored) = server.clone().with_store(dir) {
+                    server = stored;
+                }
             }
-        });
-        kept = Some(server.clone());
-        let app = soulsync_server::app(server.clone()).merge(local::routes(server, url.clone()));
-        runtime.spawn(async move { axum::serve(listener, app).await.expect("serve") });
-    } else if std::env::var_os("SOULSYNC_NO_WINDOW").is_some() {
-        return;
+            let saver = server.clone();
+            handle.spawn(async move {
+                let mut tick = tokio::time::interval(std::time::Duration::from_secs(5));
+                loop {
+                    tick.tick().await;
+                    saver.save();
+                }
+            });
+            *kept.lock().unwrap() = Some(server.clone());
+            let app =
+                soulsync_server::app(server.clone()).merge(local::routes(server, url.clone()));
+            handle.spawn(async move { axum::serve(listener, app).await.expect("serve") });
+            true
+        }
+    };
+    let no_window = std::env::var_os("SOULSYNC_NO_WINDOW").is_some();
+    if no_window || !updated {
+        let served = serve(updated);
+        if no_window {
+            if !served {
+                return;
+            }
+            println!("SoulSync is running: {url}");
+            runtime.block_on(std::future::pending::<()>());
+        }
+        // Returns when the user closes the app.
+        window::show(&url, None);
+    } else {
+        update::log("new program started, window up");
+        let handoff = format!("{url}/api/local/handoff");
+        window::show(
+            &url,
+            Some(Box::new(move |open: Box<dyn FnOnce() + Send>| {
+                let _ = ureq::post(&handoff)
+                    .header("x-soulsync", "1")
+                    .config()
+                    .timeout_global(Some(std::time::Duration::from_secs(3)))
+                    .build()
+                    .send_empty();
+                let served = serve(true);
+                update::log(if served {
+                    "new program serves the dashboard"
+                } else {
+                    "port still taken, showing the running program"
+                });
+                open();
+            })),
+        );
     }
-    if std::env::var_os("SOULSYNC_NO_WINDOW").is_some() {
-        println!("SoulSync is running: {url}");
-        runtime.block_on(std::future::pending::<()>());
-    }
-    // Returns when the user closes the app.
-    window::show(&url);
+    let kept = kept.lock().unwrap().take();
     if let Some(server) = kept {
         server.save();
     }

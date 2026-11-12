@@ -1007,18 +1007,47 @@ async fn forget(State(local): State<Local>, Json(req): Json<Forget>) -> Reply {
     Ok(Json(local.view()))
 }
 
-/// Looks for a newer build once, in the background. Only the Windows program
-/// is published, and only numbered builds know what is newer.
+/// How often a running app looks for a newer build.
+const UPDATE_EVERY: Duration = Duration::from_secs(10 * 60);
+
+/// Looks for a newer build in the background, at start and then every few
+/// minutes, so an app left open hears of updates too. Only the Windows
+/// program is published, and only numbered builds know what is newer.
 fn look_for_update(local: &Local) {
     let Some(own) = crate::update::build().filter(|_| cfg!(windows)) else {
         return;
     };
     let local = local.clone();
-    std::thread::spawn(move || {
-        if let Some(release) = crate::update::latest().filter(|r| r.build > own) {
-            local.inner.lock().unwrap().update = Some(release);
+    std::thread::spawn(move || loop {
+        let busy = local.inner.lock().unwrap().progress.is_some();
+        if !busy {
+            if let Some(release) = crate::update::latest().filter(|r| r.build > own) {
+                let mut inner = local.inner.lock().unwrap();
+                if inner.progress.is_none() {
+                    inner.update = Some(release);
+                }
+            }
         }
+        std::thread::sleep(UPDATE_EVERY);
     });
+}
+
+/// Set once the new program has its window up and this one may quit.
+static HANDED_OVER: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Called by the new program after an update once its window shows: this
+/// one stores its runs and quits, which frees the port for the new one.
+async fn handoff(State(local): State<Local>) -> StatusCode {
+    let installing = matches!(
+        local.inner.lock().unwrap().progress,
+        Some(crate::update::Progress::Restart)
+    );
+    if !installing {
+        return StatusCode::CONFLICT;
+    }
+    crate::update::log("the new program took over");
+    HANDED_OVER.store(true, std::sync::atomic::Ordering::SeqCst);
+    StatusCode::NO_CONTENT
 }
 
 /// Starts installing the newer build. The page follows the progress in the
@@ -1031,10 +1060,14 @@ async fn update(State(local): State<Local>) -> Reply {
         let release = inner.update.clone().ok_or_else(|| bad("no update"))?;
         let busy = matches!(
             inner.progress,
-            Some(Progress::Download { .. } | Progress::Start)
+            Some(Progress::Download { .. } | Progress::Start | Progress::Restart)
         );
         (!busy).then(|| {
-            inner.progress = Some(Progress::Download { percent: None });
+            inner.progress = Some(Progress::Download {
+                percent: None,
+                done: 0,
+                size: None,
+            });
             release
         })
     };
@@ -1045,9 +1078,18 @@ async fn update(State(local): State<Local>) -> Reply {
     std::thread::spawn(move || {
         let tell = |p: Progress| worker.inner.lock().unwrap().progress = Some(p);
         match crate::update::install(&release, &tell) {
-            // A moment for the page to hear of it.
+            // This window stays until the new one is up, or for half a
+            // minute if the new program never says so.
             Ok(()) => {
-                std::thread::sleep(Duration::from_millis(400));
+                for _ in 0..120 {
+                    if HANDED_OVER.load(std::sync::atomic::Ordering::SeqCst) {
+                        break;
+                    }
+                    std::thread::sleep(Duration::from_millis(250));
+                }
+                worker.stop();
+                worker.server.save();
+                crate::update::log("old program quits");
                 std::process::exit(0);
             }
             Err(_) => tell(Progress::Failed),
@@ -1123,6 +1165,7 @@ pub fn routes(server: soulsync_server::AppState, own: String) -> Router {
         .route("/api/local/resume", post(resume_run))
         .route("/api/local/drop", post(drop_run))
         .route("/api/local/update", post(update))
+        .route("/api/local/handoff", post(handoff))
         .route("/api/local/forget", post(forget))
         .route("/api/local/template", post(template))
         .route("/api/local/fresh", post(fresh))

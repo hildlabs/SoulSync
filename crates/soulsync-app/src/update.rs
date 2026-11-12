@@ -98,11 +98,52 @@ fn swap(exe: &Path, new: &Path) -> std::io::Result<()> {
     moved
 }
 
-/// Removes what an update left behind.
+/// Removes what an update left behind. Right after an update the old
+/// program may still be running, and Windows keeps its file until it quits,
+/// so this tries again for a while in the background.
 pub fn tidy() {
-    if let Ok(exe) = std::env::current_exe() {
-        let _ = std::fs::remove_file(beside(&exe, "old"));
-        let _ = std::fs::remove_file(beside(&exe, "new"));
+    let Ok(exe) = std::env::current_exe() else {
+        return;
+    };
+    let _ = std::fs::remove_file(beside(&exe, "new"));
+    let old = beside(&exe, "old");
+    if !old.exists() {
+        return;
+    }
+    std::thread::spawn(move || {
+        for _ in 0..120 {
+            if std::fs::remove_file(&old).is_ok() || !old.exists() {
+                log("removed the old program");
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(500));
+        }
+        log("could not remove the old program");
+    });
+}
+
+/// Notes a step of an update in `update-log.txt` next to the settings, so a
+/// stuck update can be told apart from a slow one.
+pub fn log(what: &str) {
+    use std::io::Write;
+    let Some(dir) = crate::local::data_dir() else {
+        return;
+    };
+    let path = dir.join("update-log.txt");
+    // Only the latest updates matter.
+    if std::fs::metadata(&path).is_ok_and(|m| m.len() > 64 * 1024) {
+        let _ = std::fs::remove_file(&path);
+    }
+    let at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis());
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
+        let build = build().map_or("-".into(), |b| b.to_string());
+        let _ = writeln!(f, "{at} build {build} pid {}: {what}", std::process::id());
     }
 }
 
@@ -113,9 +154,15 @@ pub enum Progress {
     /// Downloading; the share that is there, where the size is known.
     Download {
         percent: Option<u8>,
+        #[serde(default)]
+        done: u64,
+        #[serde(default)]
+        size: Option<u64>,
     },
     /// Swapping the program file and starting the new one.
     Start,
+    /// The new program is starting; this one quits once its window is up.
+    Restart,
     Failed,
 }
 
@@ -131,6 +178,7 @@ fn fetch(url: &str, to: &Path, on: &dyn Fn(Progress)) -> Result<(), String> {
         .get("content-length")
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.parse::<u64>().ok())
+        .or_else(|| response.body().content_length())
         .filter(|&n| n > 0);
     let mut file = std::fs::File::create(to).map_err(|e| e.to_string())?;
     let mut reader = response.body_mut().as_reader();
@@ -143,10 +191,15 @@ fn fetch(url: &str, to: &Path, on: &dyn Fn(Progress)) -> Result<(), String> {
         }
         file.write_all(&buffer[..n]).map_err(|e| e.to_string())?;
         done += n as u64;
-        let percent = size.map(|size| (done * 100 / size).min(100) as u8);
-        if percent != told {
-            told = percent;
-            on(Progress::Download { percent });
+        // Every percent, or every 256 KB where the size is unknown.
+        let step = size.map_or(done / (256 * 1024), |size| (done * 100 / size).min(100));
+        if Some(step) != told {
+            told = Some(step);
+            on(Progress::Download {
+                percent: size.map(|_| step as u8),
+                done,
+                size,
+            });
         }
     }
     drop(file);
@@ -158,19 +211,36 @@ fn fetch(url: &str, to: &Path, on: &dyn Fn(Progress)) -> Result<(), String> {
     Ok(())
 }
 
+/// Logs why an update stopped and passes it on.
+fn noted(what: &str, why: String) -> String {
+    log(&format!("{what}: {why}"));
+    why
+}
+
 /// Downloads a release, puts it in this program's place and starts it,
 /// telling `on` how far it is. The caller quits afterwards. Blocks.
 pub fn install(release: &Release, on: &dyn Fn(Progress)) -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let new = beside(&exe, "new");
-    on(Progress::Download { percent: None });
-    fetch(&release.url, &new, on)?;
+    log(&format!("downloading build {}", release.build));
+    on(Progress::Download {
+        percent: None,
+        done: 0,
+        size: None,
+    });
+    fetch(&release.url, &new, on).map_err(|e| noted("download failed", e))?;
+    log("downloaded, swapping the program file");
     on(Progress::Start);
-    swap(&exe, &new).map_err(|e| e.to_string())?;
+    swap(&exe, &new)
+        .map_err(|e| e.to_string())
+        .map_err(|e| noted("swap failed", e))?;
     std::process::Command::new(&exe)
         .arg(UPDATED_FLAG)
         .spawn()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string())
+        .map_err(|e| noted("start failed", e))?;
+    log("new program started");
+    on(Progress::Restart);
     Ok(())
 }
 
@@ -252,7 +322,14 @@ mod tests {
         .unwrap();
         assert_eq!(std::fs::read(&to).unwrap(), program);
         let last = steps.lock().unwrap().last().cloned();
-        assert_eq!(last, Some(Progress::Download { percent: Some(100) }));
+        assert!(matches!(
+            last,
+            Some(Progress::Download {
+                percent: Some(100),
+                done: 0x90,
+                size: Some(0x90)
+            })
+        ));
         assert!(fetch(&serve(b"<html>Not found</html>".to_vec()), &to, &|_| {}).is_err());
         assert!(!to.exists());
         std::fs::remove_dir_all(dir).unwrap();
