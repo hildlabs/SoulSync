@@ -13,6 +13,7 @@
 
 mod fresh;
 mod local;
+mod report;
 mod update;
 mod window;
 
