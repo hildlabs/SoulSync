@@ -39,6 +39,7 @@ only tokens, never raw colours, so the light theme works for free.
 | Scene | `--sky1…4`, `--hill1…3`, `--ground`, `--moon`, `--stars`, `--shade` | Background only |
 | Type | `--sans`, `--mono`, `--pix` | See principle 4 |
 | Radius | `--r-sm` 9, `--r-md` 13, `--r-lg` 18 | Inputs and small chips, buttons and cards, panels |
+| Control height | `--ctl` 44 | Everything in the top bar: tabs, chips, toggles, avatars, icon buttons |
 | Motion | `--out` (ease out), `--spring` (overshoot) | Entrances and hovers, pops and pills |
 
 Dark is the default. Light is defined twice with the same values: under
@@ -58,12 +59,15 @@ blocks. The choice is stored in `localStorage` under `soulsync.theme`.
 
 ## Components
 
+Every control in the top bar is exactly `--ctl` high (and icon buttons
+`--ctl` wide), so the bar lines up. A new top-bar control uses `--ctl` too.
+
 | Class | What it is |
 |---|---|
 | `.glass` | Frosted panel. Add it to any new block of content. |
-| `.chip` | 38 px pill in the top bar (code, update). |
+| `.chip` | Pill in the top bar (code, update). |
 | `.pair` | Two-option toggle (language, filters). `aria-pressed` marks the choice. |
-| `.icon-btn` | 38 px square icon button. `aria-current=page` when its view is open. |
+| `.icon-btn` | Square icon button. `aria-current=page` when its view is open. |
 | `.tabbar` + `.pill` | Tabs with a sliding pill; call `movePill()` after layout changes. |
 | `.play` | The one big call to action (Weiterspielen). One per screen at most. |
 | `.sq` | 58 px square secondary action next to `.play`, with a `.tip`. |
