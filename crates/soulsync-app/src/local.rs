@@ -36,6 +36,89 @@ struct Config {
     preset: Option<PathBuf>,
     /// The save every fresh start begins with, kept with the app's data.
     template: Option<PathBuf>,
+    /// Every run this app was in, newest first, to go back to.
+    runs: Vec<Saved>,
+}
+
+/// A run the app was in, with what it takes to play it again.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+struct Saved {
+    code: String,
+    /// As in [`Config::server`]: empty for a run kept in this app.
+    server: String,
+    name: String,
+    rom: Option<PathBuf>,
+    save: Option<PathBuf>,
+    /// The game's name, `{ "en": …, "de": … }`, as the ROM said.
+    game: Option<serde_json::Value>,
+    /// When it was last played, in milliseconds since 1970.
+    at: u64,
+}
+
+/// Runs remembered at most.
+const SAVED_RUNS: usize = 20;
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis() as u64)
+}
+
+impl Config {
+    /// Puts the current run at the top of [`Config::runs`].
+    fn remember(&mut self, at: u64) {
+        let Some(code) = self.code.clone() else {
+            return;
+        };
+        let game = self
+            .rom
+            .as_deref()
+            .map(rom_info)
+            .and_then(|i| i.get("label").filter(|l| !l.is_null()).cloned());
+        self.runs
+            .retain(|r| !(r.code == code && r.server == self.server));
+        self.runs.insert(
+            0,
+            Saved {
+                code,
+                server: self.server.clone(),
+                name: self.name.clone(),
+                rom: self.rom.clone(),
+                save: self.save.clone(),
+                game,
+                at,
+            },
+        );
+        self.runs.truncate(SAVED_RUNS);
+    }
+
+    /// Makes a remembered run the current one again.
+    fn resume(&mut self, run: &Saved) {
+        self.code = Some(run.code.clone());
+        self.server = run.server.clone();
+        self.name = run.name.clone();
+        self.rom = run.rom.clone();
+        self.save = run.save.clone();
+    }
+}
+
+/// Where the encounters of a run are kept. Each run keeps its own, so that
+/// switching runs loses none.
+fn encounters_path(code: &str) -> Option<PathBuf> {
+    let dir = data_dir()?.join("encounters");
+    std::fs::create_dir_all(&dir).ok()?;
+    let safe: String = code
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
+        .collect();
+    let path = dir.join(format!("{safe}.json"));
+    // Builds before runs could be switched kept one file for all.
+    let old = data_dir()?.join("encounters.json");
+    if !path.exists() && old.is_file() && std::fs::copy(&old, &path).is_ok() {
+        let _ = std::fs::rename(&old, old.with_extension("json.old"));
+    }
+    Some(path)
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
@@ -410,6 +493,14 @@ impl Local {
             "save": c.save.as_deref().map(save_info),
             "server": c.server,
             "code": c.code,
+            "runs": c.runs.iter().map(|r| serde_json::json!({
+                "code": r.code,
+                "server": r.server,
+                "name": r.name,
+                "game": r.game,
+                "at": r.at,
+                "current": c.code.as_deref() == Some(r.code.as_str()) && c.server == r.server,
+            })).collect::<Vec<_>>(),
             "phase": inner.phase,
             "message": inner.message,
             "live": inner.live.as_ref().map(|(script, out)| serde_json::json!({
@@ -483,7 +574,7 @@ impl Local {
             .unwrap_or_default();
         let installed = install_live_script();
         let mut live = installed.as_ref().and_then(|(_, out)| {
-            let store = data_dir()?.join("encounters.json");
+            let store = encounters_path(&code)?;
             Some(Live::new(out.clone(), store, locations))
         });
         {
@@ -803,10 +894,85 @@ async fn start(State(local): State<Local>, Json(req): Json<Start>) -> Reply {
     {
         let mut inner = local.inner.lock().unwrap();
         inner.config.code = Some(code);
+        inner.config.remember(now_ms());
         write_config(&inner.config);
     }
     local.start();
     Ok(Json(local.view()))
+}
+
+#[derive(Deserialize)]
+struct RunRef {
+    code: String,
+    #[serde(default)]
+    server: String,
+}
+
+/// Goes back to a remembered run, leaving the current one paused. A run its
+/// server no longer has is forgotten.
+async fn resume_run(State(local): State<Local>, Json(req): Json<RunRef>) -> Reply {
+    let run = {
+        let inner = local.inner.lock().unwrap();
+        inner
+            .config
+            .runs
+            .iter()
+            .find(|r| r.code == req.code && r.server == req.server)
+            .cloned()
+            .ok_or_else(|| bad("unknown run"))?
+    };
+    let found = if run.server.trim().is_empty() {
+        Some(local.server.has_run(&run.code))
+    } else {
+        let url = format!("{}/api/runs/{}", run.server, run.code);
+        tokio::task::spawn_blocking(move || run_exists(&url))
+            .await
+            .unwrap_or(None)
+    };
+    match found {
+        Some(true) => {}
+        // Only a server that answers can say a run is gone.
+        None => return Err(bad("offline")),
+        Some(false) => {
+            let mut inner = local.inner.lock().unwrap();
+            inner.config.runs.retain(|r| r != &run);
+            write_config(&inner.config);
+            return Err(bad("missing"));
+        }
+    }
+    local.stop();
+    {
+        let mut inner = local.inner.lock().unwrap();
+        inner.config.resume(&run);
+        inner.config.remember(now_ms());
+        write_config(&inner.config);
+    }
+    local.start();
+    Ok(Json(local.view()))
+}
+
+/// Takes a run off the list. The run itself stays on its server.
+async fn drop_run(State(local): State<Local>, Json(req): Json<RunRef>) -> Json<serde_json::Value> {
+    {
+        let mut inner = local.inner.lock().unwrap();
+        let c = &mut inner.config;
+        let current = c.code.as_deref() == Some(req.code.as_str()) && c.server == req.server;
+        if !current {
+            c.runs
+                .retain(|r| !(r.code == req.code && r.server == req.server));
+            write_config(c);
+        }
+    }
+    Json(local.view())
+}
+
+/// Whether the server has the run at `url`; `None` if it cannot be asked.
+fn run_exists(url: &str) -> Option<bool> {
+    match ureq::get(url).call() {
+        Ok(_) => Some(true),
+        Err(ureq::Error::StatusCode(404)) => Some(false),
+        Err(_) => None,
+    }
 }
 
 fn ureq_ok(url: &str) -> bool {
@@ -876,7 +1042,8 @@ async fn update(State(local): State<Local>) -> Reply {
     Ok(Json(local.view()))
 }
 
-/// Leaves the run. The run itself stays on its server.
+/// Leaves the run. It stays on its server and in the list of runs, to be
+/// resumed later.
 async fn leave(State(local): State<Local>) -> Json<serde_json::Value> {
     local.stop();
     {
@@ -915,13 +1082,19 @@ pub fn routes(server: soulsync_server::AppState, own: String) -> Router {
         server,
         own,
     };
-    // A run kept in this app is gone after a restart; one on a server is not.
+    // Runs kept in this app are stored with it now, but one may be gone.
     let resume = {
         let mut inner = local.inner.lock().unwrap();
-        if inner.config.server.is_empty() {
-            inner.config.code = None;
+        let c = &mut inner.config;
+        if c.server.is_empty() && !c.code.as_deref().is_some_and(|k| local.server.has_run(k)) {
+            c.code = None;
         }
-        inner.config.code.is_some()
+        // Builds before the list of runs knew only the current one.
+        if c.runs.is_empty() && c.code.is_some() {
+            c.remember(now_ms());
+            write_config(c);
+        }
+        c.code.is_some()
     };
     if resume {
         local.start();
@@ -933,6 +1106,8 @@ pub fn routes(server: soulsync_server::AppState, own: String) -> Router {
         .route("/api/local/pick", post(pick))
         .route("/api/local/start", post(start))
         .route("/api/local/leave", post(leave))
+        .route("/api/local/resume", post(resume_run))
+        .route("/api/local/drop", post(drop_run))
         .route("/api/local/update", post(update))
         .route("/api/local/forget", post(forget))
         .route("/api/local/template", post(template))
@@ -1209,5 +1384,37 @@ mod tests {
         assert_eq!(list.len(), 1);
         assert_eq!((list[0].species, list[0].met_location), (504, 20));
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn remembers_runs_to_switch_between() {
+        let mut c = Config {
+            name: "Hannes".into(),
+            save: Some("duo.dsv".into()),
+            code: Some("ZORUA-0001".into()),
+            ..Config::default()
+        };
+        c.remember(1);
+        // A 4-player run on a server, with another save.
+        c.server = "https://soulsync.example".into();
+        c.save = Some("quad.dsv".into());
+        c.code = Some("HYPNO-0002".into());
+        c.remember(2);
+        assert_eq!(c.runs.len(), 2);
+        assert_eq!(c.runs[0].code, "HYPNO-0002");
+
+        let duo = c.runs[1].clone();
+        c.resume(&duo);
+        c.remember(3);
+        assert_eq!(c.code.as_deref(), Some("ZORUA-0001"));
+        assert_eq!(c.server, "");
+        assert_eq!(c.save.as_deref(), Some(Path::new("duo.dsv")));
+        assert_eq!(
+            c.runs
+                .iter()
+                .map(|r| (r.code.as_str(), r.at))
+                .collect::<Vec<_>>(),
+            [("ZORUA-0001", 3), ("HYPNO-0002", 2)]
+        );
     }
 }
