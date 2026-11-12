@@ -167,6 +167,8 @@ struct Inner {
     /// Whether moves, items and abilities could be read from the ROM: how
     /// many moves, or why not.
     dex: Option<Result<usize, String>>,
+    /// Sprites and item icons of the ROM they were read from.
+    art: Option<(PathBuf, Option<Arc<soulsync_core::art::Art>>)>,
 }
 
 #[derive(Clone)]
@@ -578,6 +580,9 @@ impl Local {
             })).collect::<Vec<_>>(),
             "phase": inner.phase,
             "message": inner.message,
+            "art": c.rom.is_some() || c.original.is_some(),
+            "play": c.rom.as_deref().is_some_and(Path::exists)
+                && c.save.as_deref().and_then(desmume_exe).is_some(),
             "dex": inner.dex.as_ref().map(|d| match d {
                 Ok(moves) => serde_json::json!({ "moves": moves }),
                 Err(why) => serde_json::json!({ "error": why }),
@@ -1247,6 +1252,91 @@ async fn leave(State(local): State<Local>) -> Json<serde_json::Value> {
     Json(local.view())
 }
 
+/// Opens the game being played in DeSmuME.
+async fn play(State(local): State<Local>) -> Reply {
+    let (rom, save) = {
+        let inner = local.inner.lock().unwrap();
+        (inner.config.rom.clone(), inner.config.save.clone())
+    };
+    let rom = rom.filter(|r| r.exists()).ok_or_else(|| bad("rom"))?;
+    let exe = save
+        .as_deref()
+        .and_then(desmume_exe)
+        .ok_or_else(|| bad("emulator"))?;
+    crate::fresh::play(&exe, &rom);
+    Ok(Json(local.view()))
+}
+
+/// The sprites and icons of the ROM being played, or of the original ROM:
+/// both have the same pictures. Read once per ROM.
+fn art(local: &Local) -> Option<Arc<soulsync_core::art::Art>> {
+    let path = {
+        let inner = local.inner.lock().unwrap();
+        let path = inner
+            .config
+            .rom
+            .clone()
+            .or_else(|| inner.config.original.clone())?;
+        if let Some((p, art)) = &inner.art {
+            if *p == path {
+                return art.clone();
+            }
+        }
+        path
+    };
+    let art = std::fs::File::open(&path)
+        .ok()
+        .and_then(|mut f| soulsync_core::art::Art::read(&mut f).ok())
+        .map(Arc::new);
+    local.inner.lock().unwrap().art = Some((path, art.clone()));
+    art
+}
+
+async fn picture(local: Local, id: u16, item: bool) -> Response {
+    let png = tokio::task::spawn_blocking(move || {
+        let art = art(&local)?;
+        if item {
+            art.item_icon(id)
+        } else {
+            art.sprite(id)
+        }
+    })
+    .await
+    .ok()
+    .flatten();
+    match png {
+        Some(png) => (
+            [
+                (header::CONTENT_TYPE, "image/png"),
+                (header::CACHE_CONTROL, "max-age=86400"),
+            ],
+            png,
+        )
+            .into_response(),
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+async fn sprite(
+    State(local): State<Local>,
+    axum::extract::Path(id): axum::extract::Path<u16>,
+) -> Response {
+    if id == 0 || id > 649 {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    picture(local, id, false).await
+}
+
+async fn item_icon(
+    State(local): State<Local>,
+    axum::extract::Path(id): axum::extract::Path<u16>,
+) -> Response {
+    if id == 0 || id > 1000 {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    picture(local, id, true).await
+}
+
 /// Keeps other websites away from the local API: a browser sends their
 /// requests here too. They cannot set the custom header without a preflight,
 /// which this app never answers, and a rebound DNS name fails the Host check.
@@ -1306,6 +1396,9 @@ pub fn routes(server: soulsync_server::AppState, own: String) -> Router {
         .route("/api/local/forget", post(forget))
         .route("/api/local/template", post(template))
         .route("/api/local/fresh", post(fresh))
+        .route("/api/local/play", post(play))
+        .route("/api/local/sprite/{id}", get(sprite))
+        .route("/api/local/item/{id}", get(item_icon))
         .layer(axum::middleware::from_fn(guard))
         .with_state(local)
 }

@@ -4,6 +4,7 @@
 //! later). Of a ROM it reads the header, to tell which game it is, and the
 //! species data a run needs; the ROM itself never leaves the player's machine.
 
+pub mod art;
 pub mod bag;
 pub mod crypto;
 pub mod dex;

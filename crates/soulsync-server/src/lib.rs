@@ -152,6 +152,7 @@ async fn font(Path(file): Path<String>) -> Response {
     let bytes: &'static [u8] = match file.as_str() {
         "Geist.woff2" => include_bytes!("../web/fonts/Geist.woff2"),
         "GeistMono.woff2" => include_bytes!("../web/fonts/GeistMono.woff2"),
+        "Jersey10.woff2" => include_bytes!("../web/fonts/Jersey10.woff2"),
         _ => return StatusCode::NOT_FOUND.into_response(),
     };
     (
