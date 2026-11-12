@@ -2,9 +2,10 @@
 # Updates the run server whenever main has new commits, and does nothing
 # otherwise. Runs survive this since they are kept in the `runs` volume.
 #
-# Run it from cron, for example every 5 minutes:
+# Run it from cron. Players are cut off for a few seconds whenever it does
+# update, so a quiet hour suits best, for example 4 a.m. every day:
 #
-#   (crontab -l 2>/dev/null; echo "*/5 * * * * $PWD/update.sh >> $HOME/soulsync-update.log 2>&1") | crontab -
+#   (crontab -l 2>/dev/null; echo "0 4 * * * $PWD/update.sh >> $HOME/soulsync-update.log 2>&1") | crontab -
 #
 # It starts the server with the `https` profile (Caddy). Set SOULSYNC_PROFILE
 # in the crontab line to change that, or to "" for the server alone.
