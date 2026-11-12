@@ -514,76 +514,83 @@ button:active{transform:scale(.97)}
 .tleg .nve{background:color-mix(in srgb,var(--danger) 24%,transparent);color:var(--muted)}
 .tleg .no{background:var(--text);color:var(--night)}
 
-/* ===== Pokémon card: one overview */
-dialog.mon{width:min(1060px,calc(100vw - 32px));max-height:min(92vh,960px);margin:auto;padding:0;border:1px solid var(--edge-hi);border-radius:22px;background:var(--dlg-bg);color:var(--text);overflow:auto;overscroll-behavior:contain;box-shadow:0 30px 80px -20px rgba(0,0,0,.55);backdrop-filter:blur(20px)}
+/* ===== Pokémon card: a head, then facts | moves + stats | level-up (docs/design.md) */
+dialog.mon{width:min(1320px,calc(100vw - 32px));max-height:min(94vh,1000px);margin:auto;padding:0;border:1px solid var(--edge-hi);border-radius:22px;background:var(--dlg-bg);color:var(--text);overflow:auto;overscroll-behavior:contain;box-shadow:0 30px 80px -20px rgba(0,0,0,.55);backdrop-filter:blur(20px)}
 dialog.mon::backdrop{background:rgba(var(--shade),.55);backdrop-filter:blur(6px)}
 dialog.mon[open]{animation:rise .5s var(--spring) backwards}
-.x{position:absolute;right:14px;top:14px;z-index:2;display:grid;place-items:center;width:34px;height:34px;border-radius:11px;background:var(--ov-2);color:var(--muted);transition:all .2s}
+.x{flex:none;align-self:flex-start;display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:var(--ov-2);border:1px solid var(--edge);color:var(--muted);transition:all .2s}
 .x:hover{background:var(--ov-3);color:var(--text);transform:rotate(90deg)}
-.dh{position:relative;display:grid;grid-template-columns:150px minmax(0,1fr) minmax(0,1.15fr);gap:22px;align-items:center;padding:22px 60px 22px 24px;background:radial-gradient(60% 140% at 8% 40%,color-mix(in srgb,var(--c) 26%,transparent),transparent 70%);border-bottom:1px solid var(--edge)}
-.dstage{position:relative;height:140px;display:grid;place-items:center}
-.dstage::before{content:"";position:absolute;bottom:10px;left:50%;width:130px;height:30px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,color-mix(in srgb,var(--c) 55%,transparent),transparent);animation:pulse 3s ease-in-out infinite}
-.dstage img{position:relative;width:144px;height:144px;image-rendering:pixelated;animation:bob 2.6s ease-in-out infinite}
+.dh{display:flex;align-items:center;gap:24px;padding:22px 24px 22px 28px;background:linear-gradient(90deg,color-mix(in srgb,var(--c) 16%,transparent),transparent 70%);border-bottom:1px solid var(--edge)}
+.dstage{flex:none;position:relative;width:120px;height:120px;display:grid;place-items:center}
+.dstage::before{content:"";position:absolute;bottom:4px;left:50%;width:110px;height:26px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,color-mix(in srgb,var(--c) 55%,transparent),transparent);animation:pulse 3s ease-in-out infinite}
+.dstage img{position:relative;width:128px;height:128px;image-rendering:pixelated;animation:bob 2.6s ease-in-out infinite}
+.did{flex:1;min-width:0}
 .did .who{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted)}
 .did .who i{flex:none;width:8px;height:8px;border-radius:50%;background:var(--c)}
-.did h2{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:6px 0 2px;font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1.1;overflow-wrap:anywhere}
-.did h2 small{font:400 24px var(--pix);color:var(--muted);letter-spacing:0}
+.did h2{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:6px 0 2px;font-size:34px;font-weight:800;letter-spacing:-.02em;line-height:1.1;overflow-wrap:anywhere}
+.did h2 small{font:400 26px var(--pix);color:var(--muted);letter-spacing:0}
 .did .spc{color:var(--muted);font-size:13px}
 .did .tys{margin:8px 0 10px}
-.did .hpl{max-width:280px}
-.facts3{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.fx{padding:9px 11px;border-radius:12px;background:var(--ov-1);border:1px solid var(--edge);min-width:0}
-.fx>span{display:block;font-size:10.5px;color:var(--faint);letter-spacing:.05em;text-transform:uppercase}
-.fx>b{display:flex;align-items:center;gap:8px;margin-top:3px;font-weight:600}
-.fx small{display:block;margin-top:2px;color:var(--muted);font-size:11.5px;line-height:1.35}
-.itm{flex:none;width:28px;height:28px;border-radius:8px;background:var(--ov-2);display:grid;place-items:center;overflow:hidden}
-.itm img{width:24px;height:24px;image-rendering:pixelated}
+.did .hpl{max-width:320px}
+.dparts{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.partner{display:flex;align-items:center;gap:10px;padding:8px 14px 8px 8px;border-radius:12px;border:1px solid color-mix(in srgb,var(--pc) 35%,transparent);background:var(--ov-1);text-align:left;transition:all .25s var(--out)}
+.partner:hover{border-color:var(--pc);background:color-mix(in srgb,var(--pc) 10%,transparent);transform:translateY(-1px)}
+.partner .slot{width:40px;height:40px}
+.partner .slot img{width:52px;height:52px;margin:-26px 0 0 -26px}
+.partner small{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:11px}
+.partner small i{flex:none;width:6px;height:6px;border-radius:50%;background:var(--pc)}
+.partner b{font-size:13px;font-weight:600}
+.partner b em{margin-left:6px;font:400 15px var(--pix);font-style:normal;color:var(--muted)}
+.db{display:grid;grid-template-columns:290px minmax(0,1fr) 330px;gap:20px;padding:20px 28px 24px}
+.db>section{display:flex;flex-direction:column;gap:10px;min-width:0}
+.db h3{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin:0;font-size:11px;font-weight:500;color:var(--faint);letter-spacing:.06em;text-transform:uppercase}
+.db h3 em{font-style:normal;text-transform:none;letter-spacing:0;color:var(--muted);font-size:12px;font-weight:400}
+.db h3.gap{margin-top:10px}
+.mon-note{margin:0 28px;padding:14px 0 0;font-size:13px;color:var(--muted)}
+.fx{display:flex;align-items:flex-start;gap:12px;padding:13px 15px;border-radius:14px;background:var(--ov-1);border:1px solid var(--edge);min-width:0}
+.fx>div{min-width:0}
+.fx span{display:block;font-size:11px;color:var(--faint)}
+.fx b{display:block;margin-top:2px;font-size:14px;font-weight:600}
+.fx small{display:block;margin-top:3px;color:var(--muted);font-size:12px;line-height:1.4}
+.itm{flex:none;width:36px;height:36px;border-radius:9px;background:var(--ov-2);display:grid;place-items:center;overflow:hidden}
+.itm img{width:32px;height:32px;image-rendering:pixelated}
 .nat{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
 .nat span{display:inline-flex;align-items:center;gap:3px;font-size:11.5px;font-weight:600}
 .nat .up{color:var(--up)}.nat .dn{color:var(--dn)}
 .nat svg,.sts svg{width:9px;height:9px}
-.partner{display:flex;align-items:center;gap:10px;width:100%;padding:6px 10px 6px 6px;border-radius:12px;border:1px dashed var(--edge-hi);text-align:left;transition:all .25s var(--out)}
-.partner:hover{border-style:solid;border-color:var(--pc);background:color-mix(in srgb,var(--pc) 10%,transparent)}
-.partner .slot{width:36px;height:36px}
-.partner .slot img{width:48px;height:48px;margin:-24px 0 0 -24px}
-.partner small{display:block;color:var(--muted);font-size:11px}
-.partner b{font-size:12.5px;font-weight:600}
-.db{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)}
-.db>section{padding:18px 22px;min-width:0}
-.db>section+section{border-left:1px solid var(--edge)}
-.db h3{display:flex;justify-content:space-between;gap:8px;margin:0 0 10px;font-size:11.5px;font-weight:600;color:var(--muted);letter-spacing:.05em;text-transform:uppercase}
-.db h3+*+h3,.db h3.gap{margin-top:20px}
-.db h3 em{font-style:normal;text-transform:none;letter-spacing:0;color:var(--faint);font-weight:500}
-.mon-note{margin:0 22px;padding:12px 0 0;font-size:13px;color:var(--muted)}
-.db .mon-note{margin:0;padding:0}
-.mvr{display:grid;grid-template-columns:68px minmax(0,1fr) 20px 44px 48px 58px;gap:10px;align-items:center;padding:9px 4px;border-top:1px solid var(--edge)}
-.mvr:first-child,.mvr.hd+.mvr{border-top:0}
-.mvr.hd{padding:0 4px 6px;font-size:10.5px;color:var(--faint);letter-spacing:.04em;text-transform:uppercase}
-.mvr.hd span:nth-child(n+4){text-align:right}
-.mvr .ty{justify-self:start;min-width:58px;text-align:center}
-.mvr .mn{min-width:0}
-.mvr .mn b{display:block;font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mvr .mn small{display:block;color:var(--faint);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mvr .n{font:400 18px var(--pix);text-align:right}
-.mvr .n.dim{color:var(--faint)}
-.mvr .n.low{color:var(--dn)}
-.mvr .ci{display:grid;place-items:center;color:var(--muted)}
-.mvr .ci svg{width:16px;height:16px}
-.mvr .ci.physical{color:var(--a)}.mvr .ci.special{color:var(--b)}
-.lsr{display:grid;grid-template-columns:50px minmax(0,1fr) auto;gap:10px;align-items:center;padding:6px 4px;border-top:1px solid var(--edge);font-size:13px}
-.lsr:first-child{border-top:0}
-.lsr .l{font:400 18px var(--pix);color:var(--muted)}
-.lsr b{font-weight:600;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lsr.has,.lsr.past{opacity:.5}
-.lsr.next b,.lsr.next .l,.lsr .nx{color:var(--c)}
-.lsr .nx{font-size:11px;font-weight:600}
-.sts{display:grid;grid-template-columns:110px 36px minmax(0,1fr);gap:6px 10px;align-items:center;font-size:13px}
+.mvg{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.mvc{display:flex;flex-direction:column;gap:8px;padding:14px 16px;border-radius:14px;background:var(--ov-1);border:1px solid var(--edge);min-width:0}
+.mvc .tg{display:flex;gap:6px;flex-wrap:wrap}
+.mvc>b{font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mvc p{flex:1;margin:0;font-size:12px;line-height:1.45;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mvc .nums{display:flex;flex-wrap:wrap;gap:4px 18px;align-items:baseline;font-size:11px;color:var(--faint)}
+.mvc .nums b{margin-left:6px;font:400 18px var(--pix);color:var(--text)}
+.mvc .nums b.dim{color:var(--faint)}.mvc .nums b.low{color:var(--dn)}
+.mvc.free{align-items:center;justify-content:center;min-height:110px;background:none;border-style:dashed;color:var(--faint);font-size:12.5px}
+.cat{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:500;color:var(--cc,var(--muted));background:color-mix(in srgb,var(--cc,var(--muted)) 13%,transparent)}
+.cat::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.cat.physical{--cc:var(--a)}.cat.special{--cc:var(--b)}
+.sts2{display:grid;grid-template-columns:1fr 1fr;gap:8px 28px}
+.sts{display:grid;grid-template-columns:96px 30px minmax(0,1fr);gap:8px 10px;align-items:center;font-size:12.5px}
 .sts span{display:flex;align-items:center;gap:5px;color:var(--muted)}
-.sts b{font:400 19px var(--pix);text-align:right}
-.sts i{height:7px;border-radius:4px;background:var(--ov-2);overflow:hidden}
-.sts i::after{content:"";display:block;height:100%;width:var(--w);background:var(--bc,var(--muted));border-radius:4px;animation:grow 1s var(--out) both}
+.sts b{font:400 18px var(--pix);text-align:right}
+.sts i{height:6px;border-radius:3px;background:var(--ov-2);overflow:hidden}
+.sts i::after{content:"";display:block;height:100%;width:var(--w);background:var(--bc,var(--muted));border-radius:3px;animation:grow 1s var(--out) both}
 .sts .up{color:var(--up)}.sts .dn{color:var(--dn)}
 .sts .up+b+i{--bc:var(--up)}.sts .dn+b+i{--bc:var(--dn)}
+.lsn{padding:13px 15px;border-radius:14px;border:1px solid color-mix(in srgb,var(--c) 45%,transparent);background:color-mix(in srgb,var(--c) 8%,transparent)}
+.lsn>span{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--c)}
+.lsn>div{display:flex;align-items:center;gap:10px;margin-top:6px}
+.lsn .l{font:400 22px var(--pix)}
+.lsn b{flex:1;min-width:0;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lsn small{display:block;margin-top:4px;color:var(--muted);font-size:12px}
+.lsr{display:grid;grid-template-columns:46px minmax(0,1fr) auto;gap:10px;align-items:center;padding:6px 4px;border-bottom:1px solid var(--edge);font-size:13px}
+.lsr .l{font:400 16px var(--pix);color:var(--muted)}
+.lsr b{font-weight:500;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lsr.has,.lsr.past{opacity:.45}
+.lsr .nx{font-size:11px;font-weight:600;color:var(--muted)}
+
+@media (max-height:760px){.dh{padding-top:14px;padding-bottom:14px}.db{padding-top:14px;padding-bottom:16px}}
 
 /* ===== start + setup (no run yet) */
 .stage-page{flex:1;min-height:0;overflow-y:auto;padding:6px 2px 24px}
@@ -688,9 +695,10 @@ details.adv .field{margin-top:12px}
   .hero{grid-template-columns:minmax(0,1fr)}
   .orden{min-width:0}
   .status span{display:none}
-  .dh{grid-template-columns:120px minmax(0,1fr);padding-right:56px}
-  .dh .facts3{grid-column:1/-1}
-  .dstage img{width:120px;height:120px}
+  .dh{flex-wrap:wrap}
+  .dparts{order:3;width:100%;justify-content:flex-start}
+  .db{grid-template-columns:260px minmax(0,1fr)}
+  .db>section.lsc{grid-column:1/-1}
 }
 /* narrower than a laptop: the page scrolls as a whole, the sidebar becomes a strip */
 @media (max-width:1040px){
@@ -713,7 +721,6 @@ details.adv .field{margin-top:12px}
   .tgrid{min-width:640px}
   .types{overflow-x:auto}
   .db{grid-template-columns:minmax(0,1fr)}
-  .db>section+section{border-left:0;border-top:1px solid var(--edge)}
   .form{grid-template-columns:minmax(0,1fr)}
   .grid2,.pairs,.rcols{grid-template-columns:minmax(0,1fr)}
 }
@@ -742,11 +749,11 @@ details.adv .field{margin-top:12px}
   .wild2{grid-template-columns:64px minmax(0,1fr) 72px}
   .stage{width:64px;height:64px}.stage img{width:72px;height:72px}
   .ring{width:72px;height:72px}.ring b{font-size:26px}
-  .dh{grid-template-columns:minmax(0,1fr);text-align:left}
-  .dstage{height:110px}
-  .facts3{grid-template-columns:minmax(0,1fr)}
-  .mvr{grid-template-columns:60px minmax(0,1fr) 40px 50px}
-  .mvr .ci,.mvr>:nth-child(5),.mvr.hd>:nth-child(3),.mvr.hd>:nth-child(5){display:none}
+  .dh{gap:14px;padding:18px}
+  .dstage{width:84px;height:84px}.dstage img{width:96px;height:96px}
+  .did h2{font-size:26px}
+  .db{padding:16px 18px 20px}
+  .mvg,.sts2{grid-template-columns:minmax(0,1fr)}
   .pairc{padding-inline:4px}
   .fhead h1{font-size:34px}
 }
@@ -851,7 +858,7 @@ waitPlayer: n => `Waiting for player ${n}`, playerN: n => `Player ${n}`, fPlayer
     capsErr: "Use whole numbers from 1 to 100, separated by commas.", league: "League",
     capsRom: "Read from your ROM: the strongest Pokémon of each gym leader, then of the Pokémon League.", capsGame: g => `Could not read the levels from your ROM. These are the levels of ${g}.`, capsNoRom: "Choose your ROM first, so the caps can be read from it.",
     mon: { open: "Show moves and details", close: "Close", moves: "Moves", learn: "Level-up moves", item: "Held item", ability: "Ability", nature: "Nature", stats: "Stats", none: "None", hp: "HP",
-      cat: { physical: "Physical", special: "Special", status: "Status" }, pow: "Power", acc: "Accuracy", prio: "Priority", pp: "PP", knows: "knows it", next: "next", neutral: "No stat change", type: "Type", name: "Name", accShort: "Acc.", linked: "Linked  ·  ", total: "Total", nextFirst: "next first",
+      cat: { physical: "Physical", special: "Special", status: "Status" }, pow: "Power", acc: "Accuracy", prio: "Priority", pp: "PP", knows: "knows it", next: "next", neutral: "No stat change", type: "Type", name: "Name", accShort: "Acc.", linked: "Linked  ·  ", total: "Total", nextFirst: "next first", facts: "Facts", learnShort: "Level-up", nextUp: "Next up", inLv: n => `in ${n} level${n === 1 ? "" : "s"}`, nowLv: n => `now Lv ${n}`, of: n => `${n} of 4`, free: "Empty move slot",
       moveN: n => `Move #${n}`, met: (l, n) => `met in ${l} at Lv ${n}`,
       loading: "Reading names from the ROM…", noDex: "Names and effects of moves, items and abilities come from this player's ROM. They appear once the player runs the latest SoulSync app.",
       noMoves: "Moves, item and ability show up after this player's next save with the latest SoulSync app.", noStats: "Stats are only stored for Pokémon in the team.",
@@ -919,7 +926,7 @@ waitPlayer: n => `Warte auf Spieler ${n}`, playerN: n => `Spieler ${n}`, fPlayer
     capsErr: "Bitte ganze Zahlen von 1 bis 100, durch Kommas getrennt.", league: "Liga",
     capsRom: "Aus deiner ROM gelesen: das stärkste Pokémon jedes Arenaleiters, danach der Pokémon-Liga.", capsGame: g => `Die Level ließen sich nicht aus deiner ROM lesen. Das sind die Level von ${g}.`, capsNoRom: "Wähle zuerst deine ROM, damit die Caps daraus gelesen werden können.",
     mon: { open: "Attacken und Details zeigen", close: "Schließen", moves: "Attacken", learn: "Attacken durch Levelaufstieg", item: "Getragenes Item", ability: "Fähigkeit", nature: "Wesen", stats: "Werte", none: "Keins", hp: "KP",
-      cat: { physical: "Physisch", special: "Speziell", status: "Status" }, pow: "Stärke", acc: "Genauigkeit", prio: "Priorität", pp: "AP", knows: "kann es", next: "als Nächstes", neutral: "Keine Wertänderung", type: "Typ", name: "Name", accShort: "Gen.", linked: "Verbunden  ·  ", total: "Summe", nextFirst: "nächste zuerst",
+      cat: { physical: "Physisch", special: "Speziell", status: "Status" }, pow: "Stärke", acc: "Genauigkeit", prio: "Priorität", pp: "AP", knows: "kann es", next: "als Nächstes", neutral: "Keine Wertänderung", type: "Typ", name: "Name", accShort: "Gen.", linked: "Verbunden  ·  ", total: "Summe", nextFirst: "nächste zuerst", facts: "Steckbrief", learnShort: "Levelaufstieg", nextUp: "Als Nächstes", inLv: n => `in ${n} Level${n === 1 ? "" : "n"}`, nowLv: n => `jetzt Lv ${n}`, of: n => `${n} von 4`, free: "Freier Attackenplatz",
       moveN: n => `Attacke #${n}`, met: (l, n) => `getroffen in ${l} auf Lv ${n}`,
       loading: "Namen werden aus der ROM gelesen…", noDex: "Namen und Effekte von Attacken, Items und Fähigkeiten kommen aus der ROM dieses Spielers. Sie erscheinen, sobald er die neueste SoulSync-App nutzt.",
       noMoves: "Attacken, Item und Fähigkeit erscheinen nach dem nächsten Speichern dieses Spielers mit der neuesten SoulSync-App.", noStats: "Werte sind nur für Pokémon im Team gespeichert.",
@@ -1806,16 +1813,19 @@ function openCard(seat, pid) {
 }
 
 const CATS = ["physical", "special", "status"];
-function moveRow(mv, info, pp, max) {
-  const c = t().mon;
-  if (!info) return `<div class="mvr"><span></span><span class="mn"><b>${esc(c.moveN(mv))}</b></span><span></span><span class="n dim">–</span><span class="n dim">–</span><span class="n">${pp != null ? pp + (max ? "/" + max : "") : ""}</span></div>`;
-  const cat = CATS.includes(info.category) ? `<span class="ci ${info.category}" title="${esc(c.cat[info.category])}">${ICON[info.category]}</span>` : "<span></span>";
+function moveCard(mv, info, pp, max) {
+  const c = t().mon, ppTxt = pp != null ? pp + (max ? "/" + max : "") : "–";
+  if (!info) return `<div class="mvc"><b>${esc(c.moveN(mv))}</b><div class="nums"><span>${c.pp}<b>${ppTxt}</b></span></div></div>`;
+  const cat = CATS.includes(info.category) ? `<span class="cat ${info.category}">${esc(c.cat[info.category])}</span>` : "";
   const pow = info.power > 1 ? info.power : null, acc = info.accuracy && info.accuracy <= 100 ? info.accuracy : null;
   const prio = info.priority ? `${c.prio} ${info.priority > 0 ? "+" : ""}${info.priority}  ·  ` : "";
   const low = max && pp * 4 <= max;
-  return `<div class="mvr">${info.type ? tyChip(info.type) : "<span></span>"}<span class="mn"><b>${esc(info.name)}</b><small title="${esc(info.text || "")}">${esc(prio + (info.text || ""))}</small></span>${cat}<span class="n${pow ? "" : " dim"}">${pow || "–"}</span><span class="n${acc ? "" : " dim"}">${acc || "–"}</span><span class="n${low ? " low" : ""}">${pp}${max ? "/" + max : ""}</span></div>`;
+  const num = (k, v, cls) => `<span>${k}<b class="${cls}">${v}</b></span>`;
+  return `<div class="mvc"><div class="tg">${info.type ? tyChip(info.type) : ""}${cat}</div><b>${esc(info.name)}</b><p title="${esc(info.text || "")}">${esc(prio + (info.text || ""))}</p><div class="nums">${num(c.pow, pow || "–", pow ? "" : "dim")}${num(c.acc, acc || "–", acc ? "" : "dim")}${num(c.pp, ppTxt, low ? "low" : "")}</div></div>`;
 }
 
+// One screen, no scrolling at 1920 × 1080: a head with the Pokémon and its
+// partners, then facts | moves and stats | level-up moves.
 function cardHtml(seat, p, dex) {
   const c = t().mon, b = p.battle, pl = state.players[seat];
   const info = id => dex && dex.moves[id];
@@ -1824,57 +1834,63 @@ function cardHtml(seat, p, dex) {
   const item = p.item ? entry(dex && dex.items, p.item) : null, ab = entry(dex && dex.abilities, p.ability);
   const up = Math.floor(p.nature / 5), down = p.nature % 5;
   const natFx = up === down ? `<small>${c.neutral}</small>` : `<div class="nat"><span class="up">${ICON.up}${esc(c.st[STATS[up]])}</span><span class="dn">${ICON.dn}${esc(c.st[STATS[down]])}</span></div>`;
-  // The partner of this Pokémon in its link, to switch to.
+  // The partners of this Pokémon in its link, to switch to.
   const link = state.links.find(l => l.sides[seat] && l.sides[seat].pokemon.pid === p.pid);
   const partners = link ? link.sides.map((s, j) => s && j !== seat ? [s, j] : null).filter(Boolean) : [];
-  const partner = partners.map(([s, j]) => `<button type="button" class="partner" style="--pc:${col(j)}" data-mon="${s.pokemon.pid}" data-seat="${j}"><span class="slot">${spriteImg(s.pokemon)}</span><span><small>${c.linked}${esc(seatName(j))}</small><b>${esc(label(s.pokemon))}${s.pokemon.battle ? `  ·  ${t().lv} ${s.pokemon.battle.level}` : ""}</b></span></button>`).join("");
-  const fx = (k, body) => `<div class="fx"><span>${k}</span>${body}</div>`;
-  const facts = `<div class="facts3">
-    ${fx(c.item, `<b>${item || p.item ? itemImg(p.item) : ""}${esc(item ? item.name : p.item ? "#" + p.item : c.none)}</b>${item && item.text ? `<small>${esc(item.text)}</small>` : ""}`)}
-    ${fx(c.nature, `<b>${esc(c.natures[p.nature] || "#" + p.nature)}</b>${natFx}`)}
-    ${fx(c.ability, `<b>${esc(ab ? ab.name : "#" + p.ability)}</b>${ab && ab.text ? `<small>${esc(ab.text)}</small>` : ""}`)}
-    ${partner ? `<div class="fx" style="padding:6px;display:flex;flex-direction:column;gap:6px">${partner}</div>` : ""}
-  </div>`;
-  const head = `<header class="dh" style="--c:${col(seat)}"><button type="button" class="x" data-close aria-label="${c.close}"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M2 2l10 10M12 2 2 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+  const partner = partners.map(([s, j]) => `<button type="button" class="partner" style="--pc:${col(j)}" data-mon="${s.pokemon.pid}" data-seat="${j}"><span class="slot">${spriteImg(s.pokemon)}</span><span><small><i></i>${c.linked}${esc(seatName(j))}</small><b>${esc(label(s.pokemon))}${s.pokemon.battle ? `<em>${t().lv} ${s.pokemon.battle.level}</em>` : ""}</b></span></button>`).join("");
+  const head = `<header class="dh">
     <div class="dstage">${spriteImg(p)}</div>
     <div class="did"><p class="who"><i></i>${esc(pl ? pl.name : seatName(seat))}  ·  ${esc(c.met(p.met_location_name ? nameOf(p.met_location_name) : "#" + p.met_location, p.met_level))}</p>
       <h2>${esc(label(p))}${b ? `<small>${t().lv} ${b.level}</small>` : ""}</h2>
       ${p.is_nicknamed ? `<div class="spc">${esc(species(p))}</div>` : ""}
       <div class="tys">${(p.types || []).map(tyChip).join("")}${ail}</div>
       ${b ? hpLine(b) : ""}</div>
-    ${p.moves && p.moves.length ? facts : ""}</header>`;
+    ${partner ? `<div class="dparts">${partner}</div>` : ""}
+    <button type="button" class="x" data-close aria-label="${c.close}"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M2 2l10 10M12 2 2 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></header>`;
 
   let note = "";
   if (dex === undefined) note = `<p class="mon-note">${c.loading}</p>`;
   else if (!dex) note = `<p class="mon-note">${c.noDex}</p>`;
   if (!p.moves || !p.moves.length) return head + `<p class="mon-note" style="padding-bottom:22px">${c.noMoves}</p>`;
 
-  const known = new Set(p.moves.map(m => m.id));
-  const moves = `<h3>${c.moves}</h3><div class="mvl"><div class="mvr hd"><span>${c.type}</span><span>${c.name}</span><span></span><span>${c.pow}</span><span>${c.accShort}</span><span>${c.pp}</span></div>${p.moves.map(m => {
-    const i = info(m.id), max = i ? Math.floor(i.pp * (5 + m.pp_ups) / 5) : null;
-    return moveRow(m.id, i, m.pp, max);
-  }).join("")}</div>`;
+  const fx = (k, v, more = "", icon = "") => `<div class="fx">${icon}<div><span>${k}</span><b>${v}</b>${more}</div></div>`;
+  const facts = `<section><h3>${c.facts}</h3>
+    ${fx(c.item, esc(item ? item.name : p.item ? "#" + p.item : c.none), item && item.text ? `<small>${esc(item.text)}</small>` : "", p.item ? itemImg(p.item) : "")}
+    ${fx(c.nature, esc(c.natures[p.nature] || "#" + p.nature), natFx)}
+    ${fx(c.ability, esc(ab ? ab.name : "#" + p.ability), ab && ab.text ? `<small>${esc(ab.text)}</small>` : "")}</section>`;
 
-  let learn = "";
-  const ls = dex && dex.learnsets && dex.learnsets[p.species - 1];
-  if (ls && ls.length) {
-    const lv = b ? b.level : 0, nextLv = (ls.find(([l]) => l > lv) || [])[0];
-    const row = ([l, id]) => {
-      const i = info(id), cls = known.has(id) ? "has" : l <= lv ? "past" : l === nextLv ? "next" : "";
-      return `<div class="lsr ${cls}"><span class="l">${t().lv} ${l || "–"}</span><b>${esc(i ? i.name : c.moveN(id))}</b>${l === nextLv && !known.has(id) ? `<span class="nx">${c.next}</span>` : known.has(id) ? `<span class="nx" style="color:var(--muted)">${c.knows}</span>` : i && i.type ? tyChip(i.type) : "<span></span>"}</div>`;
-    };
-    // Coming moves first, then those already passed.
-    const ahead = ls.filter(([l, id]) => l > lv && !known.has(id)), behind = ls.filter(x => !ahead.includes(x));
-    learn = `<h3 class="gap">${c.learn}<em>${c.nextFirst}</em></h3><div>${ahead.concat(behind).map(row).join("")}</div>`;
-  }
+  const known = new Set(p.moves.map(m => m.id));
+  const cards = p.moves.map(m => {
+    const i = info(m.id), max = i ? Math.floor(i.pp * (5 + m.pp_ups) / 5) : null;
+    return moveCard(m.id, i, m.pp, max);
+  });
+  while (cards.length < 4) cards.push(`<div class="mvc free">${c.free}</div>`);
 
   let stats = "";
   if (p.stats && b) {
     const all = [b.max_hp, ...STATS.map(k => p.stats[k])], mx = Math.max(60, ...all) * 1.05;
     const row = (k, v, cls) => `<span class="${cls}">${esc(k)}${cls ? ICON[cls] : ""}</span><b>${v}</b><i style="--w:${(v / mx * 100).toFixed(0)}%"></i>`;
-    stats = `<h3>${c.stats}<em>${c.total} ${all.reduce((a, x) => a + x, 0)}</em></h3><div class="sts">${row(c.hp, b.max_hp, "")}${STATS.map((k, i) => row(c.st[k], p.stats[k], up === down ? "" : i === up ? "up" : i === down ? "dn" : "")).join("")}</div>`;
-  } else stats = `<h3>${c.stats}</h3><p class="mon-note">${c.noStats}</p>`;
-  return head + note + `<div class="db"><section>${moves}${learn}</section><section>${stats}</section></div>`;
+    const rows = [row(c.hp, b.max_hp, ""), ...STATS.map((k, i) => row(c.st[k], p.stats[k], up === down ? "" : i === up ? "up" : i === down ? "dn" : ""))];
+    stats = `<h3 class="gap">${c.stats}<em>${c.total} ${all.reduce((a, x) => a + x, 0)}</em></h3><div class="sts2"><div class="sts">${rows.slice(0, 3).join("")}</div><div class="sts">${rows.slice(3).join("")}</div></div>`;
+  } else stats = `<h3 class="gap">${c.stats}</h3><p class="mon-note" style="margin:0;padding:0">${c.noStats}</p>`;
+  const moves = `<section><h3>${c.moves}<em>${c.of(p.moves.length)}</em></h3><div class="mvg">${cards.join("")}</div>${stats}</section>`;
+
+  let learn = "";
+  const ls = dex && dex.learnsets && dex.learnsets[p.species - 1];
+  if (ls && ls.length) {
+    const lv = b ? b.level : 0;
+    // Coming moves first, the next one on its own card, then those already passed.
+    const ahead = ls.filter(([l, id]) => l > lv && !known.has(id)), behind = ls.filter(x => !ahead.includes(x));
+    const [nx, ...rest] = ahead;
+    const name = id => { const i = info(id); return esc(i ? i.name : c.moveN(id)); };
+    const row = ([l, id]) => {
+      const i = info(id), cls = known.has(id) ? "has" : l <= lv ? "past" : "";
+      return `<div class="lsr ${cls}"><span class="l">${t().lv} ${l || "–"}</span><b>${name(id)}</b>${known.has(id) ? `<span class="nx">${c.knows}</span>` : i && i.type ? tyChip(i.type) : "<span></span>"}</div>`;
+    };
+    const next = nx ? `<div class="lsn"><span>${c.nextUp}</span><div><span class="l">${t().lv} ${nx[0]}</span><b>${name(nx[1])}</b>${info(nx[1]) && info(nx[1]).type ? tyChip(info(nx[1]).type) : ""}</div>${b ? `<small>${c.inLv(nx[0] - lv)}</small>` : ""}</div>` : "";
+    learn = `<section class="lsc"><h3>${c.learnShort}${b ? `<em>${c.nowLv(lv)}</em>` : ""}</h3>${next}<div>${rest.concat(behind).map(row).join("")}</div></section>`;
+  }
+  return head + note + `<div class="db">${facts}${moves}${learn}</div>`;
 }
 
 function updateCard() {
@@ -1887,6 +1903,7 @@ function updateCard() {
   if (dlg._sig === sig) return;
   const top = dlg.scrollTop;
   dlg._sig = sig;
+  dlg.style.setProperty("--c", col(cardSel.seat));
   dlg.innerHTML = cardHtml(cardSel.seat, p, dex);
   dlg.scrollTop = top;
 }

@@ -77,7 +77,7 @@ Every control in the top bar is exactly `--ctl` high (and icon buttons
 | `.capbar` | Striped level-cap bar with the cap in pixel digits. |
 | `.rblock` | A settings or rules section with an `h2`. |
 | `.cmd` | A command line with a copy button. |
-| `dialog.mon` | The Pokémon overview; one page, no tabs. |
+| `dialog.mon` | The Pokémon overview, one screen without scrolling: a head (sprite, name, HP, link partners), then three columns: facts, moves as a 2×2 grid of `.mvc` cards with the stats under them, and level-up moves with the next one on its own `.lsn` card. |
 
 Type badges come from `tyChip(type)`, HP from `hpLine(hp, max)`, sprites from
 `spriteImg(species)` and held items from `itemImg(item)`. Reuse them.
