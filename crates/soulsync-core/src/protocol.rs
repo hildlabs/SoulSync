@@ -23,6 +23,9 @@ pub enum ClientMsg {
     /// Catch rates read from the player's ROM, by National Dex number
     /// (index 0 is species 1).
     CatchRates { rates: Vec<u8> },
+    /// Moves, abilities, items and learnsets from the player's ROM, which a
+    /// randomizer makes different for every player.
+    Dex { dex: Box<crate::rom::RomDex> },
 }
 
 /// Sent by the server.
@@ -145,6 +148,10 @@ pub struct PlayerState {
     pub snapshot: Option<SaveSnapshot>,
     /// Unix time in milliseconds of the last snapshot.
     pub updated_at: Option<u64>,
+    /// Whether the player's ROM supplied a dex, served at
+    /// `/api/runs/<code>/dex?player=<name>`.
+    #[serde(default)]
+    pub dex: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

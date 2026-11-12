@@ -112,6 +112,7 @@ pub fn app(state: AppState) -> Router {
         .route("/api/runs", post(create_run))
         .route("/api/runs/{code}", get(get_run))
         .route("/api/runs/{code}/species", get(species))
+        .route("/api/runs/{code}/dex", get(dex))
         .route("/api/runs/{code}/attempt", post(new_attempt))
         .route("/api/runs/{code}/ws", get(ws))
         .layer(axum::middleware::map_response(allow_any_origin))
@@ -210,6 +211,27 @@ async fn species(State(app): State<AppState>, Path(code): Path<String>) -> Respo
     Json(serde_json::json!({ "from_rom": e.run.has_rom_data(), "species": list })).into_response()
 }
 
+#[derive(Deserialize)]
+struct DexQuery {
+    player: String,
+}
+
+/// Moves, abilities, items and learnsets of one player's ROM.
+async fn dex(
+    State(app): State<AppState>,
+    Path(code): Path<String>,
+    Query(q): Query<DexQuery>,
+) -> Response {
+    let runs = app.runs.lock().unwrap();
+    let Some(e) = runs.get(&normalize(&code)) else {
+        return (StatusCode::NOT_FOUND, "run not found").into_response();
+    };
+    match e.run.dex(&q.player) {
+        Some(dex) => Json(dex).into_response(),
+        None => (StatusCode::NOT_FOUND, "no dex for this player").into_response(),
+    }
+}
+
 /// The players wiped and start over under the same code.
 async fn new_attempt(State(app): State<AppState>, Path(code): Path<String>) -> Response {
     let code = normalize(&code);
@@ -299,6 +321,16 @@ async fn session(app: AppState, code: String, player: Option<String>, mut socket
                         };
                         tracing::info!(%code, player = %name, events = n, "snapshot");
                         app.broadcast(&code);
+                    }
+                    Ok(ClientMsg::Dex { dex }) => {
+                        let changed = {
+                            let mut runs = app.runs.lock().unwrap();
+                            runs.get_mut(&code).is_some_and(|e| e.run.set_dex(&name, dex))
+                        };
+                        if changed {
+                            tracing::info!(%code, player = %name, "dex from ROM");
+                            app.broadcast(&code);
+                        }
                     }
                     Ok(ClientMsg::CatchRates { rates }) => {
                         let changed = {

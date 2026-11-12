@@ -4,7 +4,9 @@
 //! needs come from the ROM the player actually plays. Only the few bytes
 //! asked for are read; nothing of the ROM is stored or sent on.
 
+use crate::dex::Type;
 use crate::game::Game;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::io::{self, Read, Seek, SeekFrom};
 
@@ -265,6 +267,174 @@ pub fn read_level_caps<R: Read + Seek>(rom: &mut R, game: Game) -> Result<Vec<u8
         .ok_or(bad)
 }
 
+/// The game's texts, its move data and the moves each species learns.
+const TEXTS: &str = "a/0/0/2";
+const MOVES: &str = "a/0/2/1";
+const LEARNSETS: &str = "a/0/1/8";
+
+/// Which text file holds what, by game. From the randomizer's tables
+/// (`gen5_offsets.ini` of the Universal Pokémon Randomizer ZX).
+struct TextFiles {
+    move_names: usize,
+    move_texts: usize,
+    ability_names: usize,
+    ability_texts: usize,
+    item_names: usize,
+    item_texts: usize,
+}
+
+const TEXTS_BW: TextFiles = TextFiles {
+    move_names: 203,
+    move_texts: 202,
+    ability_names: 182,
+    ability_texts: 183,
+    item_names: 54,
+    item_texts: 53,
+};
+
+const TEXTS_B2W2: TextFiles = TextFiles {
+    move_names: 403,
+    move_texts: 402,
+    ability_names: 374,
+    ability_texts: 375,
+    item_names: 64,
+    item_texts: 63,
+};
+
+/// Whether a move hits physically, specially or not at all.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Category {
+    Status,
+    Physical,
+    Special,
+}
+
+/// A move as this ROM has it. A randomizer can change all of it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MoveInfo {
+    pub name: String,
+    pub text: String,
+    pub r#type: Option<Type>,
+    pub category: Option<Category>,
+    /// 0 for moves without a fixed power.
+    pub power: u8,
+    /// Percent; 101 means it never misses.
+    pub accuracy: u8,
+    pub pp: u8,
+    pub priority: i8,
+}
+
+/// A name and what the game says about it.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Entry {
+    pub name: String,
+    pub text: String,
+}
+
+/// What a run's dashboard shows about moves, abilities and items, in the
+/// language of the ROM, and what each species learns by level up.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RomDex {
+    /// By move number.
+    pub moves: Vec<MoveInfo>,
+    /// By ability number.
+    pub abilities: Vec<Entry>,
+    /// By item number.
+    pub items: Vec<Entry>,
+    /// By National Dex number minus one: (level, move) pairs in game order.
+    pub learnsets: Vec<Vec<(u8, u16)>>,
+}
+
+/// Names with their texts; the texts only if the file has one per name.
+fn entries(names: Vec<String>, texts: Option<Vec<String>>) -> Vec<Entry> {
+    let texts = texts.filter(|t| t.len() == names.len());
+    names
+        .into_iter()
+        .enumerate()
+        .map(|(i, name)| Entry {
+            name,
+            text: texts
+                .as_ref()
+                .and_then(|t| t.get(i).cloned())
+                .unwrap_or_default(),
+        })
+        .collect()
+}
+
+/// Reads moves, abilities, items and learnsets out of the ROM.
+pub fn read_dex<R: Read + Seek>(rom: &mut R, game: Game) -> Result<RomDex, RomError> {
+    let files = match game {
+        Game::Black | Game::White => &TEXTS_BW,
+        Game::Black2 | Game::White2 => &TEXTS_B2W2,
+    };
+    let texts = read_file(rom, TEXTS)?;
+    let texts = narc_entries(&texts).ok_or(RomError::Layout("text archive"))?;
+    let text = |i: usize| texts.get(i).and_then(|f| crate::text::read(f));
+    let bad = || RomError::Layout("text archive");
+
+    let move_data = read_file(rom, MOVES)?;
+    let move_data = narc_entries(&move_data).ok_or(RomError::Layout("move archive"))?;
+    let move_texts = text(files.move_texts).unwrap_or_default();
+    let moves = text(files.move_names)
+        .ok_or_else(bad)?
+        .into_iter()
+        .enumerate()
+        .map(|(i, name)| {
+            let d = move_data.get(i).copied().unwrap_or(&[]);
+            let byte = |at: usize| d.get(at).copied().unwrap_or(0);
+            MoveInfo {
+                name,
+                text: move_texts.get(i).cloned().unwrap_or_default(),
+                r#type: d.first().and_then(|&t| Type::from_index(t.into())),
+                category: match d.get(2) {
+                    Some(0) => Some(Category::Status),
+                    Some(1) => Some(Category::Physical),
+                    Some(2) => Some(Category::Special),
+                    _ => None,
+                },
+                power: byte(3),
+                accuracy: byte(4),
+                pp: byte(5),
+                priority: byte(6) as i8,
+            }
+        })
+        .collect();
+
+    let abilities = entries(
+        text(files.ability_names).ok_or_else(bad)?,
+        text(files.ability_texts),
+    );
+    let items = entries(
+        text(files.item_names).ok_or_else(bad)?,
+        text(files.item_texts),
+    );
+
+    let sets = read_file(rom, LEARNSETS)?;
+    let sets = narc_entries(&sets).ok_or(RomError::Layout("learnset archive"))?;
+    let learnsets = (1..=SPECIES)
+        .map(|species| {
+            let set = sets.get(species).copied().unwrap_or(&[]);
+            set.chunks_exact(4)
+                .map(|c| {
+                    (
+                        u16::from_le_bytes([c[0], c[1]]),
+                        u16::from_le_bytes([c[2], c[3]]),
+                    )
+                })
+                .take_while(|&(m, l)| m != 0xFFFF && l != 0xFFFF)
+                .filter_map(|(m, l)| Some((u8::try_from(l).ok()?, m)))
+                .collect()
+        })
+        .collect();
+    Ok(RomDex {
+        moves,
+        abilities,
+        items,
+        learnsets,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -417,5 +587,43 @@ mod tests {
         let (data, parties) = trainers(&b2w2[1..]);
         let image = rom(&[("a/0/9/1", data), ("a/0/9/2", parties)]);
         assert!(read_level_caps(&mut Cursor::new(&image), Game::White2).is_err());
+    }
+
+    #[test]
+    fn reads_moves_abilities_items_and_learnsets() {
+        use crate::text::build;
+        let mut texts: Vec<Vec<u8>> = vec![Vec::new(); 404];
+        texts[403] = build(&["-", "Pfund", "Psychokinese"]);
+        texts[402] = build(&["", "Ein Hieb.", "Ein starker\u{FFFE}Angriff."]);
+        texts[374] = build(&["-", "Schwebe"]);
+        texts[375] = build(&["", "Immun gegen Boden."]);
+        texts[64] = build(&["-", "Überreste"]);
+        texts[63] = build(&["Heilt"]); // one text short: left out
+        let mut psychic = vec![0u8; 36];
+        psychic[..7].copy_from_slice(&[13, 0, 2, 90, 100, 10, 0]);
+        let moves = vec![vec![0u8; 36], vec![0, 0, 1, 40, 100, 35, 0], psychic];
+        let mut sets = vec![Vec::new(); SPECIES + 1];
+        // Cresselia: Psychic at 1 and 38.
+        sets[488] = [2u16, 1, 2, 38, 0xFFFF, 0xFFFF]
+            .iter()
+            .flat_map(|v| v.to_le_bytes())
+            .collect();
+        let image = rom(&[
+            ("a/0/0/2", narc(&texts)),
+            ("a/0/2/1", narc(&moves)),
+            ("a/0/1/8", narc(&sets)),
+        ]);
+        let dex = read_dex(&mut Cursor::new(image), Game::Black2).unwrap();
+        let m = &dex.moves[2];
+        assert_eq!(m.name, "Psychokinese");
+        assert_eq!(m.text, "Ein starker Angriff.");
+        assert_eq!(m.r#type, Some(Type::Psychic));
+        assert_eq!(m.category, Some(Category::Special));
+        assert_eq!((m.power, m.accuracy, m.pp), (90, 100, 10));
+        assert_eq!(dex.abilities[1].text, "Immun gegen Boden.");
+        assert_eq!(dex.items[1].name, "Überreste");
+        assert_eq!(dex.items[1].text, "");
+        assert_eq!(dex.learnsets[487], [(1, 2), (38, 2)]);
+        assert!(dex.learnsets[0].is_empty());
     }
 }

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use soulsync_core::protocol::{
     player_seed, LogEntry, PlayerState, RunSettings, RunState, MAX_PLAYERS,
 };
-use soulsync_core::{diff, links, Event, SaveSnapshot};
+use soulsync_core::{diff, links, Event, RomDex, SaveSnapshot};
 use std::collections::{HashSet, VecDeque};
 
 /// Log entries kept per run.
@@ -24,6 +24,9 @@ struct Player {
     /// sends its save before its encounters, which must not log them again.
     #[serde(default)]
     met: HashSet<u32>,
+    /// Moves, abilities, items and learnsets of this player's ROM.
+    #[serde(default)]
+    dex: Option<Box<RomDex>>,
 }
 
 /// One run. Stored as JSON by the server, so fields added later need a
@@ -89,6 +92,26 @@ impl Run {
         true
     }
 
+    /// Takes the dex of a player's ROM. Returns whether it changed anything.
+    pub fn set_dex(&mut self, name: &str, dex: Box<RomDex>) -> bool {
+        let Some(p) = self.player_mut(name.trim()) else {
+            return false;
+        };
+        if p.dex.as_ref() == Some(&dex) {
+            return false;
+        }
+        p.dex = Some(dex);
+        true
+    }
+
+    /// The dex of a player's ROM, if it sent one.
+    pub fn dex(&self, name: &str) -> Option<&RomDex> {
+        self.players
+            .iter()
+            .find(|p| p.name == name.trim())
+            .and_then(|p| p.dex.as_deref())
+    }
+
     /// Catch rate of a species in this run.
     pub fn catch_rate(&self, species: u16) -> Option<u8> {
         let from_rom = self
@@ -125,6 +148,7 @@ impl Run {
             snapshot: None,
             updated_at: None,
             met: HashSet::new(),
+            dex: None,
         });
         Ok(())
     }
@@ -189,6 +213,7 @@ impl Run {
                     connected: p.connections > 0,
                     snapshot: p.snapshot.clone(),
                     updated_at: p.updated_at,
+                    dex: p.dex.is_some(),
                 })
                 .collect(),
             links: links(&snaps),
@@ -233,6 +258,24 @@ mod tests {
             fallen: vec![],
             wild: None,
         }
+    }
+
+    #[test]
+    fn each_player_keeps_the_dex_of_their_own_rom() {
+        let mut r = Run::new("ZORUA-1234".into(), 7, RunSettings::default());
+        r.join("Hannes").unwrap();
+        r.join("Alex").unwrap();
+        let dex = RomDex {
+            learnsets: vec![vec![(1, 33)]],
+            ..RomDex::default()
+        };
+        assert!(r.set_dex("Hannes", Box::new(dex.clone())));
+        assert!(!r.set_dex("Hannes", Box::new(dex.clone())));
+        assert!(!r.set_dex("Nobody", Box::new(dex.clone())));
+        assert_eq!(r.dex("Hannes"), Some(&dex));
+        assert!(r.dex("Alex").is_none());
+        let s = r.state();
+        assert!(s.players[0].dex && !s.players[1].dex);
     }
 
     #[test]

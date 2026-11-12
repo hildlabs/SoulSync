@@ -11,7 +11,8 @@ use serde::{Deserialize, Serialize};
 use soulsync_client::{create_run, load, session, ws_url, End, Live, Update};
 use soulsync_core::protocol::RunSettings;
 use soulsync_core::{
-    read_catch_rates, read_level_caps, read_map_locations, read_rom_header, Lang, ROM_HEADER_LEN,
+    read_catch_rates, read_dex, read_level_caps, read_map_locations, read_rom_header, Lang,
+    ROM_HEADER_LEN,
 };
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -427,15 +428,19 @@ fn write_config(config: &Config) {
     }
 }
 
-/// What the Settings tab shows about a ROM.
-fn rom_info(path: &Path) -> serde_json::Value {
+/// Which game a ROM is, from its header.
+fn rom_game(path: &Path) -> Option<soulsync_core::Game> {
     use std::io::Read;
     let mut header = [0u8; ROM_HEADER_LEN];
-    let info = std::fs::File::open(path)
+    std::fs::File::open(path)
         .and_then(|mut f| f.read_exact(&mut header))
-        .ok()
-        .and_then(|()| read_rom_header(&header));
-    let game = info.as_ref().and_then(|i| i.game);
+        .ok()?;
+    read_rom_header(&header)?.game
+}
+
+/// What the Settings tab shows about a ROM.
+fn rom_info(path: &Path) -> serde_json::Value {
+    let game = rom_game(path);
     // Level caps follow the gym leaders of this very ROM; the unmodified
     // game's levels stand in if they cannot be read.
     let caps = game.map(|g| {
@@ -565,8 +570,16 @@ impl Local {
             return;
         };
         let url = ws_url(&server, &code, &config.name);
-        let mut rom = config.rom.and_then(|p| std::fs::File::open(p).ok());
+        let mut rom = config
+            .rom
+            .as_ref()
+            .and_then(|p| std::fs::File::open(p).ok());
         let rates = rom.as_mut().and_then(|f| read_catch_rates(f).ok());
+        let game = config.rom.as_deref().and_then(rom_game);
+        let dex = rom
+            .as_mut()
+            .zip(game)
+            .and_then(|(f, g)| read_dex(f, g).ok());
         // Without them encounters cannot be placed; the party still syncs.
         let locations = rom
             .as_mut()
@@ -608,6 +621,7 @@ impl Local {
                     &save,
                     live.as_mut(),
                     rates.as_deref(),
+                    dex.as_ref(),
                     &mut last,
                     &mut report,
                 )

@@ -270,6 +270,59 @@ main{display:flex;flex-direction:column;min-height:0}
 .ecell b{font-weight:500;line-height:1.3}
 .ecell small{font-size:13px;color:var(--muted);line-height:1.3}
 .ecell.none{color:var(--faint)}
+/* Pokémon card */
+[data-mon]{cursor:pointer}
+.idg[data-mon]:focus-visible,.slot[data-mon]:focus-visible{outline:2px solid var(--c,var(--text));outline-offset:3px;border-radius:10px}
+.idg[data-mon]:hover .slot,.slot[data-mon]:hover{box-shadow:inset 0 0 0 1.5px var(--c,var(--faint))}
+dialog.mon{width:min(560px,calc(100vw - 32px));max-height:min(86vh,900px);margin:auto;padding:0 22px 22px;border:1px solid var(--line);border-radius:16px;background:var(--surface);color:var(--text);overflow:auto;overscroll-behavior:contain}
+dialog.mon::backdrop{background:rgb(0 0 0 / .45)}
+dialog.mon[open]{animation:rise .3s var(--out) both}
+.mon-h{position:sticky;top:0;z-index:1;display:flex;align-items:flex-start;gap:14px;margin:0 -22px;padding:20px 22px 12px;background:var(--surface)}
+.mon-h .slot{width:64px;height:64px;border-radius:14px}
+.mon-h .slot img{width:84px;height:84px;margin:-42px 0 0 -42px}
+.mon-h>div{flex:1;min-width:0}
+.mon-h h2{font-size:20px;font-weight:600;letter-spacing:-.01em;line-height:1.25;overflow-wrap:anywhere}
+.mon-h h2 small{font-size:14px;font-weight:500;color:var(--muted)}
+.mon-h .tys{display:flex;flex-wrap:wrap;justify-content:flex-start;gap:6px;margin-top:4px;align-items:center}
+.mon-h .sp{font-size:13px;color:var(--muted);margin-right:2px}
+.who{display:flex;align-items:center;gap:7px;margin-top:6px;font-size:13px;color:var(--muted)}
+.who i{flex:none;width:8px;height:8px;border-radius:50%;background:var(--c)}
+.x{flex:none;width:32px;height:32px;border-radius:8px;font-size:22px;line-height:1;color:var(--muted)}
+.x:hover{background:var(--raised);color:var(--text)}
+.mon-hp{display:flex;align-items:center;gap:12px;font-size:13px;color:var(--muted);margin:2px 0 6px}
+.mon-hp .hp{flex:1;max-width:220px}
+dialog.mon section{margin-top:18px}
+dialog.mon h3{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.mon-note{margin-top:14px;font-size:13px;color:var(--muted)}
+.mvs{list-style:none;margin:0;padding:0}
+.mv{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"n x" "s s";column-gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}
+.mv:last-child{border-bottom:0}
+.mv-n{grid-area:n;display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0}
+.mv-n b{font-weight:500;margin-right:2px}
+.mv>small{grid-area:s;font-size:12.5px;line-height:1.45;color:var(--muted);margin-top:2px}
+.mv>.pp,.mv>.tag{grid-area:x;align-self:center;font-size:13px;white-space:nowrap}
+.pp.low{color:var(--warn)}
+.cat{font-size:11.5px;line-height:18px;padding:0 7px;border-radius:999px;background:var(--raised);color:var(--muted)}
+.cat.physical{color:var(--a)}.cat.special{color:var(--b)}
+.ls .mv{grid-template-columns:34px minmax(0,1fr) auto;grid-template-areas:"l n x" ". s s"}
+.lsl{grid-area:l;align-self:center;font-size:13px;color:var(--muted)}
+.ls .past{opacity:.55}
+.ls .has .mv-n b{color:var(--ok)}
+.ls .next .lsl,.ls .next .tag{color:var(--text);font-weight:600}
+.tag{color:var(--muted)}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.fact{padding:10px 12px;border-radius:10px;background:var(--raised);min-width:0}
+.fact span{display:block;font-size:12px;color:var(--muted)}
+.fact b{display:block;font-weight:500}
+.fact small{display:block;font-size:12.5px;line-height:1.45;color:var(--muted);margin-top:2px}
+.sts{display:grid;gap:6px}
+.st{display:grid;grid-template-columns:96px 40px minmax(0,1fr);align-items:center;gap:10px;font-size:13px}
+.st span{color:var(--muted)}
+.st b{font-weight:500;text-align:right}
+.st i{height:6px;border-radius:3px;background:var(--raised);position:relative;overflow:hidden}
+.st i::after{content:"";position:absolute;inset:0;width:calc(var(--w) * 100%);border-radius:3px;background:var(--faint)}
+.st.up span,.st.up b{color:var(--ok)}.st.up i::after{background:var(--ok)}
+.st.down span,.st.down b{color:var(--danger)}
 .slot.sm{width:34px;height:34px;border-radius:8px}
 .slot.sm img{width:46px;height:46px;margin:-23px 0 0 -23px}
 .est{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
@@ -533,6 +586,13 @@ waitPlayer: n => `Waiting for player ${n}`, playerN: n => `Player ${n}`, fPlayer
     caps: "Level caps", capsPh: "13, 18, 24, 30", capsHelp: "One level per gym, in order. Leave empty to play without caps.", create: "Create run",
     capsErr: "Use whole numbers from 1 to 100, separated by commas.", league: "League",
     capsRom: "Read from your ROM: the strongest Pokémon of each gym leader, then of the Pokémon League.", capsGame: g => `Could not read the levels from your ROM. These are the levels of ${g}.`, capsNoRom: "Choose your ROM first, so the caps can be read from it.",
+    mon: { open: "Show moves and details", close: "Close", moves: "Moves", learn: "Level-up moves", item: "Held item", ability: "Ability", nature: "Nature", stats: "Stats", none: "None", hp: "HP",
+      cat: { physical: "Physical", special: "Special", status: "Status" }, pow: "Power", acc: "Accuracy", prio: "Priority", pp: "PP", knows: "knows", next: "next", neutral: "No stat change",
+      moveN: n => `Move #${n}`, met: (l, n) => `met in ${l} at Lv ${n}`,
+      loading: "Reading names from the ROM…", noDex: "Names and effects of moves, items and abilities come from this player's ROM. They appear once the player runs the latest SoulSync app.",
+      noMoves: "Moves, item and ability show up after this player's next save with the latest SoulSync app.", noStats: "Stats are only stored for Pokémon in the team.",
+      st: { attack: "Attack", defense: "Defense", speed: "Speed", sp_attack: "Sp. Atk", sp_defense: "Sp. Def" },
+      natures: ["Hardy", "Lonely", "Brave", "Adamant", "Naughty", "Bold", "Docile", "Relaxed", "Impish", "Lax", "Timid", "Hasty", "Serious", "Jolly", "Naive", "Modest", "Mild", "Quiet", "Bashful", "Rash", "Calm", "Gentle", "Sassy", "Careful", "Quirky"] },
     types: {},
   },
   de: {
@@ -584,6 +644,13 @@ waitPlayer: n => `Warte auf Spieler ${n}`, playerN: n => `Spieler ${n}`, fPlayer
     caps: "Level-Caps", capsPh: "13, 18, 24, 30", capsHelp: "Ein Level pro Arena, der Reihe nach. Leer lassen, um ohne Caps zu spielen.", create: "Run erstellen",
     capsErr: "Bitte ganze Zahlen von 1 bis 100, durch Kommas getrennt.", league: "Liga",
     capsRom: "Aus deiner ROM gelesen: das stärkste Pokémon jedes Arenaleiters, danach der Pokémon-Liga.", capsGame: g => `Die Level ließen sich nicht aus deiner ROM lesen. Das sind die Level von ${g}.`, capsNoRom: "Wähle zuerst deine ROM, damit die Caps daraus gelesen werden können.",
+    mon: { open: "Attacken und Details zeigen", close: "Schließen", moves: "Attacken", learn: "Attacken durch Levelaufstieg", item: "Getragenes Item", ability: "Fähigkeit", nature: "Wesen", stats: "Werte", none: "Keins", hp: "KP",
+      cat: { physical: "Physisch", special: "Speziell", status: "Status" }, pow: "Stärke", acc: "Genauigkeit", prio: "Priorität", pp: "AP", knows: "kann es", next: "als Nächstes", neutral: "Keine Wertänderung",
+      moveN: n => `Attacke #${n}`, met: (l, n) => `getroffen in ${l} auf Lv ${n}`,
+      loading: "Namen werden aus der ROM gelesen…", noDex: "Namen und Effekte von Attacken, Items und Fähigkeiten kommen aus der ROM dieses Spielers. Sie erscheinen, sobald er die neueste SoulSync-App nutzt.",
+      noMoves: "Attacken, Item und Fähigkeit erscheinen nach dem nächsten Speichern dieses Spielers mit der neuesten SoulSync-App.", noStats: "Werte sind nur für Pokémon im Team gespeichert.",
+      st: { attack: "Angriff", defense: "Verteidigung", speed: "Initiative", sp_attack: "Sp.-Angr.", sp_defense: "Sp.-Vert." },
+      natures: ["Robust", "Solo", "Mutig", "Hart", "Frech", "Kühn", "Sanft", "Locker", "Pfiffig", "Lasch", "Scheu", "Hastig", "Ernst", "Froh", "Naiv", "Mäßig", "Mild", "Ruhig", "Zaghaft", "Hitzig", "Still", "Zart", "Forsch", "Sacht", "Kauzig"] },
     types: { normal: "Normal", fire: "Feuer", water: "Wasser", electric: "Elektro", grass: "Pflanze", ice: "Eis", fighting: "Kampf", poison: "Gift", ground: "Boden", flying: "Flug", psychic: "Psycho", bug: "Käfer", rock: "Gestein", ghost: "Geist", dragon: "Drache", dark: "Unlicht", steel: "Stahl" },
   },
 };
@@ -904,7 +971,7 @@ function mount() {
       <section class="catch" id="catch"></section>
       <section><h2>${t().activity}</h2><div class="feed" id="feed"></div><p class="feed-empty" id="nofeed" hidden>${t().noEvents}</p></section>
     </aside>
-  </div>`;
+  </div><dialog class="mon" id="mon"></dialog>`;
   bindChrome();
   mountCatch();
   mounted = true;
@@ -1100,7 +1167,7 @@ function sideHtml(m, i) {
   }
   else stat = `<span class="lv"><span>${t().lv}</span><b class="roll" data-v="${b.level}"><span>${b.level}</span></b></span><span class="hp"><i class="ghost"></i><i class="fill"></i></span><span class="hpn"></span>`;
   const tys = (p.types || []).map(ty => `<span class="ty" style="--tc:${TCOL[ty]}">${esc(typeName(ty))}</span>`).join("");
-  return `<div class="stat">${stat}</div><div class="idg"><div class="names"><b title="${esc(species(p))}">${esc(label(p))}</b><div class="tys">${tys}</div></div><span class="slot">${spriteImg(p)}</span></div>`;
+  return `<div class="stat">${stat}</div><div class="idg" data-mon="${p.pid}" data-seat="${i}" role="button" tabindex="0" title="${esc(t().mon.open)}"><div class="names"><b title="${esc(species(p))}">${esc(label(p))}</b><div class="tys">${tys}</div></div><span class="slot">${spriteImg(p)}</span></div>`;
 }
 
 function patchStat(el, m, i, fresh) {
@@ -1173,11 +1240,133 @@ function patchTile(el, m) {
   el.classList.toggle("lost", m.dead);
   const why = fallen ? t().evFainted(label(fallen.pokemon)).replace(/<[^>]+>/g, "").replace(/\.$/, "") : missed ? `${species(missed.pokemon)} ${t().missed.toLowerCase()}` : "";
   const sub = locName(m.link) + (why ? "  ·  " + why : "");
-  const slot = p => `<span class="slot sm${p ? "" : " empty"}">${p ? spriteImg(p) : ""}</span>`;
+  const slot = (p, i) => p ? `<span class="slot sm" data-mon="${p.pid}" data-seat="${i}" role="button" tabindex="0">${spriteImg(p)}</span>` : `<span class="slot sm empty"></span>`;
   const names = mons.filter(Boolean);
-  el.innerHTML = `<span class="duo">${mons.map((p, i) => (i ? `<u style="--l:${col(i - 1)};--r:${col(i)}"></u>` : "") + slot(p)).join("")}</span><span class="tt"><b>${names.map(p => esc(label(p))).join(` ${t().and} `)}</b><small>${esc(sub)}</small></span>`;
+  el.innerHTML = `<span class="duo">${mons.map((p, i) => (i ? `<u style="--l:${col(i - 1)};--r:${col(i)}"></u>` : "") + slot(p, i)).join("")}</span><span class="tt"><b>${names.map(p => esc(label(p))).join(` ${t().and} `)}</b><small>${esc(sub)}</small></span>`;
   el.title = names.map(species).join(` ${t().and} `);
 }
+
+/* ---------- Pokémon card: moves, item, ability, nature, stats, learnset */
+// Names and texts come from each player's own ROM, since a randomizer changes them.
+const dexes = new Map();
+let cardSel = null;
+const STATS = ["attack", "defense", "speed", "sp_attack", "sp_defense"];
+
+function findMon(seat, pid) {
+  const pl = state && state.players[seat], snap = pl && pl.snapshot;
+  const own = snap && [...snap.party, ...snap.boxes].find(p => p.pid === pid);
+  if (own) return own;
+  for (const l of state ? state.links : []) { const s = l.sides[seat]; if (s && s.pokemon.pid === pid) return s.pokemon; }
+  return null;
+}
+
+// undefined while loading, null if this player's ROM sent none.
+function dexFor(seat) {
+  const pl = state.players[seat];
+  if (DEMO) return window.SoulSyncDemoDex || null;
+  if (!pl || !pl.dex) return null;
+  const key = [state.code, pl.name, state.attempt || 1].join("|");
+  let d = dexes.get(key);
+  if (!d) {
+    d = { data: undefined };
+    dexes.set(key, d);
+    fetch(`${SRV}/api/runs/${encodeURIComponent(state.code)}/dex?player=${encodeURIComponent(pl.name)}`)
+      .then(r => r.ok ? r.json() : null).catch(() => null)
+      .then(x => { d.data = x; updateCard(); });
+  }
+  return d.data;
+}
+
+function openCard(seat, pid) {
+  cardSel = { seat, pid };
+  const dlg = $("#mon");
+  dlg._sig = ""; dlg.scrollTop = 0;
+  if (!dlg.open) dlg.showModal();
+  updateCard();
+}
+
+function moveRow(mv, info, extra, cls = "", lead = "") {
+  const c = t().mon;
+  if (!info) return `<li class="mv ${cls}">${lead}<div class="mv-n"><b>${esc(c.moveN(mv))}</b></div>${extra || ""}</li>`;
+  const ty = info.type ? `<span class="ty" style="--tc:${TCOL[info.type]}">${esc(typeName(info.type))}</span>` : "";
+  const cat = info.category ? `<span class="cat ${info.category}">${esc(c.cat[info.category])}</span>` : "";
+  const facts = [info.power > 1 ? `${c.pow} ${info.power}` : null, info.accuracy && info.accuracy <= 100 ? `${c.acc} ${info.accuracy} %` : null, info.priority ? `${c.prio} ${info.priority > 0 ? "+" : ""}${info.priority}` : null].filter(Boolean);
+  return `<li class="mv ${cls}">${lead}<div class="mv-n"><b>${esc(info.name)}</b>${ty}${cat}</div>${extra || ""}<small>${esc([facts.join("  ·  "), info.text].filter(Boolean).join("  ·  "))}</small></li>`;
+}
+
+function cardHtml(seat, p, dex) {
+  const c = t().mon, b = p.battle, pl = state.players[seat];
+  const info = id => dex && dex.moves[id];
+  const tys = (p.types || []).map(ty => `<span class="ty" style="--tc:${TCOL[ty]}">${esc(typeName(ty))}</span>`).join("");
+  const ail = p.ailment && t().ail[p.ailment] ? `<span class="note warn">${esc(t().ail[p.ailment])}</span>` : "";
+  const hp = b ? `<div class="mon-hp"><span class="hp${b.hp / b.max_hp < .35 ? " low" : ""}" style="--r:${b.max_hp ? (b.hp / b.max_hp).toFixed(3) : 0}"><i class="ghost"></i><i class="fill"></i></span><span>${c.hp} ${b.hp}/${b.max_hp}</span>${ail}</div>` : "";
+  const head = `<header class="mon-h" style="--c:${col(seat)}"><span class="slot">${spriteImg(p)}</span>
+    <div><h2>${esc(label(p))}${b ? ` <small>${t().lv} ${b.level}</small>` : ""}</h2>
+    <div class="tys">${p.is_nicknamed ? `<span class="sp">${esc(species(p))}</span>` : ""}${tys}</div>
+    <p class="who"><i></i>${esc(pl ? pl.name : seatName(seat))}  ·  ${esc(c.met(p.met_location_name ? nameOf(p.met_location_name) : "#" + p.met_location, p.met_level))}</p></div>
+    <button type="button" class="x" data-close aria-label="${c.close}">×</button></header>${hp}`;
+
+  let note = "";
+  if (dex === undefined) note = `<p class="mon-note">${c.loading}</p>`;
+  else if (!dex) note = `<p class="mon-note">${c.noDex}</p>`;
+  if (!p.moves || !p.moves.length) return head + `<p class="mon-note">${c.noMoves}</p>`;
+
+  const known = new Set(p.moves.map(m => m.id));
+  const moves = `<section><h3>${c.moves}</h3><ul class="mvs">${p.moves.map(m => {
+    const i = info(m.id), max = i ? Math.floor(i.pp * (5 + m.pp_ups) / 5) : null;
+    return moveRow(m.id, i, `<span class="pp${max && m.pp * 4 <= max ? " low" : ""}">${c.pp} ${m.pp}${max ? "/" + max : ""}</span>`);
+  }).join("")}</ul></section>`;
+
+  const entry = (list, id) => dex && list[id] ? list[id] : null;
+  const item = p.item ? entry(dex ? dex.items : [], p.item) : null, ab = entry(dex ? dex.abilities : [], p.ability);
+  const fact = (k, e, fallback) => `<div class="fact"><span>${k}</span><b>${esc(e ? e.name : fallback)}</b>${e && e.text ? `<small>${esc(e.text)}</small>` : ""}</div>`;
+  const up = Math.floor(p.nature / 5), down = p.nature % 5;
+  const natFx = up === down ? c.neutral : `+${c.st[STATS[up]]}  −${c.st[STATS[down]]}`;
+  const facts = `<section class="facts">${fact(c.item, item, p.item ? "#" + p.item : c.none)}${fact(c.ability, ab, "#" + p.ability)}<div class="fact"><span>${c.nature}</span><b>${esc(c.natures[p.nature] || "#" + p.nature)}</b><small>${esc(natFx)}</small></div></section>`;
+
+  let stats = "";
+  if (p.stats && b) {
+    const row = (k, v, cls) => `<div class="st ${cls || ""}"><span>${k}</span><b>${v}</b><i style="--w:${Math.min(1, v / Math.max(60, b.level * 3)).toFixed(3)}"></i></div>`;
+    stats = `<section><h3>${c.stats}</h3><div class="sts">${row(c.hp, b.max_hp)}${STATS.map((k, i) => row(c.st[k], p.stats[k], up === down ? "" : i === up ? "up" : i === down ? "down" : "")).join("")}</div></section>`;
+  } else stats = `<section><h3>${c.stats}</h3><p class="mon-note">${c.noStats}</p></section>`;
+
+  let learn = "";
+  const ls = dex && dex.learnsets[p.species - 1];
+  if (ls && ls.length) {
+    const lv = b ? b.level : 0, nextLv = (ls.find(([l]) => l > lv) || [])[0];
+    learn = `<section><h3>${c.learn}</h3><ul class="mvs ls">${ls.map(([l, id]) => {
+      const cls = known.has(id) ? "has" : l <= lv ? "past" : l === nextLv ? "next" : "";
+      const tag = known.has(id) ? c.knows : l === nextLv ? c.next : "";
+      return moveRow(id, info(id), tag ? `<span class="tag">${tag}</span>` : "", cls, `<span class="lsl">${l || "–"}</span>`);
+    }).join("")}</ul></section>`;
+  }
+  return head + note + moves + facts + stats + learn;
+}
+
+function updateCard() {
+  const dlg = $("#mon");
+  if (!dlg || !dlg.open || !cardSel || !state) return;
+  const p = findMon(cardSel.seat, cardSel.pid);
+  if (!p) { dlg.close(); return; }
+  const dex = dexFor(cardSel.seat);
+  const sig = JSON.stringify([p, dex === undefined ? 0 : dex ? 1 : 2, lang, state.players[cardSel.seat] && state.players[cardSel.seat].name]);
+  if (dlg._sig === sig) return;
+  const top = dlg.scrollTop;
+  dlg._sig = sig;
+  dlg.innerHTML = cardHtml(cardSel.seat, p, dex);
+  dlg.scrollTop = top;
+}
+
+document.addEventListener("click", e => {
+  const dlg = $("#mon");
+  if (dlg && dlg.open && (e.target === dlg || e.target.closest("[data-close]"))) { dlg.close(); return; }
+  const el = e.target.closest && e.target.closest("[data-mon]");
+  if (el) openCard(+el.dataset.seat, +el.dataset.mon);
+});
+document.addEventListener("keydown", e => {
+  const el = (e.key === "Enter" || e.key === " ") && e.target.closest && e.target.closest("[data-mon]");
+  if (el) { e.preventDefault(); openCard(+el.dataset.seat, +el.dataset.mon); }
+});
 
 // Full rows where stats matter (open, team); compact tiles for box and lost.
 function updateLinks() {
@@ -1542,7 +1731,7 @@ function render() {
     bindChrome(); updateStatus(); mounted = false; return;
   }
   if (!mounted) mount();
-  updateStatus(); updatePlayers(); updateSetup(); updateLinks(); updateRail(); updateEncounters(); updateTimeline(); updateTypes(); updateRules(); updateSettings(); updateCatch();
+  updateStatus(); updatePlayers(); updateSetup(); updateLinks(); updateRail(); updateEncounters(); updateTimeline(); updateTypes(); updateRules(); updateSettings(); updateCatch(); updateCard();
 }
 
 function apply(next) { state = next; conn = "live"; render(); }
