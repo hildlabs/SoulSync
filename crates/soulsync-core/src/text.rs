@@ -21,15 +21,16 @@ pub fn read(file: &[u8]) -> Option<Vec<String>> {
         return None;
     }
     let base = u32_at(file, 0x0C)? as usize;
-    (0..entries)
-        .map(|i| {
-            let at = base + 4 + i * 8;
-            let offset = base + u32_at(file, at)? as usize;
-            let len = usize::from(u16_at(file, at + 4)?);
-            let units: Option<Vec<u16>> = (0..len).map(|j| u16_at(file, offset + 2 * j)).collect();
-            Some(decode(&decrypt(&units?)))
-        })
-        .collect()
+    u32_at(file, base)?;
+    // An entry that cannot be read stays empty instead of losing the file.
+    let entry = |i: usize| -> Option<String> {
+        let at = base + 4 + i * 8;
+        let offset = base + u32_at(file, at)? as usize;
+        let len = usize::from(u16_at(file, at + 4)?);
+        let units: Option<Vec<u16>> = (0..len).map(|j| u16_at(file, offset + 2 * j)).collect();
+        Some(decode(&decrypt(&units?)))
+    };
+    Some((0..entries).map(|i| entry(i).unwrap_or_default()).collect())
 }
 
 fn decrypt(units: &[u16]) -> Vec<u16> {
@@ -111,6 +112,15 @@ pub(crate) fn build(entries: &[&str]) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn keeps_the_other_entries_when_one_is_broken() {
+        let mut file = build(&["Tackle", "Growl"]);
+        // The second entry now points past the end of the file.
+        let at = 0x10 + 4 + 8;
+        file[at..at + 4].copy_from_slice(&0xFFFFu32.to_le_bytes());
+        assert_eq!(read(&file).unwrap(), ["Tackle", ""]);
+    }
 
     #[test]
     fn reads_what_it_wrote() {
