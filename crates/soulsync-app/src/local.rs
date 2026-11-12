@@ -51,6 +51,13 @@ struct Config {
     run_rando: Option<RunRandomizer>,
     /// The attempt of the current run the game was last made for.
     rolled: u32,
+    /// A new game's save that still gets its Rare Candies once DeSmuME is
+    /// closed: a game begun without a starting save has none, and DeSmuME
+    /// would write over a change made while it runs.
+    candies_due: Option<CandiesDue>,
+    /// Whether the game being played was checked for missing Rare Candies,
+    /// for games begun before SoulSync gave them to the first save.
+    candies_checked: bool,
     /// Every run this app was in, newest first, to go back to.
     runs: Vec<Saved>,
 }
@@ -65,6 +72,12 @@ impl Default for Candies {
     fn default() -> Self {
         Candies(soulsync_core::bag::MAX_COUNT)
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct CandiesDue {
+    save: PathBuf,
+    count: u16,
 }
 
 /// A run the app was in, with what it takes to play it again.
@@ -686,6 +699,7 @@ impl Local {
                     "candies": r.candies,
                 })),
                 "rolled": c.rolled,
+                "candies_due": c.candies_due.as_ref().map(|d| d.count),
                 "progress": inner.fresh,
             }),
             "dialogs": cfg!(any(windows, target_os = "macos")),
@@ -1047,6 +1061,26 @@ struct Fresh {
 /// place and opens the game. The page follows the progress in the state.
 async fn fresh(State(local): State<Local>, body: Option<Json<Fresh>>) -> Reply {
     let attempt = body.and_then(|b| b.0.attempt);
+    // The run's settings as they are now: someone may have changed the
+    // Rare Candies since this app joined. Offline, the ones kept do.
+    let code = {
+        let inner = local.inner.lock().unwrap();
+        inner
+            .config
+            .run_rando
+            .as_ref()
+            .and(inner.config.code.clone())
+    };
+    if let Some(code) = code {
+        let server = local.server_url();
+        let got = tokio::task::spawn_blocking(move || fetch_randomizer(&server, &code)).await;
+        if let Ok(Ok((Some(rando), _))) = got {
+            let mut inner = local.inner.lock().unwrap();
+            inner.config.run_rando = Some(rando);
+            inner.config.remember(now_ms());
+            write_config(&inner.config);
+        }
+    }
     // Whether the sync ran: it starts again on the new game.
     let syncing = local.inner.lock().unwrap().task.is_some();
     begin_fresh(&local, attempt, syncing)?;
@@ -1100,6 +1134,8 @@ fn begin_fresh(
         };
         inner.fresh = Some(Progress::Rolling);
         inner.awaiting_template = false;
+        // The new game gets its own; the old one is gone.
+        inner.config.candies_due = None;
         plan
     };
     local.stop();
@@ -1168,9 +1204,55 @@ async fn await_template(local: Local, save: PathBuf) {
         }
         let mut inner = local.inner.lock().unwrap();
         inner.config.template = Some(kept.clone());
+        let count = match &inner.config.run_rando {
+            Some(run) => run.candies,
+            None => inner.config.candies.0,
+        };
+        inner.config.candies_due = (count > 0).then(|| CandiesDue {
+            save: save.clone(),
+            count,
+        });
         write_config(&inner.config);
     }
     local.inner.lock().unwrap().awaiting_template = false;
+}
+
+/// Puts the Rare Candies due into the save once DeSmuME is closed, once.
+/// A save that has some already keeps what it has.
+fn give_due_candies(local: &Local) {
+    let (due, emulator) = {
+        let inner = local.inner.lock().unwrap();
+        let c = &inner.config;
+        let Some(due) = c.candies_due.clone() else {
+            return;
+        };
+        let emulator = c
+            .emulator
+            .clone()
+            .filter(|e| e.is_file())
+            .or_else(|| desmume_exe(&due.save));
+        (due, emulator)
+    };
+    if emulator.as_deref().is_some_and(crate::fresh::running) {
+        return;
+    }
+    use soulsync_core::bag::{medicine, set_medicine, RARE_CANDY};
+    let given = match std::fs::read(&due.save) {
+        Ok(mut save) if medicine(&save, RARE_CANDY) == 0 => {
+            set_medicine(&mut save, RARE_CANDY, due.count).is_ok()
+                && std::fs::write(&due.save, &save).is_ok()
+        }
+        // Has some, or the game is gone: nothing more to give.
+        Ok(_) => true,
+        Err(e) => e.kind() == std::io::ErrorKind::NotFound,
+    };
+    if given {
+        let mut inner = local.inner.lock().unwrap();
+        if inner.config.candies_due.as_ref() == Some(&due) {
+            inner.config.candies_due = None;
+            write_config(&inner.config);
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -1500,6 +1582,7 @@ async fn play(State(local): State<Local>) -> Reply {
         (inner.config.rom.clone(), inner.config.save.clone())
     };
     let rom = rom.filter(|r| r.exists()).ok_or_else(|| bad("rom"))?;
+    give_due_candies(&local);
     let exe = save
         .as_deref()
         .and_then(desmume_exe)
@@ -1613,6 +1696,22 @@ pub fn routes(server: soulsync_server::AppState, own: String) -> Router {
         if c.server.is_empty() && !c.code.as_deref().is_some_and(|k| local.server.has_run(k)) {
             c.code = None;
         }
+        // Games begun without a starting save before builds that gave the
+        // Rare Candies to the first save: one without any gets them now.
+        if !c.candies_checked {
+            c.candies_checked = true;
+            let count = c.run_rando.as_ref().map_or(c.candies.0, |r| r.candies);
+            let empty = c.save.as_deref().is_some_and(|p| {
+                load(p).is_ok()
+                    && std::fs::read(p).is_ok_and(|s| {
+                        soulsync_core::bag::medicine(&s, soulsync_core::bag::RARE_CANDY) == 0
+                    })
+            });
+            if c.code.is_some() && count > 0 && empty {
+                c.candies_due = c.save.clone().map(|save| CandiesDue { save, count });
+            }
+            write_config(c);
+        }
         // Builds before the list of runs knew only the current one.
         if c.runs.is_empty() && c.code.is_some() {
             c.remember(now_ms());
@@ -1624,6 +1723,11 @@ pub fn routes(server: soulsync_server::AppState, own: String) -> Router {
         local.start();
     }
     look_for_update(&local);
+    let giver = local.clone();
+    std::thread::spawn(move || loop {
+        give_due_candies(&giver);
+        std::thread::sleep(Duration::from_secs(5));
+    });
     Router::new()
         .route("/api/local/state", get(state))
         .route("/api/local/set", post(set))
@@ -1647,6 +1751,48 @@ pub fn routes(server: soulsync_server::AppState, own: String) -> Router {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn due_rare_candies_go_into_the_save_once() {
+        use soulsync_core::bag::{crc16, medicine, RARE_CANDY};
+        let dir = std::env::temp_dir().join(format!("soulsync-due-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::env::set_var("SOULSYNC_CONFIG_DIR", &dir);
+        // A save whose bag and checksum table are intact.
+        let mut save = vec![0u8; 0x80000 + 122];
+        let put = |s: &mut [u8], o: usize, v: u16| s[o..o + 2].copy_from_slice(&v.to_le_bytes());
+        let bag = crc16(&save[0x18400..0x18400 + 0x9EC]);
+        put(&mut save, 0x18DEE, bag);
+        put(&mut save, 0x25F32, bag);
+        let table = crc16(&save[0x25F00..0x25F00 + 0x94]);
+        put(&mut save, 0x25FA2, table);
+        let path = dir.join("game.dsv");
+        std::fs::write(&path, &save).unwrap();
+
+        let local = super::Local {
+            inner: Default::default(),
+            server: Default::default(),
+            own: String::new(),
+        };
+        let due = super::CandiesDue {
+            save: path.clone(),
+            count: 999,
+        };
+        local.inner.lock().unwrap().config.candies_due = Some(due.clone());
+        super::give_due_candies(&local);
+        let got = std::fs::read(&path).unwrap();
+        assert_eq!(medicine(&got, RARE_CANDY), 999);
+        assert!(local.inner.lock().unwrap().config.candies_due.is_none());
+
+        // Used some since: a second due does not top them up.
+        let mut used = got.clone();
+        soulsync_core::bag::set_medicine(&mut used, RARE_CANDY, 10).unwrap();
+        std::fs::write(&path, &used).unwrap();
+        local.inner.lock().unwrap().config.candies_due = Some(due);
+        super::give_due_candies(&local);
+        assert_eq!(medicine(&std::fs::read(&path).unwrap(), RARE_CANDY), 10);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn rare_candies_start_at_999() {
         assert_eq!(super::Config::default().candies.0, 999);
