@@ -157,6 +157,9 @@ struct Inner {
     progress: Option<crate::update::Progress>,
     /// How far a fresh start of the game is, once asked for.
     fresh: Option<crate::fresh::Progress>,
+    /// Whether moves, items and abilities could be read from the ROM: how
+    /// many moves, or why not.
+    dex: Option<Result<usize, String>>,
 }
 
 #[derive(Clone)]
@@ -508,6 +511,10 @@ impl Local {
             })).collect::<Vec<_>>(),
             "phase": inner.phase,
             "message": inner.message,
+            "dex": inner.dex.as_ref().map(|d| match d {
+                Ok(moves) => serde_json::json!({ "moves": moves }),
+                Err(why) => serde_json::json!({ "error": why }),
+            }),
             "live": inner.live.as_ref().map(|(script, out)| serde_json::json!({
                 "script": script,
                 "active": live_active(out),
@@ -576,10 +583,14 @@ impl Local {
             .and_then(|p| std::fs::File::open(p).ok());
         let rates = rom.as_mut().and_then(|f| read_catch_rates(f).ok());
         let game = config.rom.as_deref().and_then(rom_game);
-        let dex = rom
-            .as_mut()
-            .zip(game)
-            .and_then(|(f, g)| read_dex(f, g).ok());
+        let dex = match (rom.as_mut(), game) {
+            (Some(f), Some(g)) => read_dex(f, g).map_err(|e| e.to_string()),
+            (None, _) => Err("no ROM".into()),
+            (_, None) => Err("not a supported game".into()),
+        };
+        self.inner.lock().unwrap().dex =
+            Some(dex.as_ref().map(|d| d.moves.len()).map_err(Clone::clone));
+        let dex = dex.ok();
         // Without them encounters cannot be placed; the party still syncs.
         let locations = rom
             .as_mut()
@@ -911,7 +922,9 @@ async fn start(State(local): State<Local>, Json(req): Json<Start>) -> Reply {
         inner.config.remember(now_ms());
         write_config(&inner.config);
     }
-    local.start();
+    // Reading the ROM takes a moment.
+    let starter = local.clone();
+    let _ = tokio::task::spawn_blocking(move || starter.start()).await;
     Ok(Json(local.view()))
 }
 

@@ -19,8 +19,9 @@ const MAP_LOCATION: usize = 26;
 /// Offset of the catch rate in a species entry.
 const CATCH_RATE: usize = 8;
 const SPECIES: usize = 649;
-/// No file this module reads comes near this size.
-const MAX_LEN: u32 = 4 << 20;
+/// Larger than any file this module reads: the text archive of Black 2 and
+/// White 2, with every name and description of the game, has some megabytes.
+const MAX_LEN: u32 = 64 << 20;
 
 #[derive(Debug)]
 pub enum RomError {
