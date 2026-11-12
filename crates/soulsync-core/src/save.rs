@@ -77,6 +77,10 @@ pub struct SaveSnapshot {
     /// has it in memory right now.
     #[serde(default)]
     pub wild: Option<Box<Pokemon>>,
+    /// Poké Balls in the bag, as (item, count). `None` where not known, as
+    /// from clients before this field.
+    #[serde(default)]
+    pub balls: Option<Vec<(u16, u16)>>,
 }
 
 impl SaveSnapshot {
@@ -135,6 +139,7 @@ impl SaveSnapshot {
             encounters: self.encounters.clone(),
             fallen: self.fallen.clone(),
             wild: None,
+            balls: self.balls.clone(),
         };
         for old in &self.party {
             live.keep(old);
@@ -216,6 +221,7 @@ pub fn parse_b2w2(data: &[u8]) -> Result<SaveSnapshot, SaveError> {
         encounters: Vec::new(),
         fallen: Vec::new(),
         wild: None,
+        balls: crate::bag::items_pocket(b).and_then(crate::bag::balls),
     })
 }
 

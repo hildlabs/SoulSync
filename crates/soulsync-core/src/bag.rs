@@ -20,6 +20,46 @@ const TABLE: usize = 0x25F00;
 const TABLE_LEN: usize = 0x94;
 const TABLE_CRC: usize = 0x25FA2;
 
+/// The items pocket, first in the bag: 310 slots of item number and count.
+/// Poké Balls are kept there.
+pub const ITEMS_LEN: usize = 310 * 4;
+/// Item numbers of balls: Master Ball 1 to Cherish Ball 16, and the Dream Ball.
+fn is_ball(item: u16) -> bool {
+    (1..=16).contains(&item) || item == 576
+}
+
+/// The balls in an items pocket, as (item, count), in bag order. `None` if
+/// the bytes do not look like an items pocket: memory that is something
+/// else holds numbers no item or count has.
+pub fn balls(pocket: &[u8]) -> Option<Vec<(u16, u16)>> {
+    let pocket = pocket.get(..ITEMS_LEN)?;
+    let slots: Vec<(u16, u16)> = pocket
+        .chunks_exact(4)
+        .map(|c| (u16_at(c, 0), u16_at(c, 2)))
+        .collect();
+    let plausible = slots
+        .iter()
+        .all(|&(item, count)| item <= 700 && count <= MAX_COUNT && (item == 0) == (count == 0));
+    plausible.then(|| {
+        slots
+            .into_iter()
+            .filter(|&(item, count)| is_ball(item) && count > 0)
+            .collect()
+    })
+}
+
+/// Whether an items pocket holds anything at all.
+pub fn any_items(pocket: &[u8]) -> bool {
+    pocket
+        .get(..ITEMS_LEN)
+        .is_some_and(|p| p.iter().any(|&b| b != 0))
+}
+
+/// The items pocket of a save file.
+pub fn items_pocket(save: &[u8]) -> Option<&[u8]> {
+    save.get(BAG..BAG + ITEMS_LEN)
+}
+
 /// The medicine pocket: 48 slots of item number and count (`u16` each).
 const MEDICINE: usize = 0x18BD8;
 const MEDICINE_SLOTS: usize = 48;

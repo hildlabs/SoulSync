@@ -337,8 +337,18 @@ local function refresh()
   end
 end
 
+-- The items pocket of the bag, where the Poké Balls are. The bag block lies
+-- before the party block, as in the save file; the app checks that what
+-- it gets looks like a bag.
+local BAG_BEFORE_PARTY, ITEMS_LEN = 0xA00, 310 * 4
+
+local function bag()
+  if party - BAG_BEFORE_PARTY < RAM_START then return string.rep("\0", ITEMS_LEN) end
+  return read(party - BAG_BEFORE_PARTY, ITEMS_LEN)
+end
+
 local function report()
-  local parts = { "SSL3", window() }
+  local parts = { "SSL4", window(), bag() }
   for i = 1, #reported do
     parts[#parts + 1] = string.char(reported[i].present and 1 or 0) .. reported[i].data
   end

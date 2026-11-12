@@ -257,6 +257,7 @@ mod tests {
             encounters: vec![],
             fallen: vec![],
             wild: None,
+            balls: None,
         }
     }
 

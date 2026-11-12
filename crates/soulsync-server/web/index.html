@@ -233,9 +233,14 @@ button:active{transform:scale(.97)}
 .ring b{display:block;font:400 30px var(--pix)}
 .ring small{font-size:10px;color:var(--muted)}
 .balls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:14px}
-.balls span{display:flex;justify-content:space-between;align-items:baseline;gap:6px;padding:6px 9px;border-radius:var(--r-sm);background:var(--ov-1);font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden}
-.balls span b{font:400 17px var(--pix);color:var(--text)}
-.balls span.best{background:color-mix(in srgb,var(--c) 18%,transparent);color:var(--text)}
+.balls button{display:flex;justify-content:space-between;align-items:baseline;gap:6px;padding:6px 9px;border-radius:var(--r-sm);background:var(--ov-1);font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;box-shadow:inset 0 0 0 1px transparent;transition:background .15s,box-shadow .15s,opacity .15s}
+.balls button:hover{background:var(--ov-2)}
+.balls button:focus-visible{outline:2px solid var(--c);outline-offset:2px}
+.balls button>span{display:flex;align-items:baseline;gap:4px;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.balls button small{font-size:10.5px;color:var(--faint)}
+.balls button b{font:400 17px var(--pix);color:var(--text)}
+.balls button.best{background:color-mix(in srgb,var(--c) 18%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--c) 45%,transparent);color:var(--text)}
+.balls button.none{opacity:.45}
 
 /* segmented choice */
 .seg3{flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:2px;padding:3px;border-radius:11px;background:var(--ov-2)}
@@ -790,6 +795,7 @@ const T = {
     links: "Links", run: "Run", activity: "Activity", copy: "Copy", copied: "Copied",
     liveAll: n => n === 2 ? "Both players live" : `All ${n} players live`, liveSome: (k, n) => `${k} of ${n} players live`, live0: "Waiting for players", offline: "Reconnecting", missing: "Run not found",
     theme: "Switch theme",
+    ballHave: (b, n) => `${b}: ${n} in the bag`,
     tabs: { links: "Overview", encounters: "Encounters", team: "Team", timeline: "Timeline", types: "Types", rules: "Rules", settings: "Settings" },
     live: "Right now", liveSrc: "live from DeSmuME", inBattle: "In battle", exploring: "Exploring", offlineP: "Offline", wild: "wild", idleWild: n => `When ${n} meets a wild Pokémon, it shows up here with its catch chance.`,
     badgesT: "Badges", play: "Continue", playSub: "opens DeSmuME with your save", playOk: "DeSmuME is starting…", playFail: "DeSmuME could not be started", newRun: "New run", newRunSure: "Click again: this run pauses", source: "Source on GitHub",
@@ -857,6 +863,7 @@ waitPlayer: n => `Waiting for player ${n}`, playerN: n => `Player ${n}`, fPlayer
     links: "Links", run: "Run", activity: "Verlauf", copy: "Kopieren", copied: "Kopiert",
     liveAll: n => n === 2 ? "Beide Spieler live" : `Alle ${n} Spieler live`, liveSome: (k, n) => `${k} von ${n} Spielern live`, live0: "Warte auf Spieler", offline: "Verbinde neu", missing: "Run nicht gefunden",
     theme: "Farbschema wechseln",
+    ballHave: (b, n) => `${b}: ${n} im Beutel`,
     tabs: { links: "Übersicht", encounters: "Begegnungen", team: "Team", timeline: "Verlauf", types: "Typen", rules: "Regeln", settings: "Einstellungen" },
     live: "Gerade unterwegs", liveSrc: "live aus DeSmuME", inBattle: "Im Kampf", exploring: "Unterwegs", offlineP: "Offline", wild: "wild", idleWild: n => `Sobald ${n} auf ein wildes Pokémon trifft, erscheint es hier mit Fangchance.`,
     badgesT: "Orden", play: "Weiterspielen", playSub: "öffnet DeSmuME mit deinem Spielstand", playOk: "DeSmuME startet…", playFail: "DeSmuME ließ sich nicht starten", newRun: "Neuer Run", newRunSure: "Nochmal klicken: dieser Run pausiert", source: "Quellcode auf GitHub",
@@ -2014,6 +2021,27 @@ function paintTypes() {
 
 /* ---------- catch chance (generation 5) */
 const BALLS = [1, 1.5, 2, 5, 3.5];
+// Item numbers of Poké Ball, Great Ball and Ultra Ball, as BALLS orders them.
+const BALL_ITEMS = [4, 3, 2];
+// The ball each player's card shows, once someone picked one.
+const ballPicks = {};
+
+// How many of each of the three balls a player has, or null if not known.
+function ballCounts(bag) {
+  if (!Array.isArray(bag)) return null;
+  return BALL_ITEMS.map(item => bag.filter(([it]) => it === item).reduce((n, [, c]) => n + c, 0));
+}
+
+// The ball a card shows: the one picked while the player still has it, else
+// the best one in the bag, else the Poké Ball.
+function ballPick(seat, owned) {
+  const picked = ballPicks[seat];
+  if (picked != null && (!owned || owned[picked] > 0)) return picked;
+  delete ballPicks[seat];
+  if (!owned) return 0;
+  for (let k = 2; k >= 0; k--) if (owned[k] > 0) return k;
+  return 0;
+}
 const catchUi = { list: null, fromRom: false, loaded: null };
 
 // Chance per throw. `hp` is the remaining share of HP, `caught` the number of
@@ -2088,6 +2116,12 @@ function updatePlayers() {
 
   // One card per player.
   const box = $("#pcards");
+  box.onclick = e => {
+    const btn = e.target.closest("[data-ball]");
+    if (!btn) return;
+    ballPicks[+btn.dataset.seat] = +btn.dataset.ball;
+    updatePlayers();
+  };
   if (box._n !== n) { box._n = n; box.innerHTML = seatList().map(i => `<article class="pcard reveal" style="--c:${col(i)};--i:${i}"></article>`).join(""); }
   $("#livesrc").textContent = local && local.live ? t().liveSrc : "";
   box.querySelectorAll(".pcard").forEach((el, i) => {
@@ -2096,7 +2130,8 @@ function updatePlayers() {
     const meta = !p ? t().notJoined : [gameOf(p), p.connected ? null : t().away, secs == null ? t().never : `${t().saved} ${t().ago(secs)}`].filter(Boolean).join("  ·  ");
     const st = !p || !p.connected ? `<span class="state away">${t().offlineP}</span>` : w ? `<span class="state fight">${t().inBattle}</span>` : `<span class="state">${t().exploring}</span>`;
     const head = `<div class="pch"><i></i><b>${esc(seatName(i))}</b>${st}</div><p class="meta">${esc(meta)}</p>`;
-    const sig = [lang, head, w ? [w.pid, w.species, w.battle && w.battle.hp, w.battle && w.battle.max_hp, w.ailment, (catchUi.list || []).length, caughtCount()].join() : "", local && local.art, !!sprites].join("|");
+    const bag = p && p.snapshot && p.snapshot.balls, owned = ballCounts(bag), pick = ballPick(i, owned);
+    const sig = [lang, head, w ? [w.pid, w.species, w.battle && w.battle.hp, w.battle && w.battle.max_hp, w.ailment, (catchUi.list || []).length, caughtCount(), JSON.stringify(owned), pick].join() : "", local && local.art, !!sprites].join("|");
     if (el._sig === sig) return;
     const sameMon = el._pid && w && el._pid === w.pid;
     el._sig = sig; el._pid = w ? w.pid : null;
@@ -2109,13 +2144,15 @@ function updatePlayers() {
     const chance = ball => sp ? catchChance(sp[2], r, status, ball, false, caughtCount()) * 100 : null;
     const fmt = x => x == null ? "–" : (x >= 99.95 ? "100" : x < 10 ? x.toFixed(1) : Math.round(x)) + "%";
     const three = [0, 1, 2].map(k => [t().balls[k][0], chance(BALLS[k])]);
-    const best = three.reduce((a, x, k) => x[1] != null && (a < 0 || x[1] > three[a][1] + .05) ? k : a, -1);
-    const ring = best < 0 ? null : three[best];
+    const ring = three[pick][1] == null ? null : three[pick];
     const html = head + `<div class="wild2"><span class="stage">${spriteImg(w)}</span>
       <div class="info"><div class="wnm"><b>${esc(species(w))}</b><span>${t().lv} ${b.level}  ·  ${t().wild}</span></div><div class="tys">${(w.types || []).map(tyChip).join("")}</div>
       <div class="hpl"><span class="bar"><i style="--w:${(r * 100).toFixed(0)}%;--hc:var(--${r < .35 ? "danger" : r < .6 ? "warn" : "ok"})"></i></span>${Math.round(r * 100)} %${w.ailment ? `<span class="ail">${esc(t().ail[w.ailment])}</span>` : ""}</div></div>
       <div class="ring" style="--p:${ring ? Math.min(100, ring[1]).toFixed(0) : 0}" title="${esc(t().wildTip)}"><div><b>${ring ? fmt(ring[1]) : "–"}</b><small>${ring ? esc(ring[0]) : ""}</small></div></div></div>
-      <div class="balls">${three.map(([nm, x], k) => `<span class="${k === best ? "best" : ""}">${esc(nm)}<b>${fmt(x)}</b></span>`).join("")}</div>`;
+      <div class="balls">${three.map(([nm, x], k) => {
+        const n = owned ? owned[k] : null, tip = n == null ? nm : t().ballHave(nm, n);
+        return `<button type="button" data-ball="${k}" data-seat="${i}" class="${k === pick ? "best" : ""}${n === 0 ? " none" : ""}" aria-pressed="${k === pick}" title="${esc(tip)}"><span>${esc(nm)}${n ? `<small>×${n}</small>` : ""}</span><b>${fmt(x)}</b></button>`;
+      }).join("")}</div>`;
     if (sameMon) {
       // The same battle: only the numbers change, the sprite keeps bobbing.
       const tmp = document.createElement("div"); tmp.innerHTML = html;

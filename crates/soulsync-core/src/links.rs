@@ -98,7 +98,14 @@ pub fn links(players: &[Option<&SaveSnapshot>]) -> Vec<Link> {
                 });
             }
         }
-        for wild in snap.encounters.iter().filter(|w| !snap.owns(w.pid)) {
+        // The encounter of a battle still going on is neither caught nor
+        // missed yet: the link stays open until the battle ends.
+        let fighting = snap.wild.as_ref().map(|w| w.pid);
+        for wild in snap
+            .encounters
+            .iter()
+            .filter(|w| !snap.owns(w.pid) && Some(w.pid) != fighting)
+        {
             let sides = by_loc
                 .entry(wild.met_location)
                 .or_insert_with(|| vec![None; players.len()]);
@@ -160,6 +167,7 @@ mod tests {
             encounters: vec![],
             fallen: vec![],
             wild: None,
+            balls: None,
         }
     }
 
@@ -243,5 +251,20 @@ mod tests {
         assert_eq!(l[0].sides[0].as_ref().unwrap().status, Status::Party);
         assert_eq!(l[1].sides[0].as_ref().unwrap().status, Status::Missed);
         assert!(l[1].is_dead());
+    }
+
+    #[test]
+    fn a_battle_still_going_is_not_missed() {
+        let wild = party(9, 504, 14, 12);
+        let mut a = snap(vec![party(2, 495, 4, 30)], vec![]);
+        a.encounters = vec![wild.clone()];
+        a.wild = Some(Box::new(wild));
+        let b = snap(vec![party(3, 498, 14, 30)], vec![]);
+        let l = links(&[Some(&a), Some(&b)]);
+        assert!(l.iter().all(|l| !l.is_dead()));
+
+        a.wild = None;
+        let l = links(&[Some(&a), Some(&b)]);
+        assert!(l.iter().any(|l| l.is_dead()));
     }
 }
