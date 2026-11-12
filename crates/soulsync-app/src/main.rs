@@ -53,8 +53,24 @@ fn main() {
     }
     // If the port is taken, SoulSync is most likely running already, and the
     // window shows that instance.
+    let mut kept = None;
     if let Ok(listener) = listener {
-        let server = soulsync_server::AppState::from_env();
+        let mut server = soulsync_server::AppState::from_env();
+        // Runs on this computer outlive the app, like runs on a server.
+        if let Some(dir) = local::data_dir().map(|d| d.join("runs")) {
+            if let Ok(stored) = server.clone().with_store(dir) {
+                server = stored;
+            }
+        }
+        let saver = server.clone();
+        runtime.spawn(async move {
+            let mut tick = tokio::time::interval(std::time::Duration::from_secs(5));
+            loop {
+                tick.tick().await;
+                saver.save();
+            }
+        });
+        kept = Some(server.clone());
         let app = soulsync_server::app(server.clone()).merge(local::routes(server, url.clone()));
         runtime.spawn(async move { axum::serve(listener, app).await.expect("serve") });
     } else if std::env::var_os("SOULSYNC_NO_WINDOW").is_some() {
@@ -66,4 +82,7 @@ fn main() {
     }
     // Returns when the user closes the app.
     window::show(&url);
+    if let Some(server) = kept {
+        server.save();
+    }
 }

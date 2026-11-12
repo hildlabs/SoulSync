@@ -1,5 +1,6 @@
 //! State of one run, independent of the network layer.
 
+use serde::{Deserialize, Serialize};
 use soulsync_core::protocol::{
     player_seed, LogEntry, PlayerState, RunSettings, RunState, MAX_PLAYERS,
 };
@@ -11,18 +12,23 @@ const LOG_LIMIT: usize = 200;
 /// Species in generation 5.
 pub const SPECIES: usize = 649;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 struct Player {
     name: String,
+    /// Open connections; none after a restart of the server.
+    #[serde(skip)]
     connections: usize,
     snapshot: Option<SaveSnapshot>,
     updated_at: Option<u64>,
     /// PIDs of the wild encounters already logged. A client that restarts
     /// sends its save before its encounters, which must not log them again.
+    #[serde(default)]
     met: HashSet<u32>,
 }
 
-#[derive(Debug)]
+/// One run. Stored as JSON by the server, so fields added later need a
+/// `#[serde(default)]` to keep older files readable.
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Run {
     pub code: String,
     pub seed: u64,

@@ -7,7 +7,9 @@ RUN cargo build --release -p soulsync-server
 
 FROM debian:stable-slim
 COPY --from=build /src/target/release/soulsync-server /usr/local/bin/soulsync-server
-ENV PORT=3000
+# Runs are kept here across restarts; mount a volume on it.
+RUN mkdir /data && chown nobody /data
+ENV PORT=3000 SOULSYNC_DATA=/data
 EXPOSE 3000
 USER nobody
 CMD ["soulsync-server"]

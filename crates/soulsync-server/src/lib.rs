@@ -1,7 +1,9 @@
 //! The SoulSync run server: hosts runs, relays save snapshots between players
 //! and serves the live dashboard.
 //!
-//! Runs live in memory and are lost on restart.
+//! Runs live in memory. With a data directory (see [`AppState::with_store`])
+//! they are also written there as one JSON file each, a few seconds after
+//! they change, and read back on the next start.
 
 mod run;
 
@@ -16,6 +18,7 @@ use run::Run;
 use serde::Deserialize;
 use soulsync_core::protocol::{ClientMsg, NewRun, RunSettings, ServerMsg};
 use std::collections::HashMap;
+use std::path::{Path as FsPath, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::broadcast;
@@ -27,6 +30,19 @@ const MAX_MESSAGE: usize = 4 * 1024 * 1024;
 struct Entry {
     run: Run,
     tx: broadcast::Sender<String>,
+    /// Changed since it was last written to the store.
+    dirty: bool,
+}
+
+impl Entry {
+    fn new(run: Run) -> Self {
+        let (tx, _) = broadcast::channel(64);
+        Entry {
+            run,
+            tx,
+            dirty: true,
+        }
+    }
 }
 
 /// Where the dashboard loads sprites from. `{id}` is the National Dex number.
@@ -38,12 +54,17 @@ const DEFAULT_SPRITES: &str =
 pub struct AppState {
     runs: Arc<Mutex<HashMap<String, Entry>>>,
     sprites: Option<String>,
+    /// Where runs are kept across restarts, if anywhere.
+    store: Option<Arc<PathBuf>>,
 }
 
 impl AppState {
+    /// Sends the run's state to everyone watching it and marks it for the
+    /// store: every change to a run ends here.
     fn broadcast(&self, code: &str) {
-        let runs = self.runs.lock().unwrap();
-        if let Some(e) = runs.get(code) {
+        let mut runs = self.runs.lock().unwrap();
+        if let Some(e) = runs.get_mut(code) {
+            e.dirty = true;
             let _ = e.tx.send(state_json(&e.run));
         }
     }
@@ -336,6 +357,65 @@ impl AppState {
         })
     }
 
+    /// Keeps runs in `dir`: reads the runs stored there now and writes
+    /// changed ones with [`AppState::save`]. Files that do not read as a run
+    /// are left alone and logged.
+    pub fn with_store(mut self, dir: impl Into<PathBuf>) -> std::io::Result<Self> {
+        let dir = dir.into();
+        std::fs::create_dir_all(&dir)?;
+        let mut runs = self.runs.lock().unwrap();
+        for file in std::fs::read_dir(&dir)? {
+            let path = file?.path();
+            if path.extension().map_or(true, |e| e != "json") {
+                continue;
+            }
+            let run = std::fs::read(&path)
+                .map_err(|e| e.to_string())
+                .and_then(|b| serde_json::from_slice::<Run>(&b).map_err(|e| e.to_string()));
+            match run {
+                Ok(run) => {
+                    let mut entry = Entry::new(run);
+                    entry.dirty = false;
+                    runs.insert(entry.run.code.clone(), entry);
+                }
+                Err(e) => tracing::warn!(file = %path.display(), "not a run: {e}"),
+            }
+        }
+        tracing::info!(runs = runs.len(), dir = %dir.display(), "runs loaded");
+        drop(runs);
+        self.store = Some(Arc::new(dir));
+        Ok(self)
+    }
+
+    /// Writes the runs that changed since the last call to the store, if
+    /// there is one. Returns how many were written.
+    pub fn save(&self) -> usize {
+        let Some(dir) = &self.store else { return 0 };
+        let changed: Vec<(String, Vec<u8>)> = {
+            let mut runs = self.runs.lock().unwrap();
+            runs.values_mut()
+                .filter(|e| e.dirty)
+                .filter_map(|e| {
+                    e.dirty = false;
+                    Some((e.run.code.clone(), serde_json::to_vec(&e.run).ok()?))
+                })
+                .collect()
+        };
+        let mut written = 0;
+        for (code, json) in changed {
+            match write_atomic(dir, &code, &json) {
+                Ok(()) => written += 1,
+                Err(e) => {
+                    tracing::error!(%code, "could not store the run: {e}");
+                    if let Some(e) = self.runs.lock().unwrap().get_mut(&code) {
+                        e.dirty = true;
+                    }
+                }
+            }
+        }
+        written
+    }
+
     pub fn has_run(&self, code: &str) -> bool {
         self.runs.lock().unwrap().contains_key(&normalize(code))
     }
@@ -347,17 +427,25 @@ impl AppState {
         let code = new_code(&runs);
         // 53 bits: exact as a JavaScript number.
         let seed = rand::rng().random::<u64>() >> 11;
-        let (tx, _) = broadcast::channel(64);
         runs.insert(
             code.clone(),
-            Entry {
-                run: Run::new(code.clone(), seed, settings),
-                tx,
-            },
+            Entry::new(Run::new(code.clone(), seed, settings)),
         );
         tracing::info!(%code, "run created");
         Ok(NewRun { code, seed })
     }
+}
+
+/// Writes `json` as `dir/<code>.json` so that a crash leaves either the old
+/// file or the new one, never half of one.
+fn write_atomic(dir: &FsPath, code: &str, json: &[u8]) -> std::io::Result<()> {
+    // Codes are made by `new_code`: letters, digits and one dash.
+    if !code.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+        return Err(std::io::Error::other("unexpected run code"));
+    }
+    let tmp = dir.join(format!("{code}.json.tmp"));
+    std::fs::write(&tmp, json)?;
+    std::fs::rename(&tmp, dir.join(format!("{code}.json")))
 }
 
 #[cfg(test)]
@@ -483,5 +571,32 @@ mod tests {
         drop(a);
         let s = next_state(&mut viewer).await;
         assert!(!s.players[0].connected);
+    }
+
+    #[test]
+    fn runs_outlive_a_restart_with_a_store() {
+        let dir = std::env::temp_dir().join(format!("soulsync-store-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let first = AppState::default().with_store(&dir).unwrap();
+        let code = first.create(RunSettings::default()).unwrap().code;
+        {
+            let mut runs = first.runs.lock().unwrap();
+            let run = &mut runs.get_mut(&code).unwrap().run;
+            run.join("Hannes").unwrap();
+            run.update("Hannes", snap(20), 1);
+            run.update("Hannes", snap(0), 2);
+        }
+        first.broadcast(&code);
+        assert_eq!(first.save(), 1);
+        assert_eq!(first.save(), 0, "nothing changed since");
+        std::fs::write(dir.join("broken.json"), b"{").unwrap();
+
+        let second = AppState::default().with_store(&dir).unwrap();
+        let state = second.runs.lock().unwrap().get(&code).unwrap().run.state();
+        assert_eq!(state.players[0].name, "Hannes");
+        assert!(!state.players[0].connected);
+        assert_eq!(state.log.len(), 1);
+        assert!(state.players[0].snapshot.is_some());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
