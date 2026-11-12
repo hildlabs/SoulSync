@@ -23,6 +23,27 @@ pub struct BattleStats {
     pub max_hp: u16,
 }
 
+/// One of a Pokémon's four moves.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MoveSlot {
+    /// Move number, as in the game's move table.
+    pub id: u16,
+    /// PP left.
+    pub pp: u8,
+    /// PP Ups used, 0 to 3.
+    pub pp_ups: u8,
+}
+
+/// The stats besides HP, as the game computed them for a party Pokémon.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct Stats {
+    pub attack: u16,
+    pub defense: u16,
+    pub speed: u16,
+    pub sp_attack: u16,
+    pub sp_defense: u16,
+}
+
 /// A status condition, as far as it matters for catching.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -69,6 +90,21 @@ pub struct Pokemon {
     /// Status condition of a party Pokémon.
     #[serde(default)]
     pub ailment: Option<Ailment>,
+    /// Its moves, empty slots left out.
+    #[serde(default)]
+    pub moves: Vec<MoveSlot>,
+    /// Held item number; 0 is none.
+    #[serde(default)]
+    pub item: u16,
+    /// Ability number.
+    #[serde(default)]
+    pub ability: u16,
+    /// Nature, 0 (Hardy) to 24 (Quirky).
+    #[serde(default)]
+    pub nature: u8,
+    /// Present for party Pokémon only.
+    #[serde(default)]
+    pub stats: Option<Stats>,
 }
 
 impl Pokemon {
@@ -167,6 +203,24 @@ pub fn parse(raw: &[u8], place: Place) -> Option<Pokemon> {
         ailment: battle
             .as_ref()
             .and_then(|_| Ailment::from_bits(u32_at(&d, 0x88))),
+        moves: (0..4)
+            .map(|i| MoveSlot {
+                id: u16_at(&d, 0x28 + 2 * i),
+                pp: d[0x30 + i],
+                pp_ups: d[0x34 + i].min(3),
+            })
+            .filter(|m| m.id != 0)
+            .collect(),
+        item: u16_at(&d, 0x0A),
+        ability: u16::from(d[0x15]),
+        nature: d[0x41] % 25,
+        stats: (d.len() == PARTY_SIZE).then(|| Stats {
+            attack: u16_at(&d, 0x92),
+            defense: u16_at(&d, 0x94),
+            speed: u16_at(&d, 0x96),
+            sp_attack: u16_at(&d, 0x98),
+            sp_defense: u16_at(&d, 0x9A),
+        }),
         battle,
     })
 }
@@ -243,6 +297,48 @@ mod tests {
         assert_eq!(m.met_level, 5);
         assert_eq!(m.battle, Some(b));
         assert!(m.is_fainted());
+    }
+
+    #[test]
+    fn reads_moves_item_ability_and_stats() {
+        let b = BattleStats {
+            level: 30,
+            hp: 80,
+            max_hp: 90,
+        };
+        let raw = build_raw(0x1234_5678, 488, "", 14, 5, Some(&b));
+        let mut d = crypto::decrypt(&raw).unwrap();
+        d[0x0A..0x0C].copy_from_slice(&234u16.to_le_bytes()); // Leftovers
+        d[0x15] = 26; // Levitate
+        d[0x28..0x2A].copy_from_slice(&94u16.to_le_bytes()); // Psychic
+        d[0x2C..0x2E].copy_from_slice(&248u16.to_le_bytes()); // a gap in slot 2
+        d[0x30] = 7;
+        d[0x32] = 15;
+        d[0x34] = 2;
+        d[0x41] = 15; // Modest
+        d[0x92..0x94].copy_from_slice(&55u16.to_le_bytes());
+        d[0x98..0x9A].copy_from_slice(&66u16.to_le_bytes());
+        let chk = crypto::checksum(&d[8..STORED_SIZE]);
+        d[6..8].copy_from_slice(&chk.to_le_bytes());
+        let m = parse(&crypto::encrypt(&d).unwrap(), Place::Party { slot: 0 }).unwrap();
+        assert_eq!(
+            m.moves,
+            [
+                MoveSlot {
+                    id: 94,
+                    pp: 7,
+                    pp_ups: 2
+                },
+                MoveSlot {
+                    id: 248,
+                    pp: 15,
+                    pp_ups: 0
+                },
+            ]
+        );
+        assert_eq!((m.item, m.ability, m.nature), (234, 26, 15));
+        let s = m.stats.unwrap();
+        assert_eq!((s.attack, s.sp_attack), (55, 66));
     }
 
     #[test]

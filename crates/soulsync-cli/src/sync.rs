@@ -65,6 +65,7 @@ pub fn sync(
                 &path,
                 None,
                 catch_rates.as_deref(),
+                None,
                 &mut last,
                 &mut report,
             )

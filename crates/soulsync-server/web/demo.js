@@ -13,6 +13,27 @@ window.SoulSyncDemoSpecies = {
     ["Cresselia", "Cresselia", 3], ["Volcarona", "Ramoth", 15], ["Rotom", "Rotom", 45], ["Togetic", "Togetic", 75],
   ],
 };
+// What a player's ROM would supply for the Pokémon card: a few moves, items
+// and abilities, and one learnset every demo species shares.
+window.SoulSyncDemoDex = (() => {
+  const moves = [], abilities = [], items = [];
+  const mv = (id, name, type, category, power, accuracy, pp, text) => { moves[id] = { name, text, type, category, power, accuracy, pp, priority: id === 98 ? 1 : 0 }; };
+  mv(33, "Tackle", "normal", "physical", 50, 100, 35, "A physical attack in which the user charges and slams into the target.");
+  mv(45, "Growl", "normal", "status", 0, 100, 40, "The user growls in an endearing way, lowering the foe's Attack.");
+  mv(98, "Quick Attack", "normal", "physical", 40, 100, 30, "The user lunges at the target at a speed that makes it almost invisible. It is sure to strike first.");
+  mv(44, "Bite", "dark", "physical", 60, 100, 25, "The target is bitten with viciously sharp fangs. It may make the target flinch.");
+  mv(232, "Metal Claw", "steel", "physical", 50, 95, 35, "The target is raked with steel claws. It may also raise the user's Attack stat.");
+  mv(93, "Confusion", "psychic", "special", 50, 100, 25, "The target is hit by a weak telekinetic force. It may also leave the target confused.");
+  mv(36, "Take Down", "normal", "physical", 90, 85, 20, "A reckless, full-body charge attack. It also damages the user a little.");
+  mv(334, "Iron Defense", "steel", "status", 0, 101, 15, "The user hardens its body's surface like iron, sharply raising its Defense stat.");
+  abilities[29] = { name: "Clear Body", text: "Prevents other Pokémon from lowering its stats." };
+  abilities[149] = { name: "Illusion", text: "Enters battle disguised as the last Pokémon in the party." };
+  abilities[145] = { name: "Big Pecks", text: "Protects the Pokémon from Defense-lowering attacks." };
+  items[234] = { name: "Leftovers", text: "An item to be held by a Pokémon. The holder's HP is gradually restored during battle." };
+  items[155] = { name: "Oran Berry", text: "A Berry to be consumed by Pokémon. If a Pokémon holds one, it can restore its own HP by 10 points during battle." };
+  const learnsets = Array.from({ length: 649 }, () => [[1, 33], [1, 45], [5, 98], [9, 44], [13, 232], [17, 93], [21, 36], [25, 334]]);
+  return { moves, abilities, items, learnsets };
+})();
 window.SoulSyncDemo = function (apply) {
   const DEX = {
     375: ["Metang", "Metang", ["steel", "psychic"]], 570: ["Zorua", "Zorua", ["dark"]],
@@ -63,6 +84,9 @@ window.SoulSyncDemo = function (apply) {
       is_egg: false, met_location: loc, met_location_name: names(LOC[loc]), met_level: level,
       place: boxed ? { kind: "box", box: 1, slot: 0 } : { kind: "party", slot: 0 },
       battle: boxed ? null : { level, hp: max, max_hp: max },
+      moves: window.SoulSyncDemoDex.learnsets[0].filter(([l]) => l <= level).slice(-4).map(([, id]) => ({ id, pp: window.SoulSyncDemoDex.moves[id].pp - (species % 4), pp_ups: 0 })),
+      item: [234, 155, 0][species % 3], ability: [29, 149, 145][species % 3], nature: species % 25,
+      stats: boxed ? null : { attack: 8 + level * 2, defense: 7 + level * 2, speed: 9 + level * 2, sp_attack: 6 + level * 2, sp_defense: 7 + level * 2 },
     };
     p.joined = true; p.mons.push(m); say(p, { type: "caught", pokemon: m }); emit(p);
   }

@@ -289,6 +289,7 @@ pub async fn session(
     path: &Path,
     mut live: Option<&mut Live>,
     catch_rates: Option<&[u8]>,
+    dex: Option<&soulsync_core::RomDex>,
     last: &mut SaveSnapshot,
     on: &mut (dyn FnMut(Update) + Send),
 ) -> Result<End, Error> {
@@ -299,6 +300,12 @@ pub async fn session(
         })
     };
     ws.send(snapshot(last)).await?;
+    if let Some(dex) = dex {
+        ws.send(text(&ClientMsg::Dex {
+            dex: Box::new(dex.clone()),
+        }))
+        .await?;
+    }
     if let Some(rates) = catch_rates {
         ws.send(text(&ClientMsg::CatchRates {
             rates: rates.to_vec(),

@@ -59,7 +59,7 @@ impl Type {
         Type::Dark,
     ];
 
-    fn from_index(i: i64) -> Option<Type> {
+    pub(crate) fn from_index(i: i64) -> Option<Type> {
         usize::try_from(i)
             .ok()
             .and_then(|i| Self::ALL.get(i).copied())
