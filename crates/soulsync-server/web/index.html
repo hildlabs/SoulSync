@@ -101,6 +101,12 @@ main{display:flex;flex-direction:column;min-height:0}
 .pl-n i{flex:none;width:10px;height:10px;border-radius:50%;background:var(--c);transition:opacity .3s}
 .pl.off .pl-n i{opacity:.35}
 .pl-n small{display:block;margin-top:2px;font-size:13px;color:var(--muted);white-space:pre;overflow:hidden;text-overflow:ellipsis}
+.pl-w:empty{display:none}
+.pl-w{margin-top:6px}
+.wild{display:inline-flex;align-items:center;gap:8px;max-width:100%;padding:3px 10px 3px 8px;border-radius:999px;background:var(--raised);font-size:12.5px;white-space:nowrap;overflow:hidden;animation:fade .3s var(--out) both}
+.wild b{font-weight:600}
+.wild span{color:var(--muted);overflow:hidden;text-overflow:ellipsis}
+.wild em{font-style:normal;font-weight:600;color:color-mix(in srgb,var(--tc) 75%,var(--text))}
 .pl-b{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);white-space:nowrap}
 .badges{display:flex;gap:5px}
 .badges i{width:8px;height:8px;border-radius:50%;background:var(--line);transition:background .3s}
@@ -450,6 +456,7 @@ details.adv .field{margin-top:12px}
 .clive span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .clive small{margin-left:auto;padding-left:10px;color:var(--muted)}
 .dot{display:inline-block;width:8px;height:8px;margin-right:8px;border-radius:50%;background:var(--faint)}
+.wild .dot{margin:0;flex:none}
 .dot.live{background:var(--ok)}.dot.error{background:var(--danger)}.dot.connecting{background:var(--warn)}
 .center-msg{padding:96px 16px;text-align:center;color:var(--muted)}
 
@@ -556,7 +563,7 @@ const T = {
     games: { black: "Black", white: "White", black2: "Black 2", white2: "White 2" },
     rRetry: "Wiped? Start the next attempt. Links and timeline are cleared, the code stays.", retry: "Start next attempt", retrySure: "Click again to confirm",
     tLead: "Rows attack, columns defend. Click a type to highlight it.", tSe: "super effective", tNve: "not very effective", tNo: "no effect",
-    cTitle: "Catch chance", cFind: "Wild Pokémon…", cHp: "HP", cStatus: "Status", cNone: "None", cMinor: "PAR PSN BRN", cMajor: "SLP FRZ", cGrass: "Dark grass", cRate: r => `Catch rate ${r}`, cRom: "from your ROM", cStd: "original value",
+    wildTip: "In battle with this wild Pokémon right now; the chance is for a Poké Ball", wildBall: "Poké Ball", cTitle: "Catch chance", cFind: "Wild Pokémon…", cHp: "HP", cStatus: "Status", cNone: "None", cMinor: "PAR PSN BRN", cMajor: "SLP FRZ", cGrass: "Dark grass", cRate: r => `Catch rate ${r}`, cRom: "from your ROM", cStd: "original value",
     balls: [["Poké Ball", ""], ["Great Ball", ""], ["Ultra Ball", ""], ["Quick Ball", "turn 1"], ["Dusk Ball", "cave or night"]],
     rCaps: "Level caps", rNoCaps: "This run has no level caps.", rCapsHint: "The highlighted cap applies until both players have the next badge.", gym: n => `Gym ${n}`,
     rRules: "Soul Link rules", rNote: "SoulSync tracks links, levels and losses. The other rules are on your honour for now.",
@@ -614,7 +621,7 @@ waitPlayer: n => `Waiting for player ${n}`, playerN: n => `Player ${n}`, fPlayer
     games: { black: "Schwarz", white: "Weiß", black2: "Schwarz 2", white2: "Weiß 2" },
     rRetry: "Alles verloren? Starte den nächsten Versuch. Links und Verlauf werden geleert, der Code bleibt.", retry: "Nächsten Versuch starten", retrySure: "Zum Bestätigen nochmal klicken",
     tLead: "Zeilen greifen an, Spalten verteidigen. Klick auf einen Typ hebt ihn hervor.", tSe: "sehr effektiv", tNve: "nicht sehr effektiv", tNo: "keine Wirkung",
-    cTitle: "Fangchance", cFind: "Wildes Pokémon…", cHp: "KP", cStatus: "Status", cNone: "Kein", cMinor: "PAR GIF BRT", cMajor: "SLF GFR", cGrass: "Dunkles Gras", cRate: r => `Fangrate ${r}`, cRom: "aus deiner ROM", cStd: "Originalwert",
+    wildTip: "Kämpft gerade gegen dieses wilde Pokémon; die Chance gilt für einen Pokéball", wildBall: "Pokéball", cTitle: "Fangchance", cFind: "Wildes Pokémon…", cHp: "KP", cStatus: "Status", cNone: "Kein", cMinor: "PAR GIF BRT", cMajor: "SLF GFR", cGrass: "Dunkles Gras", cRate: r => `Fangrate ${r}`, cRom: "aus deiner ROM", cStd: "Originalwert",
     balls: [["Pokéball", ""], ["Superball", ""], ["Hyperball", ""], ["Flottball", "Runde 1"], ["Finsterball", "Höhle oder Nacht"]],
     rCaps: "Level-Caps", rNoCaps: "Dieser Run hat keine Level-Caps.", rCapsHint: "Der markierte Cap gilt, bis beide Spieler den nächsten Orden haben.", gym: n => `Arena ${n}`,
     rRules: "Soul-Link-Regeln", rNote: "SoulSync verfolgt Links, Level und Verluste. Die übrigen Regeln laufen vorerst auf Vertrauen.",
@@ -1567,6 +1574,7 @@ function loadSpecies() {
     u.list = d.species; u.fromRom = !!d.from_rom;
     if (u.sp) u.sp = u.list.find(sp => sp[0] === u.sp[0]) || null;
     updateCatch();
+    if (state && mounted) updatePlayers();
   };
   if (window.SoulSyncDemoSpecies) take(window.SoulSyncDemoSpecies);
   else fetch(`${SRV}/api/runs/${encodeURIComponent(state.code)}/species`).then(r => r.json()).then(take).catch(() => { u.loaded = null; });
@@ -1603,10 +1611,24 @@ function seedRows() {
 
 // The wild Pokémon a player faces right now, from the Lua script: in the app
 // your own, otherwise whoever has one.
+// Only the viewer's own battle drives the calculator; the others' battles
+// show on their player cards.
 function wildNow() {
-  const ps = state.players.filter(p => p.snapshot && p.snapshot.wild);
-  const p = (local && ps.find(p => p.name === local.name)) || ps[0];
+  const p = local && state.players.find(p => p.name === local.name && p.snapshot && p.snapshot.wild);
   return p ? { player: p.name, mon: p.snapshot.wild } : null;
+}
+
+// A player's battle against a wild Pokémon, with the chance a Poké Ball has.
+function wildBadge(p) {
+  const m = p && p.snapshot && p.snapshot.wild;
+  if (!m) return "";
+  const b = m.battle || { hp: 1, max_hp: 1, level: "?" }, r = b.max_hp ? b.hp / b.max_hp : 1;
+  const sp = (catchUi.list || []).find(x => x[0] === (m.species_name && m.species_name.en));
+  const status = !m.ailment ? 0 : m.ailment === "sleep" || m.ailment === "freeze" ? 2 : 1;
+  const pct = sp ? catchChance(sp[2], r, status, 1, false, caughtCount()) * 100 : null;
+  const tone = pct == null ? "" : pct >= 50 ? "ok" : pct >= 20 ? "warn" : "danger";
+  const facts = [`${t().lv} ${b.level}`, `${t().cHp} ${Math.round(r * 100)} %`, m.ailment ? t().ail[m.ailment] : null].filter(Boolean).join("  ·  ");
+  return `<span class="wild" title="${esc(t().wildTip)}"><i class="dot live"></i><b>${esc(species(m))}</b><span>${esc(facts)}</span>${pct == null ? "" : `<em style="--tc:var(--${tone})">${esc(t().wildBall)} ${pct >= 99.95 ? "100" : pct < 10 ? pct.toFixed(1) : Math.round(pct)} %</em>`}</span>`;
 }
 
 // Keeps the catch chance on the wild Pokémon of the battle: species, HP and
@@ -1644,10 +1666,12 @@ function updatePlayers() {
   $("#game").textContent = games.length ? `Pokémon ${games.join(" / ")}  ·  ${t().gen(5)}` : "";
   for (const i of seatList()) {
     const el = cards[i], p = state.players[i];
-    if (!el.firstChild) el.innerHTML = `<div class="pl-n"><div><i></i><span></span><em></em></div><small></small></div><div class="pl-b"><div class="badges">${"<i></i>".repeat(8)}</div><span></span></div>`;
+    if (!el.firstChild) el.innerHTML = `<div class="pl-n"><div><i></i><span></span><em></em></div><small></small><div class="pl-w"></div></div><div class="pl-b"><div class="badges">${"<i></i>".repeat(8)}</div><span></span></div>`;
     el.classList.toggle("off", !p || !p.connected);
     $(".pl-n span", el).textContent = seatName(i);
     $(".pl-n em", el).textContent = gameOf(p) || "";
+    const w = wildBadge(p), pw = $(".pl-w", el);
+    if (pw._w !== w) { pw._w = w; pw.innerHTML = w; }
     const secs = p && p.updated_at ? Math.max(0, (Date.now() - p.updated_at) / 1000) : null;
     $("small", el).textContent = !p ? t().notJoined : [p.connected ? null : t().away, secs == null ? t().never : `${t().saved} ${t().ago(secs)}`].filter(Boolean).join("  ·  ");
     const has = !!(p && p.snapshot), badges = has ? p.snapshot.trainer.badges : 0;
