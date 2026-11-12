@@ -237,34 +237,10 @@ button:active{transform:scale(.97)}
 .balls span b{font:400 17px var(--pix);color:var(--text)}
 .balls span.best{background:color-mix(in srgb,var(--c) 18%,transparent);color:var(--text)}
 
-/* catch calculator */
-.calc{margin-top:4px;padding:14px 16px 16px;border-radius:16px;background:var(--ov-0);border:1px solid var(--edge);position:relative}
-.calc h2{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:13.5px;font-weight:600}
-.calc h2 small{font-size:11.5px;font-weight:500;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cin{width:100%;height:38px;margin-top:12px;padding:0 12px;border:1px solid var(--edge);border-radius:11px;background:var(--ov-1);outline:0;transition:border-color .15s}
-.cin:focus{border-color:var(--edge-hi)}
-.cin::placeholder{color:var(--faint)}
-.clist{position:absolute;z-index:5;left:16px;right:16px;margin-top:4px;padding:4px;border:1px solid var(--edge-hi);border-radius:12px;background:var(--toast);box-shadow:0 12px 32px rgba(0,0,0,.28)}
-.clist button{display:flex;justify-content:space-between;width:100%;padding:6px 8px;border-radius:8px;text-align:left}
-.clist button small{color:var(--muted)}
-.clist button.cur,.clist button:hover{background:var(--ov-2)}
-.crow{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:12.5px;color:var(--muted)}
-.crow>span:first-child{flex:none;width:44px}
-.crow input[type=range]{flex:1;min-width:0;height:18px;margin:0;accent-color:var(--hpc,var(--ok))}
-.crow output{flex:none;width:40px;text-align:right;color:var(--text);font:400 17px var(--pix)}
-.crow label{display:flex;align-items:center;gap:8px;cursor:pointer}
+/* segmented choice */
 .seg3{flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:2px;padding:3px;border-radius:11px;background:var(--ov-2)}
 .seg3 button{height:26px;border-radius:8px;font-size:12px;font-weight:500;color:var(--muted);white-space:nowrap;transition:background .15s,color .15s}
 .seg3 button[aria-pressed=true]{background:var(--ov-3);color:var(--text);box-shadow:0 1px 0 var(--edge)}
-.cres{margin-top:12px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;align-items:baseline;font-size:12.5px}
-.cres span small{color:var(--faint);margin-left:6px}
-.cres b{font:400 18px var(--pix);text-align:right}
-.cres u{grid-column:1/-1;height:4px;margin-bottom:4px;border-radius:2px;background:var(--ov-2);text-decoration:none;overflow:hidden}
-.cres u i{display:block;height:100%;border-radius:2px;background:var(--ok);transition:width .45s var(--out),background .3s}
-.cres.off{opacity:.35}
-.clive{display:flex;align-items:center;margin:10px 0 0;padding:8px 10px;border-radius:10px;background:var(--ov-2);font-size:12.5px;min-width:0}
-.clive span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.clive small{margin-left:auto;padding-left:10px;color:var(--muted)}
 .dot{display:inline-block;flex:none;width:8px;height:8px;margin-right:8px;border-radius:50%;background:var(--faint)}
 .dot.live{background:var(--ok);animation:ring 2s infinite}
 .dot.error{background:var(--danger)}.dot.connecting,.dot.waiting{background:var(--warn)}
@@ -662,7 +638,6 @@ input[type=checkbox]:checked{background:linear-gradient(90deg,var(--a),var(--b))
 input[type=checkbox]:checked::after{transform:translateX(17px)}
 input[type=checkbox]:disabled{opacity:.55;cursor:default}
 .checks input:disabled+span{color:var(--muted)}
-.crow input[type=checkbox]{width:34px;height:20px}.crow input[type=checkbox]::after{width:14px;height:14px}.crow input[type=checkbox]:checked::after{transform:translateX(14px)}
 details.adv summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--muted)}
 details.adv .field{margin-top:12px}
 .center-msg{padding:96px 16px;text-align:center;color:var(--muted)}
@@ -1412,7 +1387,7 @@ function mount() {
         <div class="orden glass" id="orden"></div>
       </div>
       <div class="hpanel glass">
-        <div class="col live"><h3>${t().live}<small id="livesrc"></small></h3><div id="pcards"></div><section class="calc" id="catch"></section></div>
+        <div class="col live"><h3>${t().live}<small id="livesrc"></small></h3><div id="pcards"></div></div>
         <div class="col links"><h3>${t().links}<em id="nlinks"></em><small id="sum2"></small></h3>
           <div id="setup"></div>
           ${SECTIONS.map(s => `<section class="sec" data-sec="${s}" hidden><h3><span class="glyph"><i></i><u></u><i></i></span><span>${t()[s]}</span><em></em><small>${t().hint[s]}</small></h3><div class="${TILED[s] ? "tiles" : "rows"}"></div></section>`).join("")}
@@ -1431,7 +1406,6 @@ function mount() {
     <div class="view" data-view="rules" hidden>${head("rules")}<div class="scroll rules" id="rules"></div></div>
     <div class="view" data-view="settings" hidden>${head("settings")}<div class="scroll"><div id="settings"></div></div></div>`) + `<dialog class="mon" id="mon"></dialog>`;
   bindChrome();
-  mountCatch();
   $("#efilt").onclick = e => { const b = e.target.closest("button"); if (b) { encUi.f = b.dataset.f; updateEncounters(); } };
   const find = $("#efind"); find.value = encUi.q;
   find.oninput = () => { encUi.q = find.value; updateEncounters(); };
@@ -2040,7 +2014,7 @@ function paintTypes() {
 
 /* ---------- catch chance (generation 5) */
 const BALLS = [1, 1.5, 2, 5, 3.5];
-const catchUi = { list: null, fromRom: false, sp: null, hp: 100, status: 0, grass: false, loaded: null };
+const catchUi = { list: null, fromRom: false, loaded: null };
 
 // Chance per throw. `hp` is the remaining share of HP, `caught` the number of
 // species owned, which decides critical captures and the dark grass penalty.
@@ -2058,109 +2032,18 @@ function caughtCount() {
   return Math.max(0, ...state.players.map(p => p.snapshot ? new Set([...p.snapshot.party, ...p.snapshot.boxes].filter(m => !m.is_egg).map(m => m.species)).size : 0));
 }
 
-function mountCatch() {
-  const el = $("#catch"), u = catchUi;
-  el.innerHTML = `<h2>${t().cTitle}<small id="crate"></small></h2>
-    <div class="clive" id="clive" hidden></div>
-    <input class="cin" id="cin" type="text" autocomplete="off" spellcheck="false" placeholder="${t().cFind}" aria-label="${t().cFind}" value="${u.sp ? esc(u.sp[lang === "de" ? 1 : 0]) : ""}">
-    <div class="clist" id="clist" hidden></div>
-    <div class="crow"><span>${t().cHp}</span><input type="range" id="chp" min="1" max="100" value="${u.hp}" aria-label="${t().cHp}"><output id="chpo"></output></div>
-    <div class="crow"><span>${t().cStatus}</span><div class="seg3" id="cst">${[t().cNone, t().cMinor, t().cMajor].map((x, i) => `<button type="button" data-s="${i}">${x}</button>`).join("")}</div></div>
-    <div class="crow"><label><input type="checkbox" id="cgr" ${u.grass ? "checked" : ""}>${t().cGrass}</label></div>
-    <div class="cres" id="cres">${t().balls.map(([n, note]) => `<span>${n}${note ? `<small>${note}</small>` : ""}</span><b></b><u><i></i></u>`).join("")}</div>`;
-  const input = $("#cin"), list = $("#clist");
-  let cur = 0, hits = [];
-  const close = () => { list.hidden = true; };
-  const choose = sp => { u.sp = sp; input.value = sp[lang === "de" ? 1 : 0]; close(); updateCatch(); };
-  const search = () => {
-    const q = input.value.trim().toLowerCase(), k = lang === "de" ? 1 : 0;
-    const all = u.list || [];
-    hits = q ? [...all.filter(sp => sp[k].toLowerCase().startsWith(q)), ...all.filter(sp => !sp[k].toLowerCase().startsWith(q) && sp[k].toLowerCase().includes(q))].slice(0, 6) : [];
-    cur = 0; list.hidden = !hits.length;
-    list.innerHTML = hits.map((sp, i) => `<button type="button" data-i="${i}" class="${i ? "" : "cur"}"><span>${esc(sp[k])}</span><small>${sp[2]}</small></button>`).join("");
-  };
-  input.oninput = () => { u.sp = null; search(); updateCatch(); };
-  input.onfocus = () => { input.select(); };
-  input.onkeydown = e => {
-    if (e.key === "Escape") { close(); return; }
-    if (!hits.length || list.hidden) return;
-    if (e.key === "Enter") { e.preventDefault(); choose(hits[cur]); }
-    else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      e.preventDefault(); cur = (cur + (e.key === "ArrowDown" ? 1 : hits.length - 1)) % hits.length;
-      [...list.children].forEach((b, i) => b.classList.toggle("cur", i === cur));
-    }
-  };
-  input.onblur = () => setTimeout(close, 150);
-  list.onmousedown = e => { const b = e.target.closest("button"); if (b) { e.preventDefault(); choose(hits[+b.dataset.i]); } };
-  $("#chp").oninput = e => { u.hp = +e.target.value; updateCatch(); };
-  $("#cst").onclick = e => { const b = e.target.closest("button"); if (b) { u.status = +b.dataset.s; updateCatch(); } };
-  $("#cgr").onchange = e => { u.grass = e.target.checked; updateCatch(); };
-}
-
 function loadSpecies() {
   const u = catchUi, key = state.code + "|" + !!state.rom_data;
   if (u.loaded === key) return;
   u.loaded = key;
   const take = d => {
     u.list = d.species; u.fromRom = !!d.from_rom;
-    if (u.sp) u.sp = u.list.find(sp => sp[0] === u.sp[0]) || null;
-    updateCatch();
     if (state && mounted) updatePlayers();
   };
   if (window.SoulSyncDemoSpecies) take(window.SoulSyncDemoSpecies);
   else fetch(`${SRV}/api/runs/${encodeURIComponent(state.code)}/species`).then(r => r.json()).then(take).catch(() => { u.loaded = null; });
 }
 
-function updateCatch() {
-  if (!$("#cres")) return;
-  loadSpecies();
-  followWild();
-  const u = catchUi, hp = u.hp;
-  $("#chpo").textContent = hp + " %";
-  $("#chp").style.setProperty("--hpc", `var(--${hp > 50 ? "ok" : hp > 20 ? "warn" : "danger"})`);
-  $("#cst").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", +b.dataset.s === u.status));
-  $("#crate").textContent = u.sp ? `${t().cRate(u.sp[2])}  ·  ${u.fromRom ? t().cRom : t().cStd}` : "";
-  const res = $("#cres"), caught = caughtCount();
-  res.classList.toggle("off", !u.sp);
-  BALLS.forEach((ball, i) => {
-    const p = u.sp ? catchChance(u.sp[2], hp / 100, u.status, ball, u.grass, caught) : 0;
-    const pct = p * 100;
-    res.children[i * 3 + 1].textContent = u.sp ? (pct >= 99.95 ? "100" : pct < 10 ? pct.toFixed(1) : Math.round(pct)) + " %" : "–";
-    const bar = res.children[i * 3 + 2].firstChild;
-    bar.style.width = pct + "%";
-    bar.style.background = `var(--${pct >= 50 ? "ok" : pct >= 20 ? "warn" : "danger"})`;
-  });
-}
-
-
-// The wild Pokémon a player faces right now, from the Lua script: in the app
-// your own, otherwise whoever has one.
-// Only the viewer's own battle drives the calculator; the others' battles
-// show on their player cards.
-function wildNow() {
-  const p = local && state.players.find(p => p.name === local.name && p.snapshot && p.snapshot.wild);
-  return p ? { player: p.name, mon: p.snapshot.wild } : null;
-}
-
-
-// Keeps the catch chance on the wild Pokémon of the battle: species, HP and
-// status follow it. Between battles the fields are the viewer's again.
-function followWild() {
-  const u = catchUi, w = wildNow(), box = $("#clive");
-  if (!box) return;
-  box.hidden = !w;
-  if (!w) { u.live = null; return; }
-  const m = w.mon, b = m.battle || { hp: 1, max_hp: 1, level: "?" };
-  const sig = [m.pid, b.hp, b.max_hp, m.ailment, lang, u.list && u.list.length].join("|");
-  if (u.live === sig) return;
-  u.live = sig;
-  box.innerHTML = `<i class="dot live"></i><span><b>${esc(species(m))}</b> ${t().lv} ${b.level}  ·  ${b.hp}/${b.max_hp} ${t().cHp}${m.ailment ? "  ·  " + t().ail[m.ailment] : ""}</span><small>${esc(w.player)}</small>`;
-  const sp = (u.list || []).find(x => x[0] === (m.species_name && m.species_name.en));
-  if (sp) { u.sp = sp; $("#cin").value = sp[lang === "de" ? 1 : 0]; }
-  u.hp = Math.max(1, Math.min(100, Math.round(100 * b.hp / (b.max_hp || 1))));
-  $("#chp").value = u.hp;
-  u.status = !m.ailment ? 0 : m.ailment === "sleep" || m.ailment === "freeze" ? 2 : 1;
-}
 
 function gameOf(p) { const g = p && p.snapshot && p.snapshot.trainer.game; return g ? t().games[g] || g : null; }
 
@@ -2423,7 +2306,7 @@ function render() {
     bindChrome(); updateStatus(); mounted = false; return;
   }
   if (!mounted) mount();
-  updateStatus(); updatePlayers(); updateSetup(); updateLinks(); updateRail(); updateEncounters(); updateTeam(); updateTimeline(); updateTypes(); updateRules(); updateSettings(); updateCatch(); updateCard(); updateSidebar();
+  updateStatus(); updatePlayers(); updateSetup(); updateLinks(); updateRail(); updateEncounters(); updateTeam(); updateTimeline(); updateTypes(); updateRules(); updateSettings(); loadSpecies(); updateCard(); updateSidebar();
 }
 
 function apply(next) { state = next; conn = "live"; render(); }
