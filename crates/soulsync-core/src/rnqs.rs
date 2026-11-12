@@ -209,6 +209,16 @@ impl Preset {
     }
 }
 
+/// A file as Base64, to send it along with a run.
+pub fn encode(file: &[u8]) -> String {
+    base64_encode(file)
+}
+
+/// The file back from [`encode`].
+pub fn decode(text: &str) -> Option<Vec<u8>> {
+    base64_decode(text.as_bytes())
+}
+
 /// CRC-32 as `java.util.zip.CRC32` computes it.
 fn crc32(bytes: &[u8]) -> u32 {
     let mut crc = 0xFFFF_FFFFu32;

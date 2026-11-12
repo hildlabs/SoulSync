@@ -29,6 +29,8 @@ pub enum ClientMsg {
 }
 
 /// Sent by the server.
+// One state per message: boxing it would buy nothing.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ServerMsg {
@@ -54,6 +56,32 @@ pub struct RunSettings {
     /// Usually each player has their own.
     #[serde(default)]
     pub shared_seed: bool,
+    /// The randomizer settings every player's game is made with, so that
+    /// joining a run builds the same kind of game. Without them each player
+    /// randomizes as they like.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub randomizer: Option<RunRandomizer>,
+}
+
+/// How the games of a run are made.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RunRandomizer {
+    /// What the creator called the settings, e.g. the preset's name.
+    pub name: String,
+    /// The `.rnqs` file, Base64, with every option already applied.
+    pub preset: String,
+    /// Rare Candies each player gets in the bag; 0 for none.
+    #[serde(default)]
+    pub candies: u16,
+}
+
+impl RunRandomizer {
+    /// The settings file to give the randomizer.
+    pub fn file(&self) -> Option<Vec<u8>> {
+        let file = crate::rnqs::decode(&self.preset)?;
+        crate::rnqs::Preset::read(&file).ok()?;
+        Some(file)
+    }
 }
 
 fn two() -> usize {
@@ -67,6 +95,7 @@ impl Default for RunSettings {
             caps: Vec::new(),
             rules: Vec::new(),
             shared_seed: false,
+            randomizer: None,
         }
     }
 }
@@ -85,6 +114,14 @@ impl RunSettings {
         };
         if self.rules.len() > 32 || !self.rules.iter().all(id) {
             return Err("rules must be short lowercase ids, at most 32 of them");
+        }
+        if let Some(r) = &self.randomizer {
+            if r.name.chars().count() > 48 || r.preset.len() > 2048 || r.file().is_none() {
+                return Err("the randomizer settings are not a valid .rnqs");
+            }
+            if r.candies > crate::bag::MAX_COUNT {
+                return Err("at most 999 Rare Candies");
+            }
         }
         Ok(())
     }
