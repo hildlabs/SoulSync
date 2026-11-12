@@ -1707,7 +1707,7 @@ pub fn routes(server: soulsync_server::AppState, own: String) -> Router {
                         soulsync_core::bag::medicine(&s, soulsync_core::bag::RARE_CANDY) == 0
                     })
             });
-            if c.template.is_some() && c.code.is_some() && count > 0 && empty {
+            if c.code.is_some() && count > 0 && empty {
                 c.candies_due = c.save.clone().map(|save| CandiesDue { save, count });
             }
             write_config(c);
