@@ -37,6 +37,10 @@ struct Config {
     preset: Option<PathBuf>,
     /// The save every fresh start begins with, kept with the app's data.
     template: Option<PathBuf>,
+    /// Randomizer options changed in SoulSync on top of the `.rnqs`.
+    rando: soulsync_core::rnqs::Overrides,
+    /// Rare Candies every fresh start puts in the bag; 0 leaves it alone.
+    candies: u16,
     /// Every run this app was in, newest first, to go back to.
     runs: Vec<Saved>,
 }
@@ -157,6 +161,9 @@ struct Inner {
     progress: Option<crate::update::Progress>,
     /// How far a fresh start of the game is, once asked for.
     fresh: Option<crate::fresh::Progress>,
+    /// A fresh start without a starting save is running: the first save
+    /// of the new game becomes it.
+    awaiting_template: bool,
     /// Whether moves, items and abilities could be read from the ROM: how
     /// many moves, or why not.
     dex: Option<Result<usize, String>>,
@@ -479,6 +486,66 @@ fn save_info(path: &Path) -> serde_json::Value {
     }
 }
 
+/// What a randomizer settings file says about the options SoulSync offers.
+fn preset_info(path: &Path) -> serde_json::Value {
+    use soulsync_core::rnqs::Preset;
+    let read = std::fs::read(path)
+        .map_err(|e| e.to_string())
+        .and_then(|f| Preset::read(&f).map_err(|e| e.to_string()));
+    match read {
+        Ok(p) => serde_json::json!({
+            "ok": true,
+            "game": p.rom_name(),
+            "tm": p.tm(),
+            "tutor": p.tutor(),
+            "full_hm": p.full_hm(),
+            "random_tm_moves": p.random_tm_moves(),
+        }),
+        Err(e) => serde_json::json!({ "ok": false, "error": e }),
+    }
+}
+
+/// The randomizer and its settings usually sit next to the original ROM,
+/// as they come in the randomizer's download; found there, nobody has to
+/// pick them.
+fn find_randomizer(config: &mut Config) {
+    let Some(original) = config.original.clone() else {
+        return;
+    };
+    let dirs: Vec<PathBuf> = [original.parent(), original.parent().and_then(Path::parent)]
+        .into_iter()
+        .flatten()
+        .map(Path::to_path_buf)
+        .collect();
+    let find = |want: &dyn Fn(&str) -> bool| {
+        dirs.iter().find_map(|d| {
+            let mut found: Vec<PathBuf> = std::fs::read_dir(d)
+                .ok()?
+                .flatten()
+                .map(|e| e.path())
+                .filter(|p| p.is_file())
+                .filter(|p| {
+                    p.file_name()
+                        .and_then(|n| n.to_str())
+                        .is_some_and(|n| want(&n.to_ascii_lowercase()))
+                })
+                .collect();
+            found.sort();
+            found.into_iter().next()
+        })
+    };
+    if config.randomizer.as_deref().map_or(true, |p| !p.is_file()) {
+        if let Some(jar) = find(&|n| n.starts_with("pokerandozx") && n.ends_with(".jar")) {
+            config.randomizer = Some(jar);
+        }
+    }
+    if config.preset.as_deref().map_or(true, |p| !p.is_file()) {
+        if let Some(rnqs) = find(&|n| n.ends_with(".rnqs") && !n.contains(".soulsync.")) {
+            config.preset = Some(rnqs);
+        }
+    }
+}
+
 /// DeSmuME keeps `Battery/<rom name>.dsv` next to itself; the ROM usually
 /// sits in the same folder or one below.
 fn guess_save(rom: &Path) -> Option<PathBuf> {
@@ -536,7 +603,11 @@ impl Local {
                 "original": c.original.as_deref().map(rom_info),
                 "randomizer": c.randomizer,
                 "preset": c.preset,
+                "options": c.preset.as_deref().map(preset_info),
+                "rando": c.rando,
+                "candies": c.candies,
                 "template": c.template.as_deref().filter(|t| t.is_file()).map(save_info),
+                "awaiting": inner.awaiting_template,
                 "progress": inner.fresh,
             }),
             "dialogs": cfg!(any(windows, target_os = "macos")),
@@ -672,6 +743,9 @@ struct Set {
     original: Option<String>,
     randomizer: Option<String>,
     preset: Option<String>,
+    /// Replaces all randomizer options SoulSync changes.
+    rando: Option<soulsync_core::rnqs::Overrides>,
+    candies: Option<u16>,
 }
 
 fn apply(config: &mut Config, set: Set) {
@@ -693,6 +767,13 @@ fn apply(config: &mut Config, set: Set) {
     }
     if let Some(original) = set.original {
         config.original = path(original);
+        find_randomizer(config);
+    }
+    if let Some(rando) = set.rando {
+        config.rando = rando;
+    }
+    if let Some(candies) = set.candies {
+        config.candies = candies.min(soulsync_core::bag::MAX_COUNT);
     }
     if let Some(randomizer) = set.randomizer {
         config.randomizer = path(randomizer);
@@ -830,14 +911,19 @@ async fn fresh(State(local): State<Local>) -> Reply {
                 java: "java".into(),
                 randomizer: need(&c.randomizer, "randomizer")?,
                 preset: need(&c.preset, "preset")?,
+                overrides: c.rando,
                 original: need(&c.original, "original")?,
                 rom: need(&c.rom, "rom")?,
-                template: need(&c.template, "template")?,
-                encounters: data_dir().map(|d| d.join("encounters.json")),
+                template: c.template.clone().filter(|t| t.is_file()),
+                candies: c.candies,
+                // The new game's encounters start empty; the run's are the
+                // ones of the game that ended.
+                encounters: c.code.as_deref().and_then(encounters_path),
                 emulator: desmume_exe(&save),
                 save,
             };
             inner.fresh = Some(Progress::Rolling);
+            inner.awaiting_template = false;
             Some(plan)
         }
     };
@@ -856,6 +942,9 @@ async fn fresh(State(local): State<Local>) -> Reply {
                 if let Some(emulator) = &plan.emulator {
                     crate::fresh::play(emulator, &plan.rom);
                 }
+                if plan.template.is_none() {
+                    tokio::spawn(await_template(worker.clone(), plan.save.clone()));
+                }
                 Progress::Done
             }
             Ok(Err((why, detail))) => Progress::Failed { why, detail },
@@ -870,6 +959,41 @@ async fn fresh(State(local): State<Local>) -> Reply {
         worker.inner.lock().unwrap().fresh = Some(progress);
     });
     Ok(Json(local.view()))
+}
+
+/// After a fresh start without a starting save: the player plays the
+/// intro once, sets the options and saves. That save, still without a
+/// Pokémon, becomes the one every later fresh start begins with. Saved
+/// again before the first Pokémon, it is taken again.
+async fn await_template(local: Local, save: PathBuf) {
+    local.inner.lock().unwrap().awaiting_template = true;
+    let Some(kept) = data_dir().map(|d| d.join("start-save.dsv")) else {
+        return;
+    };
+    let mut seen = None;
+    // Long enough for the intro, however slowly it is played.
+    for _ in 0..(3 * 60 * 60 / 3) {
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        if !local.inner.lock().unwrap().awaiting_template {
+            return;
+        }
+        let modified = std::fs::metadata(&save).and_then(|m| m.modified()).ok();
+        if modified.is_none() || modified == seen {
+            continue;
+        }
+        seen = modified;
+        let Ok(snap) = load(&save) else { continue };
+        if snap.all_pokemon().next().is_some() {
+            break;
+        }
+        if snap.trainer.name.is_empty() || std::fs::copy(&save, &kept).is_err() {
+            continue;
+        }
+        let mut inner = local.inner.lock().unwrap();
+        inner.config.template = Some(kept.clone());
+        write_config(&inner.config);
+    }
+    local.inner.lock().unwrap().awaiting_template = false;
 }
 
 #[derive(Deserialize)]

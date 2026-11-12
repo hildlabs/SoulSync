@@ -232,15 +232,28 @@ async fn dex(
     }
 }
 
+#[derive(Deserialize)]
+struct AttemptQuery {
+    /// The attempt the player is leaving. When every player of a run
+    /// starts over by themselves, only the first one counts.
+    from: Option<u32>,
+}
+
 /// The players wiped and start over under the same code.
-async fn new_attempt(State(app): State<AppState>, Path(code): Path<String>) -> Response {
+async fn new_attempt(
+    State(app): State<AppState>,
+    Path(code): Path<String>,
+    Query(q): Query<AttemptQuery>,
+) -> Response {
     let code = normalize(&code);
     let attempt = {
         let mut runs = app.runs.lock().unwrap();
         let Some(e) = runs.get_mut(&code) else {
             return (StatusCode::NOT_FOUND, "run not found").into_response();
         };
-        e.run.restart();
+        if q.from.map_or(true, |from| from == e.run.attempt) {
+            e.run.restart();
+        }
         e.run.attempt
     };
     tracing::info!(%code, attempt, "new attempt");
