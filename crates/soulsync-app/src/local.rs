@@ -132,6 +132,8 @@ enum Phase {
     #[default]
     Idle,
     Connecting,
+    /// The save does not exist yet: a new game that was not saved so far.
+    Waiting,
     Live,
     Error,
 }
@@ -691,10 +693,24 @@ impl Local {
         let me = self.clone();
         self.set_phase(Phase::Connecting, None);
         let task = tokio::spawn(async move {
-            let mut last = match load(&save) {
-                Ok(s) => s,
-                Err(e) => return me.set_phase(Phase::Error, Some(e.to_string())),
+            // A new game has no save until the player saves for the first
+            // time. Until then the script must not look for the party of the
+            // game before, whose trainer it was told about.
+            let trainer_note = live_party_path().map(|out| out.with_file_name("live-trainer.txt"));
+            let mut last = loop {
+                match load(&save) {
+                    Ok(s) => break s,
+                    Err(_) if !save.exists() => {
+                        if let Some(note) = &trainer_note {
+                            let _ = std::fs::remove_file(note);
+                        }
+                        me.set_phase(Phase::Waiting, None);
+                        tokio::time::sleep(Duration::from_secs(2)).await;
+                    }
+                    Err(e) => return me.set_phase(Phase::Error, Some(e.to_string())),
+                }
             };
+            me.set_phase(Phase::Connecting, None);
             let mut backoff = 1u64;
             loop {
                 let reporter = me.clone();
