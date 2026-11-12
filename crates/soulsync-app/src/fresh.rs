@@ -86,7 +86,7 @@ fn quiet(command: &mut Command) -> &mut Command {
 
 /// Whether the program at `exe` is running. Only Windows is asked; elsewhere
 /// an open emulator does not lock or overwrite anything on exit.
-fn running(exe: &Path) -> bool {
+pub fn running(exe: &Path) -> bool {
     let Some(name) = exe.file_name().and_then(|n| n.to_str()) else {
         return false;
     };
