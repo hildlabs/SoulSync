@@ -110,6 +110,7 @@ pub fn app(state: AppState) -> Router {
         .route("/assets/fonts/{file}", get(font))
         .route("/api/config", get(config))
         .route("/api/runs", post(create_run))
+        .route("/api/presets", get(presets))
         .route("/api/runs/{code}", get(get_run))
         .route("/api/runs/{code}/species", get(species))
         .route("/api/runs/{code}/dex", get(dex))
@@ -187,6 +188,50 @@ async fn create_run(State(app): State<AppState>, body: axum::body::Bytes) -> Res
         Ok(run) => Json(run).into_response(),
         Err(why) => (StatusCode::BAD_REQUEST, why).into_response(),
     }
+}
+
+/// Randomizer settings a run can be made with, shipped with SoulSync. They
+/// are settings only; every player randomizes their own ROM with them.
+/// Id, name in English and German, description in English and German, file.
+type Preset = (
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static [u8],
+);
+
+const PRESETS: &[Preset] = &[(
+    "soul-link",
+    "Soul Link",
+    "Soul Link",
+    "Random starters and wild Pokémon by area, random trainers, items and shops, \
+     easier evolutions; types, stats and abilities as in the game.",
+    "Zufällige Starter und wilde Pokémon pro Gebiet, zufällige Trainer, Items und \
+     Läden, leichtere Entwicklungen; Typen, Werte und Fähigkeiten wie im Spiel.",
+    include_bytes!("../presets/soul-link.rnqs"),
+)];
+
+async fn presets() -> Json<serde_json::Value> {
+    use soulsync_core::rnqs::{encode, Preset};
+    let list: Vec<serde_json::Value> = PRESETS
+        .iter()
+        .filter_map(|(id, en, de, about_en, about_de, file)| {
+            let p = Preset::read(file).ok()?;
+            Some(serde_json::json!({
+                "id": id,
+                "name": { "en": en, "de": de },
+                "about": { "en": about_en, "de": about_de },
+                "preset": encode(file),
+                "tm": p.tm(),
+                "tutor": p.tutor(),
+                "full_hm": p.full_hm(),
+                "random_tm_moves": p.random_tm_moves(),
+            }))
+        })
+        .collect();
+    Json(serde_json::json!(list))
 }
 
 async fn get_run(State(app): State<AppState>, Path(code): Path<String>) -> Response {
@@ -644,5 +689,15 @@ mod tests {
         assert_eq!(state.log.len(), 1);
         assert!(state.players[0].snapshot.is_some());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(test)]
+mod preset_tests {
+    #[test]
+    fn shipped_presets_are_valid() {
+        for p in super::PRESETS {
+            assert!(soulsync_core::rnqs::Preset::read(p.5).is_ok(), "{}", p.0);
+        }
     }
 }

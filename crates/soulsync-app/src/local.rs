@@ -9,7 +9,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use soulsync_client::{create_run, load, session, ws_url, End, Live, Update};
-use soulsync_core::protocol::RunSettings;
+use soulsync_core::protocol::{RunRandomizer, RunSettings};
 use soulsync_core::{
     read_catch_rates, read_dex, read_level_caps, read_map_locations, read_rom_header, Lang,
     ROM_HEADER_LEN,
@@ -41,6 +41,12 @@ struct Config {
     rando: soulsync_core::rnqs::Overrides,
     /// Rare Candies every fresh start puts in the bag; 0 leaves it alone.
     candies: u16,
+    /// DeSmuME, for a game SoulSync makes from scratch.
+    emulator: Option<PathBuf>,
+    /// The randomizer settings of the current run, if it has its own.
+    run_rando: Option<RunRandomizer>,
+    /// The attempt of the current run the game was last made for.
+    rolled: u32,
     /// Every run this app was in, newest first, to go back to.
     runs: Vec<Saved>,
 }
@@ -59,6 +65,8 @@ struct Saved {
     game: Option<serde_json::Value>,
     /// When it was last played, in milliseconds since 1970.
     at: u64,
+    randomizer: Option<RunRandomizer>,
+    rolled: u32,
 }
 
 /// Runs remembered at most.
@@ -93,6 +101,8 @@ impl Config {
                 save: self.save.clone(),
                 game,
                 at,
+                randomizer: self.run_rando.clone(),
+                rolled: self.rolled,
             },
         );
         self.runs.truncate(SAVED_RUNS);
@@ -105,6 +115,8 @@ impl Config {
         self.name = run.name.clone();
         self.rom = run.rom.clone();
         self.save = run.save.clone();
+        self.run_rando = run.randomizer.clone();
+        self.rolled = run.rolled;
     }
 }
 
@@ -548,6 +560,43 @@ fn find_randomizer(config: &mut Config) {
             config.preset = Some(rnqs);
         }
     }
+    if config.emulator.as_deref().map_or(true, |p| !p.is_file()) {
+        config.emulator = find(&|n| n.starts_with("desmume") && n.ends_with(".exe"))
+            .or_else(|| config.save.as_deref().and_then(desmume_exe));
+    }
+}
+
+/// Where SoulSync puts a game it makes for a run: in DeSmuME's folder, the
+/// ROM under `Roms`, the save where DeSmuME keeps it, `Battery`.
+fn game_paths(emulator: &Path, code: &str) -> Option<(PathBuf, PathBuf)> {
+    let dir = emulator.parent()?;
+    let safe: String = code
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
+        .collect();
+    let name = format!("SoulSync-{safe}");
+    let rom = dir.join("Roms").join(format!("{name}.nds"));
+    let save = dir.join("Battery").join(format!("{name}.dsv"));
+    std::fs::create_dir_all(rom.parent()?).ok()?;
+    Some((rom, save))
+}
+
+/// The randomizer settings for a new run: a shipped preset or the
+/// player's own file, with the options changed in SoulSync.
+fn run_randomizer(config: &Config, choice: &RandoChoice) -> Result<RunRandomizer, String> {
+    use soulsync_core::rnqs::{decode, encode, Preset};
+    let file = match &choice.preset {
+        Some(text) => decode(text).ok_or("preset")?,
+        None => {
+            std::fs::read(config.preset.as_deref().ok_or("preset")?).map_err(|e| e.to_string())?
+        }
+    };
+    let preset = Preset::read(&file).map_err(|e| e.to_string())?;
+    Ok(RunRandomizer {
+        name: choice.name.chars().take(48).collect(),
+        preset: encode(&preset.with(&config.rando).write()),
+        candies: config.candies,
+    })
 }
 
 /// DeSmuME keeps `Battery/<rom name>.dsv` next to itself; the ROM usually
@@ -615,6 +664,12 @@ impl Local {
                 "candies": c.candies,
                 "template": c.template.as_deref().filter(|t| t.is_file()).map(save_info),
                 "awaiting": inner.awaiting_template,
+                "emulator": c.emulator,
+                "run": c.run_rando.as_ref().map(|r| serde_json::json!({
+                    "name": r.name,
+                    "candies": r.candies,
+                })),
+                "rolled": c.rolled,
                 "progress": inner.fresh,
             }),
             "dialogs": cfg!(any(windows, target_os = "macos")),
@@ -772,6 +827,7 @@ struct Set {
     /// Replaces all randomizer options SoulSync changes.
     rando: Option<soulsync_core::rnqs::Overrides>,
     candies: Option<u16>,
+    emulator: Option<String>,
 }
 
 fn apply(config: &mut Config, set: Set) {
@@ -794,6 +850,9 @@ fn apply(config: &mut Config, set: Set) {
     if let Some(original) = set.original {
         config.original = path(original);
         find_randomizer(config);
+    }
+    if let Some(emulator) = set.emulator {
+        config.emulator = path(emulator);
     }
     if let Some(rando) = set.rando {
         config.rando = rando;
@@ -835,6 +894,7 @@ enum Kind {
     Original,
     Randomizer,
     Preset,
+    Emulator,
 }
 
 #[cfg(any(windows, target_os = "macos"))]
@@ -845,6 +905,7 @@ fn dialog(kind: Kind, start: Option<PathBuf>) -> Option<PathBuf> {
         Kind::Save => d.add_filter("Save", &["dsv", "sav"]),
         Kind::Randomizer => d.add_filter("Universal Pokémon Randomizer ZX", &["jar"]),
         Kind::Preset => d.add_filter("Randomizer settings", &["rnqs"]),
+        Kind::Emulator => d.add_filter("DeSmuME", &["exe"]),
     };
     if let Some(dir) = start.as_deref().and_then(Path::parent) {
         d = d.set_directory(dir);
@@ -865,6 +926,7 @@ async fn pick(State(local): State<Local>, Json(pick): Json<Pick>) -> Reply {
         "original" => Kind::Original,
         "randomizer" => Kind::Randomizer,
         "preset" => Kind::Preset,
+        "emulator" => Kind::Emulator,
         _ => return Err(bad("kind")),
     };
     let start = {
@@ -877,6 +939,7 @@ async fn pick(State(local): State<Local>, Json(pick): Json<Pick>) -> Reply {
             Kind::Original => c.original.clone().or_else(rom),
             Kind::Randomizer => c.randomizer.clone().or_else(rom),
             Kind::Preset => c.preset.clone().or(c.randomizer.clone()).or_else(rom),
+            Kind::Emulator => c.emulator.clone().or(c.original.clone()).or_else(rom),
         }
     };
     let chosen = tokio::task::spawn_blocking(move || dialog(kind, start))
@@ -892,6 +955,7 @@ async fn pick(State(local): State<Local>, Json(pick): Json<Pick>) -> Reply {
             Kind::Original => set.original = path,
             Kind::Randomizer => set.randomizer = path,
             Kind::Preset => set.preset = path,
+            Kind::Emulator => set.emulator = path,
         }
         let mut inner = local.inner.lock().unwrap();
         apply(&mut inner.config, set);
@@ -937,43 +1001,72 @@ async fn untemplate(State(local): State<Local>) -> Reply {
     Ok(Json(local.view()))
 }
 
+#[derive(Default, Deserialize)]
+#[serde(default)]
+struct Fresh {
+    /// The attempt of the run the new game is for, as the server counts it.
+    attempt: Option<u32>,
+}
+
 /// Starts the game over: randomizes the ROM anew, puts the starting save in
 /// place and opens the game. The page follows the progress in the state.
-async fn fresh(State(local): State<Local>) -> Reply {
+async fn fresh(State(local): State<Local>, body: Option<Json<Fresh>>) -> Reply {
+    let attempt = body.and_then(|b| b.0.attempt);
+    // Whether the sync ran: it starts again on the new game.
+    let syncing = local.inner.lock().unwrap().task.is_some();
+    begin_fresh(&local, attempt, syncing)?;
+    Ok(Json(local.view()))
+}
+
+/// Randomizes the ROM anew, puts the starting save in place and opens the
+/// game; with `sync`, the sync starts again afterwards. The run's own
+/// randomizer settings win over the player's.
+fn begin_fresh(
+    local: &Local,
+    attempt: Option<u32>,
+    sync: bool,
+) -> Result<(), (StatusCode, String)> {
     use crate::fresh::{Plan, Progress};
     let plan = {
         let mut inner = local.inner.lock().unwrap();
         if inner.fresh == Some(Progress::Rolling) {
-            None
-        } else {
-            let c = &inner.config;
-            let need = |p: &Option<PathBuf>, what| p.clone().ok_or_else(|| bad(what));
-            let save = need(&c.save, "save")?;
-            let plan = Plan {
-                java: "java".into(),
-                randomizer: need(&c.randomizer, "randomizer")?,
-                preset: need(&c.preset, "preset")?,
-                overrides: c.rando,
-                original: need(&c.original, "original")?,
-                rom: need(&c.rom, "rom")?,
-                template: c.template.clone().filter(|t| t.is_file()),
-                candies: c.candies,
-                // The new game's encounters start empty; the run's are the
-                // ones of the game that ended.
-                encounters: c.code.as_deref().and_then(encounters_path),
-                emulator: desmume_exe(&save),
-                save,
-            };
-            inner.fresh = Some(Progress::Rolling);
-            inner.awaiting_template = false;
-            Some(plan)
+            return Ok(());
         }
+        let c = &inner.config;
+        let need = |p: &Option<PathBuf>, what| p.clone().ok_or_else(|| bad(what));
+        let save = need(&c.save, "save")?;
+        let (preset, overrides, candies) = match &c.run_rando {
+            Some(run) => {
+                let file = run.file().ok_or_else(|| bad("preset"))?;
+                let path = data_dir().ok_or_else(|| bad("data"))?.join("run.rnqs");
+                std::fs::write(&path, file).map_err(|e| bad(e.to_string()))?;
+                (path, Default::default(), run.candies)
+            }
+            None => (need(&c.preset, "preset")?, c.rando, c.candies),
+        };
+        let plan = Plan {
+            java: "java".into(),
+            randomizer: need(&c.randomizer, "randomizer")?,
+            preset,
+            overrides,
+            original: need(&c.original, "original")?,
+            rom: need(&c.rom, "rom")?,
+            template: c.template.clone().filter(|t| t.is_file()),
+            candies,
+            // The new game's encounters start empty; the run's are the
+            // ones of the game that ended.
+            encounters: c.code.as_deref().and_then(encounters_path),
+            emulator: c
+                .emulator
+                .clone()
+                .filter(|e| e.is_file())
+                .or_else(|| desmume_exe(&save)),
+            save,
+        };
+        inner.fresh = Some(Progress::Rolling);
+        inner.awaiting_template = false;
+        plan
     };
-    let Some(plan) = plan else {
-        return Ok(Json(local.view()));
-    };
-    // The sync reads the save and the ROM; it starts again on the new ones.
-    let syncing = local.inner.lock().unwrap().task.is_some();
     local.stop();
     let worker = local.clone();
     tokio::spawn(async move {
@@ -987,6 +1080,12 @@ async fn fresh(State(local): State<Local>) -> Reply {
                 if plan.template.is_none() {
                     tokio::spawn(await_template(worker.clone(), plan.save.clone()));
                 }
+                if let Some(attempt) = attempt {
+                    let mut inner = worker.inner.lock().unwrap();
+                    inner.config.rolled = attempt;
+                    inner.config.remember(now_ms());
+                    write_config(&inner.config);
+                }
                 Progress::Done
             }
             Ok(Err((why, detail))) => Progress::Failed { why, detail },
@@ -995,12 +1094,13 @@ async fn fresh(State(local): State<Local>) -> Reply {
                 detail: Some(e.to_string()),
             },
         };
-        if syncing {
-            worker.start();
+        if sync {
+            let starter = worker.clone();
+            let _ = tokio::task::spawn_blocking(move || starter.start()).await;
         }
         worker.inner.lock().unwrap().fresh = Some(progress);
     });
-    Ok(Json(local.view()))
+    Ok(())
 }
 
 /// After a fresh start without a starting save: the player plays the
@@ -1044,6 +1144,34 @@ struct Start {
     code: Option<String>,
     #[serde(default)]
     settings: RunSettings,
+    /// Make a new game for the run from the original ROM, instead of
+    /// playing the ROM and save already chosen.
+    #[serde(default)]
+    roll: bool,
+    /// For a new run: the randomizer settings every player's game is made
+    /// with. Without them each player uses their own.
+    rando: Option<RandoChoice>,
+}
+
+#[derive(Deserialize)]
+struct RandoChoice {
+    /// A shipped preset's file, Base64; without it the player's own `.rnqs`.
+    preset: Option<String>,
+    #[serde(default)]
+    name: String,
+}
+
+/// The randomizer settings a run on `server` was made with, and the
+/// attempt it is at.
+fn fetch_randomizer(server: &str, code: &str) -> Result<(Option<RunRandomizer>, u32), String> {
+    let url = format!("{}/api/runs/{code}", soulsync_client::base(server));
+    let state: soulsync_core::protocol::RunState = ureq::get(&url)
+        .call()
+        .map_err(|e| e.to_string())?
+        .body_mut()
+        .read_json()
+        .map_err(|e| e.to_string())?;
+    Ok((state.settings.randomizer, state.attempt))
 }
 
 /// Creates or joins a run and starts syncing.
@@ -1052,9 +1180,26 @@ async fn start(State(local): State<Local>, Json(req): Json<Start>) -> Reply {
     if config.name.is_empty() {
         return Err(bad("name"));
     }
-    match config.save.as_deref().map(load) {
-        Some(Ok(_)) => {}
-        _ => return Err(bad("save")),
+    if req.roll {
+        let ready = config.original.as_deref().is_some_and(Path::is_file)
+            && config.randomizer.as_deref().is_some_and(Path::is_file);
+        if !ready {
+            return Err(bad("roll"));
+        }
+        if !config.emulator.as_deref().is_some_and(Path::is_file) {
+            return Err(bad("emulator"));
+        }
+    } else {
+        match config.save.as_deref().map(load) {
+            Some(Ok(_)) => {}
+            _ => return Err(bad("save")),
+        }
+    }
+    let mut req = req;
+    if req.code.as_deref().map_or(true, |c| c.trim().is_empty()) {
+        if let Some(choice) = &req.rando {
+            req.settings.randomizer = Some(run_randomizer(&config, choice).map_err(bad)?);
+        }
     }
     let own = config.server.trim().is_empty();
     let server = local.server_url();
@@ -1082,11 +1227,35 @@ async fn start(State(local): State<Local>, Json(req): Json<Start>) -> Reply {
                 .code
         }
     };
+    // The run's randomizer settings, whoever made it.
+    let (rando, attempt) = {
+        let (server, code) = (local.server_url(), code.clone());
+        tokio::task::spawn_blocking(move || fetch_randomizer(&server, &code))
+            .await
+            .map_err(|e| bad(e.to_string()))?
+            .map_err(|e| bad(format!("server: {e}")))?
+    };
     {
         let mut inner = local.inner.lock().unwrap();
-        inner.config.code = Some(code);
-        inner.config.remember(now_ms());
-        write_config(&inner.config);
+        let c = &mut inner.config;
+        if req.roll {
+            let emulator = c.emulator.clone().ok_or_else(|| bad("emulator"))?;
+            let (rom, save) = game_paths(&emulator, &code).ok_or_else(|| bad("emulator"))?;
+            c.rom = Some(rom);
+            c.save = Some(save);
+        }
+        c.code = Some(code);
+        c.run_rando = rando;
+        // A game already played counts as made for where the run is.
+        c.rolled = if req.roll { 0 } else { attempt };
+        c.remember(now_ms());
+        write_config(c);
+    }
+    if req.roll {
+        // The run is at attempt 1 when it is new; joined later, the game is
+        // made for whatever attempt it is at. The page tells which.
+        begin_fresh(&local, Some(attempt), true)?;
+        return Ok(Json(local.view()));
     }
     // Reading the ROM takes a moment.
     let starter = local.clone();

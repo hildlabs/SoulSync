@@ -625,6 +625,8 @@ dialog.mon[open]{animation:rise .5s var(--spring) backwards}
 .field input:not([type=checkbox]){width:100%;height:44px;padding:0 14px;background:var(--ov-1);border:1px solid var(--edge);border-radius:12px;font-size:14.5px;outline:0;transition:border-color .15s,background .15s}
 .field input::placeholder{color:var(--faint)}
 .field input:focus{border-color:var(--edge-hi);background:var(--ov-2)}
+.field select{width:100%;height:44px;padding:0 10px;background:var(--ov-1);border:1px solid var(--edge);border-radius:12px;font:inherit;font-size:14px;color:var(--text);outline:0}
+.field .seg3{margin-bottom:4px}
 .field small{display:block;margin-top:8px;font-size:12.5px;line-height:1.45;color:var(--muted)}
 .field small.ok{color:var(--ok)}
 .field small.bad{color:var(--danger)}
@@ -854,7 +856,11 @@ waitPlayer: n => `Waiting for player ${n}`, playerN: n => `Player ${n}`, fPlayer
     romOk: (g, n) => `Pokémon ${g}  ·  Gen ${n}`, romBad: "This is not a supported Pokémon ROM (Black, White, Black 2, White 2).",
     saveOk: (n, b, p) => `Trainer ${n}  ·  ${b} badges  ·  ${p} Pokémon`, saveBad: "This save cannot be read. Pick the .dsv from DeSmuME’s Battery folder.",
     fServer: "Run server", fServerHelp: "Leave empty to keep the run on this computer only. To play with a partner, both enter the same server address.", advanced: "Server",
-    startNew: "Start run", startJoin: "Join run", eName: "Enter your name.", eSave: "Pick a save that can be read first.", eCode: "No run with this code on the server.",
+    startNew: "Start run", startJoin: "Join run",
+    gMode: "Your game", gRoll: "Make a new game", gOwn: "Game I already have", gRollHelp: "SoulSync randomizes your original ROM with the run's settings and opens it in DeSmuME with a new save.", fOriginal: "Original ROM", fRando: "Randomizer (PokeRandoZX.jar)", fEmu: "DeSmuME", fEmuHelp: "Your DeSmuME .exe. The new game goes into its Roms and Battery folders.", fileOk: "found",
+    fPreset: "Randomizer settings", pNone: "None, everyone randomizes on their own", pOwn: "My own settings file (.rnqs)", pOwnMissing: "Choose your .rnqs in Settings › Start over first.", pJoin: "The randomizer settings come from the run.",
+    eRoll: "Choose your original ROM and the randomizer first.", eEmu: "Choose DeSmuME first.", ePreset: "The randomizer settings cannot be read.",
+    rollNow: n => `Attempt ${n} has begun`, rollNowSub: "Randomize your game anew", runRando: "Settings of the run", runRandoHint: "Every player's game is made with the run's settings. Rare Candies come from the run as well.", eName: "Enter your name.", eSave: "Pick a save that can be read first.", eCode: "No run with this code on the server.",
     sLive: "Live from DeSmuME", sLua: "Lua for DeSmuME", sLuaState: { present: "ready", installed: "set up, restart DeSmuME", missing: "DeSmuME not found" }, sLiveOn: "connected", sLiveForeign: "connected, but your party was not found yet", sLiveOff: "script not running", sAuto: "Starts with the game", sAutoState: { present: "yes", installed: "set up, restart DeSmuME", missing: "no, load the script by hand" }, sLiveHint: "Without the script the dashboard updates when you save in-game. With it, it follows your party and your encounters right away. DeSmuME starts it by itself when you open the game. If it does not: in DeSmuME open Tools › Lua Scripting › New Lua Script Window, choose this file and press Run.", sLiveScript: "Script", sGame: "Your game", sRun: "Run", sSync: "Sync", sServer: "Server", sLocal: "this computer", sBuild: "App build", sDex: "Moves from the ROM", sDexOk: n => `${n} moves read`, sDexBad: "could not be read", startBusy: "Starting run…", startSlow: "Reading your ROM and save. This takes a few seconds.", uNew: n => `Update ${n} is ready`, uDo: "Install", uBusy: "Downloading update…", uLoad: n => `Downloading update… ${n} %`, uMb: (d, s) => s ? `Downloading update… ${d} of ${s} MB` : `Downloading update… ${d} MB`, uStart: "Installing…", uRestart: "Starting the new version…", uFail: "Update failed", uAgain: "Try again", fresh: "Start over", freshLead: "Run failed? One click randomizes your original ROM anew with your settings, puts your starting save in place, starts the next attempt and opens the game. Close DeSmuME first.", freshOriginal: "Original ROM", freshRando: "Randomizer", freshPreset: "Randomizer settings", freshSave: "Starting save", freshPick: "Choose", freshKeep: "Use current save", freshDrop: "Remove", freshKept: (n, k) => `${n}  ·  ${k} Pokémon`, freshSaveHint: "None yet? Then the first start begins a new game. Play the intro once, set text speed and battle style, save in-game: SoulSync keeps that save and every later start begins right there.", freshAwait: "Waiting for your first save in the new game…", freshNone: "none yet", freshDo: "Randomize and start", freshSure: "Click again: ROM and save are replaced, next attempt begins",
     freshOptions: "Randomizer options", freshOptLead: "Changed here, on top of your settings file. The file itself stays as it is.", fTm: "TM compatibility", fTutor: "Tutor compatibility", fHm: "HMs for everyone", fCandies: "Rare Candies in the bag", fCandiesHint: "0 = as in the starting save",
     compat: { unchanged: "as in the original game", random_prefer_type: "random, own type preferred", random: "random", full: "every Pokémon learns every one" }, asFile: v => `as in the file (${v})`, yes: "yes", no: "no", tmMoves: "The moves on the TMs are randomized as well.", presetBad: "Settings file cannot be read:", freshBusy: "Randomizing…", freshDone: "Done. The game is starting.", freshNeed: "Choose the original ROM, the randomizer and its settings first.", freshWhy: { missing: "A file is missing:", running: "DeSmuME is still open. Close it and try again.", java: "Java could not be started. The randomizer needs it: adoptium.net", randomizer: "The randomizer did not produce a ROM.", preset: "The randomizer settings cannot be read.", save: "Rare Candies could not be added to the starting save.", write: "A file could not be written." }, sLeave: "Pause run", myRuns: "Your runs", runsLead: "Runs you were in. Paused runs keep everything and continue where you left them.", runResume: "Resume", runSwitch: "Switch", runDrop: "Remove", runDropSure: "Click again", runHere: "this computer", runNow: "playing", runMissing: "That run no longer exists on its server, so it was removed from the list.", runOffline: "The server of that run cannot be reached right now. Try again in a moment.", runLast: s => `played ${s}`, sLeaveSure: "Click again to pause", sLeaveHint: "Stops syncing and returns to the setup. The run stays on the server and under Your runs, to resume any time.",
@@ -917,7 +923,11 @@ waitPlayer: n => `Warte auf Spieler ${n}`, playerN: n => `Spieler ${n}`, fPlayer
     romOk: (g, n) => `Pokémon ${g}  ·  Gen ${n}`, romBad: "Das ist keine unterstützte Pokémon-ROM (Schwarz, Weiß, Schwarz 2, Weiß 2).",
     saveOk: (n, b, p) => `Trainer ${n}  ·  ${b} Orden  ·  ${p} Pokémon`, saveBad: "Dieser Spielstand lässt sich nicht lesen. Wähle die .dsv aus dem Battery-Ordner von DeSmuME.",
     fServer: "Run-Server", fServerHelp: "Leer lassen, dann bleibt der Run nur auf diesem Rechner. Für das Spiel zu zweit tragen beide dieselbe Server-Adresse ein.", advanced: "Server",
-    startNew: "Run starten", startJoin: "Run beitreten", eName: "Trag deinen Namen ein.", eSave: "Wähle zuerst einen lesbaren Spielstand.", eCode: "Auf dem Server gibt es keinen Run mit diesem Code.",
+    startNew: "Run starten", startJoin: "Run beitreten",
+    gMode: "Dein Spiel", gRoll: "Neues Spiel erstellen", gOwn: "Vorhandenes Spiel", gRollHelp: "SoulSync würfelt deine Original-ROM mit den Einstellungen des Runs und öffnet sie in DeSmuME mit neuem Spielstand.", fOriginal: "Original-ROM", fRando: "Randomizer (PokeRandoZX.jar)", fEmu: "DeSmuME", fEmuHelp: "Deine DeSmuME-.exe. Das neue Spiel landet in ihren Ordnern Roms und Battery.", fileOk: "gefunden",
+    fPreset: "Randomizer-Einstellungen", pNone: "Keine, jeder würfelt selbst", pOwn: "Meine eigene Einstellungsdatei (.rnqs)", pOwnMissing: "Wähle zuerst deine .rnqs unter Einstellungen › Neu anfangen.", pJoin: "Die Randomizer-Einstellungen kommen aus dem Run.",
+    eRoll: "Wähle zuerst deine Original-ROM und den Randomizer.", eEmu: "Wähle zuerst DeSmuME.", ePreset: "Die Randomizer-Einstellungen sind nicht lesbar.",
+    rollNow: n => `Versuch ${n} hat begonnen`, rollNowSub: "Dein Spiel neu würfeln", runRando: "Einstellungen des Runs", runRandoHint: "Alle Spiele des Runs werden mit diesen Einstellungen gewürfelt, auch die Sonderbonbons kommen aus dem Run.", eName: "Trag deinen Namen ein.", eSave: "Wähle zuerst einen lesbaren Spielstand.", eCode: "Auf dem Server gibt es keinen Run mit diesem Code.",
     sLive: "Live aus DeSmuME", sLua: "Lua für DeSmuME", sLuaState: { present: "bereit", installed: "eingerichtet, DeSmuME neu starten", missing: "DeSmuME nicht gefunden" }, sLiveOn: "verbunden", sLiveForeign: "verbunden, aber dein Team wurde noch nicht gefunden", sLiveOff: "Skript läuft nicht", sAuto: "Startet mit dem Spiel", sAutoState: { present: "ja", installed: "eingerichtet, DeSmuME neu starten", missing: "nein, Skript von Hand laden" }, sLiveHint: "Ohne das Skript aktualisiert sich das Dashboard, wenn du im Spiel speicherst. Mit ihm folgt es deinem Team und deinen Begegnungen sofort. DeSmuME startet es von selbst, wenn du das Spiel öffnest. Falls nicht: in DeSmuME Tools › Lua Scripting › New Lua Script Window öffnen, diese Datei auswählen und Run drücken.", sLiveScript: "Skript", sGame: "Dein Spiel", sRun: "Run", sSync: "Sync", sServer: "Server", sLocal: "dieser Rechner", sBuild: "App-Build", sDex: "Attacken aus der ROM", sDexOk: n => `${n} Attacken gelesen`, sDexBad: "nicht lesbar", startBusy: "Run wird gestartet…", startSlow: "Deine ROM und dein Spielstand werden gelesen. Das dauert ein paar Sekunden.", uNew: n => `Update ${n} ist da`, uDo: "Installieren", uBusy: "Update wird geladen…", uLoad: n => `Update wird geladen… ${n} %`, uMb: (d, s) => s ? `Update wird geladen… ${d} von ${s} MB` : `Update wird geladen… ${d} MB`, uStart: "Wird installiert…", uRestart: "Neue Version startet…", uFail: "Update fehlgeschlagen", uAgain: "Nochmal", fresh: "Neu anfangen", freshLead: "Run verloren? Ein Klick würfelt deine Original-ROM mit deinen Einstellungen neu, legt deinen Start-Spielstand bereit, startet den nächsten Versuch und öffnet das Spiel. Schließe DeSmuME vorher.", freshOriginal: "Original-ROM", freshRando: "Randomizer", freshPreset: "Randomizer-Einstellungen", freshSave: "Start-Spielstand", freshPick: "Wählen", freshKeep: "Aktuellen Spielstand nehmen", freshDrop: "Entfernen", freshKept: (n, k) => `${n}  ·  ${k} Pokémon`, freshSaveHint: "Noch keiner? Dann beginnt der erste Start ein neues Spiel. Spiel das Intro einmal durch, stell Textgeschwindigkeit und Kampfstil ein und speichere im Spiel: SoulSync merkt sich diesen Spielstand, jeder spätere Start beginnt genau dort.", freshAwait: "Warte auf deinen ersten Spielstand im neuen Spiel…", freshNone: "noch keiner", freshDo: "Neu würfeln und starten", freshSure: "Nochmal klicken: ROM und Spielstand werden ersetzt, nächster Versuch beginnt",
     freshOptions: "Randomizer-Optionen", freshOptLead: "Hier geändert, zusätzlich zu deiner Einstellungsdatei. Die Datei selbst bleibt, wie sie ist.", fTm: "TM-Kompatibilität", fTutor: "Tutor-Kompatibilität", fHm: "VMs für alle", fCandies: "Sonderbonbons im Beutel", fCandiesHint: "0 = wie im Start-Spielstand",
     compat: { unchanged: "wie im Originalspiel", random_prefer_type: "zufällig, eigener Typ bevorzugt", random: "zufällig", full: "jedes Pokémon lernt jede" }, asFile: v => `wie in der Datei (${v})`, yes: "ja", no: "nein", tmMoves: "Die Attacken auf den TMs werden außerdem zufällig verteilt.", presetBad: "Einstellungsdatei nicht lesbar:", freshBusy: "Wird gewürfelt…", freshDone: "Fertig. Das Spiel startet.", freshNeed: "Wähle zuerst Original-ROM, Randomizer und Einstellungen aus.", freshWhy: { missing: "Eine Datei fehlt:", running: "DeSmuME ist noch offen. Schließe es und versuch es nochmal.", java: "Java ließ sich nicht starten. Der Randomizer braucht es: adoptium.net", randomizer: "Der Randomizer hat keine ROM erzeugt.", preset: "Die Randomizer-Einstellungen sind nicht lesbar.", save: "Die Sonderbonbons ließen sich nicht in den Start-Spielstand legen.", write: "Eine Datei ließ sich nicht schreiben." }, sLeave: "Run pausieren", myRuns: "Meine Runs", runsLead: "Runs, in denen du warst. Pausierte Runs behalten alles und gehen dort weiter, wo ihr aufgehört habt.", runResume: "Fortsetzen", runSwitch: "Wechseln", runDrop: "Entfernen", runDropSure: "Nochmal klicken", runHere: "dieser Computer", runNow: "läuft", runMissing: "Diesen Run gibt es auf seinem Server nicht mehr, er wurde aus der Liste entfernt.", runOffline: "Der Server dieses Runs ist gerade nicht erreichbar. Versuch es gleich nochmal.", runLast: s => `gespielt ${s}`, sLeaveSure: "Zum Pausieren nochmal klicken", sLeaveHint: "Beendet den Sync und führt zurück zur Einrichtung. Der Run bleibt auf dem Server und unter Meine Runs, du kannst ihn jederzeit fortsetzen.",
@@ -1181,7 +1191,14 @@ function renderStart() {
 }
 
 /* ---------- setup page (desktop app) */
-const setupUi = { tab: 1, players: 2, rules: null, capOn: true, sharedSeed: false, code: "", error: "" };
+const setupUi = { tab: 1, players: 2, rules: null, capOn: true, sharedSeed: false, code: "", error: "", mode: null, preset: "soul-link" };
+// Randomizer settings shipped with the server, loaded once.
+let PRESETS = null;
+async function loadPresets() {
+  if (PRESETS) return PRESETS;
+  try { const r = await fetch(`${SRV}/api/presets`); PRESETS = r.ok ? await r.json() : []; } catch { PRESETS = []; }
+  return PRESETS;
+}
 function rulePicker(chosen, first = "") {
   return `<div class="field"><label>${t().pickRules}</label><div class="checks" id="f-rules">${first}${RULES.filter(id => id !== "cap").map(id => {
     const fixed = RULES_FIXED.includes(id);
@@ -1243,12 +1260,30 @@ function bindRuns(el, redraw) {
   }
 }
 
+// The randomizer settings a new run is made with, and SoulSync's options on top.
+function presetField(u, fr) {
+  const list = PRESETS || [];
+  const opts = [...list.map(p => [p.id, p.name[lang]]), ["own", t().pOwn], ["none", t().pNone]];
+  const chosen = list.find(p => p.id === u.preset);
+  const base = chosen || (u.preset === "own" && fr.options && fr.options.ok ? fr.options : null);
+  const r = fr.rando || {};
+  const sel = key => `<select data-rando="${key}"><option value="">${t().asFile(base ? t().compat[base[key]] : "–")}</option>${Object.keys(t().compat).map(c => `<option value="${c}"${r[key] === c ? " selected" : ""}>${t().compat[c]}</option>`).join("")}</select>`;
+  const hm = `<select data-rando="full_hm"><option value="">${t().asFile(base ? (base.full_hm ? t().yes : t().no) : "–")}</option><option value="true"${r.full_hm === true ? " selected" : ""}>${t().yes}</option><option value="false"${r.full_hm === false ? " selected" : ""}>${t().no}</option></select>`;
+  const about = chosen ? `<small>${esc(chosen.about[lang])}</small>` : u.preset === "own" && !(fr.options && fr.options.ok) ? `<small class="bad">${t().pOwnMissing}</small>` : "";
+  return `<div class="field"><label for="f-preset">${t().fPreset}</label><select id="f-preset">${opts.map(([id, n]) => `<option value="${id}"${u.preset === id ? " selected" : ""}>${esc(n)}</option>`).join("")}</select>${about}</div>
+    ${u.preset === "none" ? "" : `<div class="field"><label>${t().fTm}</label>${sel("tm")}</div><div class="field"><label>${t().fHm}</label>${hm}</div><div class="field"><label>${t().fTutor}</label>${sel("tutor")}</div>
+    <div class="field"><label for="f-candies">${t().fCandies}</label><input type="number" id="f-candies" min="0" max="999" value="${+fr.candies || 0}"></div>`}`;
+}
+
 function renderSetup() {
-  const u = setupUi, rom = local.rom, save = local.save;
+  const u = setupUi, rom = local.rom, save = local.save, fr = local.fresh || {};
   if (!u.rules) u.rules = RULES_DEFAULT.slice();
+  if (!u.mode) u.mode = save && save.ok ? "own" : "roll";
+  if (!PRESETS) { loadPresets().then(() => renderSetup()); }
+  const asFile = p => p ? { path: p, ok: true } : null;
   const file = (kind, f, label, okText) => `<div class="field"><label for="f-${kind}">${label}</label>
     <div class="filerow"><input id="f-${kind}" autocomplete="off" spellcheck="false" placeholder="${t().fPathPh}" value="${f ? esc(f.path) : ""}">${local.dialogs ? `<button type="button" data-pick="${kind}">${t().browse}</button>` : ""}</div>
-    ${f ? `<small class="${f.ok ? "ok" : "bad"}">${f.ok ? "✓ " + okText : kind === "rom" ? t().romBad : t().saveBad}</small>` : ""}</div>`;
+    ${f ? `<small class="${f.ok ? "ok" : "bad"}">${f.ok ? "✓ " + okText : kind === "rom" || kind === "original" ? t().romBad : t().saveBad}</small>` : ""}</div>`;
   const cart = rom && rom.ok
     ? `<div class="romc ok"><span class="cart"></span><div><b>${esc(rom.label[lang])}</b><small class="ok">✓ ${t().gen(rom.generation)}</small></div></div>`
     : `<div class="romc off"><span class="cart"></span><div><b>${t().fRom}</b><small>${t().romBad}</small></div></div>`;
@@ -1259,15 +1294,20 @@ function renderSetup() {
         <h3>${t().sGame}</h3>
         ${cart}
         <div class="field"><label for="f-name">${t().fName}</label><input id="f-name" autocomplete="off" maxlength="24" placeholder="${t().fNamePh}" value="${esc(local.name)}"></div>
-        ${file("rom", rom, t().fRom, rom && rom.ok ? t().romOk(esc(rom.label[lang]), rom.generation) : "")}
-        ${file("save", save, t().fSave, save && save.ok ? t().saveOk(esc(save.trainer), save.badges, save.pokemon) : "")}
+        <div class="field"><div class="seg3" id="f-mode" style="grid-template-columns:1fr 1fr"><button type="button" data-m="roll" aria-pressed="${u.mode === "roll"}">${t().gRoll}</button><button type="button" data-m="own" aria-pressed="${u.mode === "own"}">${t().gOwn}</button></div></div>
+        ${u.mode === "roll" ? `<p class="lead" style="margin:0 0 12px;font-size:13px">${t().gRollHelp}</p>
+        ${file("original", fr.original, t().fOriginal, fr.original && fr.original.ok ? t().romOk(esc(fr.original.label[lang]), fr.original.generation) : "")}
+        ${file("randomizer", asFile(fr.randomizer), t().fRando, t().fileOk)}
+        ${file("emulator", asFile(fr.emulator), t().fEmu, t().fEmuHelp)}`
+        : `${file("rom", rom, t().fRom, rom && rom.ok ? t().romOk(esc(rom.label[lang]), rom.generation) : "")}
+        ${file("save", save, t().fSave, save && save.ok ? t().saveOk(esc(save.trainer), save.badges, save.pokemon) : "")}`}
       </div>
     </div>
     <div class="fcol">
       <div class="ptabs glass" role="tablist" data-i="${u.tab}"><button type="button" role="tab" aria-selected="${u.tab === 0}" data-i="0">${t().tabJoin}</button><button type="button" role="tab" aria-selected="${u.tab === 1}" data-i="1">${t().tabNew}</button></div>
       <div class="pane glass reveal" style="--i:1">${u.tab === 0
-        ? `<div class="field"><label for="f-code">${t().code}</label><input id="f-code" class="mono" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="HYPNO-6811" value="${esc(u.code)}"><small>${t().codeHelp}</small></div>`
-        : playersField(u.players) + rulePicker(u.rules, capPicker(u.capOn, rom))}
+        ? `<div class="field"><label for="f-code">${t().code}</label><input id="f-code" class="mono" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="HYPNO-6811" value="${esc(u.code)}"><small>${t().codeHelp}${u.mode === "roll" ? " " + t().pJoin : ""}</small></div>`
+        : playersField(u.players) + presetField(u, fr) + rulePicker(u.rules, capPicker(u.capOn, u.mode === "roll" ? fr.original : rom))}
         <details class="adv" ${local.server ? "open" : ""}><summary>${t().advanced}</summary><div class="field"><label for="f-server">${t().fServer}</label><input id="f-server" autocomplete="off" spellcheck="false" placeholder="https://" value="${esc(local.server)}"><small>${t().fServerHelp}</small></div>${u.tab === 1 ? `<div class="field"><div class="checks"><label><input type="checkbox" id="f-seed" ${u.sharedSeed ? "checked" : ""}><span>${t().fSeed}</span><small>${t().fSeedHelp}</small></label></div></div>` : ""}</details>
         <p class="err" id="err" ${u.error ? "" : "hidden"}>${esc(u.error)}</p>
         <button class="btn" type="submit">${ICON.play.replace("<svg", '<svg width="20" height="20"')}${u.tab === 0 ? t().startJoin : t().startNew}</button>
@@ -1285,11 +1325,22 @@ function renderSetup() {
     if (code) u.code = code.value;
   };
   const save_ = async patch => { keep(); const r = await localPost("set", patch); if (r.ok) { local = await r.json(); SRV = local.server || ""; } };
-  const fields = () => ({ name: $("#f-name").value, rom: $("#f-rom").value, save: $("#f-save").value, server: $("#f-server").value });
-  for (const id of ["name", "rom", "save", "server"]) $("#f-" + id).onchange = async () => { await save_(fields()); if (id !== "name" && id !== "server") renderSetup(); };
-  form.onchange = e => { if (e.target.id === "f-cap") { keep(); renderSetup(); } };
+  const FILES = u.mode === "roll" ? ["original", "randomizer", "emulator"] : ["rom", "save"];
+  const fields = () => { const o = { name: $("#f-name").value, server: $("#f-server").value }; for (const k of FILES) o[k] = $("#f-" + k).value; return o; };
+  for (const id of ["name", "server", ...FILES]) $("#f-" + id).onchange = async () => { await save_(fields()); if (id !== "name" && id !== "server") renderSetup(); };
+  form.onchange = async e => {
+    if (e.target.id === "f-cap") { keep(); renderSetup(); }
+    else if (e.target.id === "f-preset") { keep(); u.preset = e.target.value; renderSetup(); }
+    else if (e.target.dataset.rando || e.target.id === "f-candies") {
+      const o = {};
+      for (const sel of form.querySelectorAll("[data-rando]")) { const v = sel.value; o[sel.dataset.rando] = v === "" ? null : v === "true" ? true : v === "false" ? false : v; }
+      const n = Math.max(0, Math.min(999, Math.round(+($("#f-candies") || {}).value) || 0));
+      await save_({ rando: o, candies: n }); renderSetup();
+    }
+  };
   form.onclick = async e => {
-    const pick = e.target.closest("[data-pick]"), tabBtn = e.target.closest(".ptabs button");
+    const pick = e.target.closest("[data-pick]"), tabBtn = e.target.closest(".ptabs button"), modeBtn = e.target.closest("#f-mode button");
+    if (modeBtn) { keep(); u.mode = modeBtn.dataset.m; u.error = ""; return renderSetup(); }
     u.players = pickPlayers(e) || u.players;
     if (pick) {
       await save_(fields()); pick.disabled = true;
@@ -1302,9 +1353,17 @@ function renderSetup() {
     e.preventDefault();
     await save_(fields());
     const fail = msg => { u.error = msg; renderSetup(); };
-    const rom = local.rom, caps = u.tab === 1 && u.capOn ? rom && rom.ok && rom.caps && rom.caps.levels : [];
+    const roll = u.mode === "roll", fr = local.fresh || {};
+    const rom = roll ? fr.original : local.rom, caps = u.tab === 1 && u.capOn ? rom && rom.ok && rom.caps && rom.caps.levels : [];
     if (!caps) return fail(t().capsNoRom);
-    const body = u.tab === 0 ? { code: u.code.trim() } : { settings: { players: u.players, caps, shared_seed: u.sharedSeed, rules: RULES.filter(id => u.rules.includes(id) || (id === "cap" && caps.length)) } };
+    if (roll && !(fr.original && fr.original.ok && fr.randomizer)) return fail(t().eRoll);
+    if (roll && !fr.emulator) return fail(t().eEmu);
+    const body = u.tab === 0 ? { code: u.code.trim(), roll } : { roll, settings: { players: u.players, caps, shared_seed: u.sharedSeed, rules: RULES.filter(id => u.rules.includes(id) || (id === "cap" && caps.length)) } };
+    if (u.tab === 1 && u.preset !== "none") {
+      const p = (PRESETS || []).find(x => x.id === u.preset);
+      if (u.preset === "own" && !(fr.options && fr.options.ok)) return fail(t().pOwnMissing);
+      body.rando = p ? { preset: p.preset, name: p.name[lang] } : { name: String(fr.preset || "").split(/[\\/]/).pop().replace(/\.rnqs$/i, "") };
+    }
     if (u.tab === 0 && !body.code) return fail(t().eCode);
     const go = $(".btn", form);
     go.disabled = true; go.classList.add("busy"); go.innerHTML = `<i class="spin"></i>${t().startBusy}`;
@@ -1313,7 +1372,7 @@ function renderSetup() {
     clearTimeout(slow);
     if (!r || !r.ok) {
       const why = r ? await r.text() : "";
-      return fail(why === "name" ? t().eName : why === "save" ? t().eSave : why === "code" ? t().eCode : why || t().offline);
+      return fail(why === "name" ? t().eName : why === "save" ? t().eSave : why === "code" ? t().eCode : why === "roll" ? t().eRoll : why === "emulator" ? t().eEmu : why === "preset" ? t().ePreset : why || t().offline);
     }
     local = await r.json(); u.error = "";
     codeFromPath = local.code; SRV = local.server || ""; state = null; mounted = false;
@@ -1513,23 +1572,24 @@ function updateSettings() {
     const pickBtn = kind => local.dialogs ? `<button type="button" data-fresh="${kind}">${t().freshPick}</button>` : "";
     const file = (p, kind) => `${p ? `<span title="${esc(p)}">${name(p)}</span>` : "–"}${pickBtn(kind)}`;
     const opt = f.options, ok = opt && opt.ok, r = f.rando || {};
-    const ready = f.original && f.original.ok && f.randomizer && f.preset && ok;
+    const ready = f.original && f.original.ok && f.randomizer && (f.run || (f.preset && ok));
     const note = !pr ? "" : pr.state === "done" ? `<p>${f.awaiting ? t().freshAwait : t().freshDone}</p>` : pr.state === "failed" ? `<p class="bad">${t().freshWhy[pr.why] || pr.why}${pr.detail ? " " + esc(pr.detail) : ""}</p>` : "";
     const compatSel = key => `<select data-rando="${key}"><option value="">${t().asFile(ok ? t().compat[opt[key]] : "–")}</option>${Object.keys(t().compat).map(c => `<option value="${c}"${r[key] === c ? " selected" : ""}>${t().compat[c]}</option>`).join("")}</select>`;
     const hmSel = `<select data-rando="full_hm"><option value="">${t().asFile(ok ? (opt.full_hm ? t().yes : t().no) : "–")}</option><option value="true"${r.full_hm === true ? " selected" : ""}>${t().yes}</option><option value="false"${r.full_hm === false ? " selected" : ""}>${t().no}</option></select>`;
     const saveRow = f.template && f.template.ok ? t().freshKept(esc(f.template.trainer), f.template.pokemon) : f.awaiting ? t().freshAwait : t().freshNone;
+    const optionsHtml = () => `<h3 style="margin-top:14px">${t().freshOptions}</h3>${opt && !ok ? `<p class="bad">${t().presetBad} ${esc(opt.error)}</p>` : `<p>${t().freshOptLead}${ok && opt.random_tm_moves ? " " + t().tmMoves : ""}</p>`}<div style="margin-top:6px">${kv([
+      [t().fTm, compatSel("tm")],
+      [t().fHm, hmSel],
+      [t().fTutor, compatSel("tutor")],
+      [`${t().fCandies}<br><small>${t().fCandiesHint}</small>`, `<input type="number" min="0" max="999" step="1" id="candies" value="${+f.candies || 0}">`],
+    ])}</div>`;
     html += `<section class="rblock glass" id="freshsec"><h2>${t().fresh}</h2><p>${t().freshLead}</p><div style="margin-top:6px">${kv([
       [t().freshOriginal, file(f.original && f.original.path, "original")],
       [t().freshRando, file(f.randomizer, "randomizer")],
       [t().freshPreset, file(f.preset, "preset")],
       [t().freshSave, `${saveRow}${f.template && f.template.ok ? `<button type="button" data-fresh="untemplate" id="untemplate">${t().freshDrop}</button>` : ""}<button type="button" data-fresh="template">${t().freshKeep}</button>`],
     ])}</div><p>${t().freshSaveHint}</p>
-    <h3 style="margin-top:14px">${t().freshOptions}</h3>${opt && !ok ? `<p class="bad">${t().presetBad} ${esc(opt.error)}</p>` : `<p>${t().freshOptLead}${ok && opt.random_tm_moves ? " " + t().tmMoves : ""}</p>`}<div style="margin-top:6px">${kv([
-      [t().fTm, compatSel("tm")],
-      [t().fHm, hmSel],
-      [t().fTutor, compatSel("tutor")],
-      [`${t().fCandies}<br><small>${t().fCandiesHint}</small>`, `<input type="number" min="0" max="999" step="1" id="candies" value="${+f.candies || 0}">`],
-    ])}</div>${note}${ready ? "" : `<p>${t().freshNeed}</p>`}<button type="button" class="btn2" id="fresh"${ready && !busy ? "" : " disabled"}>${busy ? t().freshBusy : t().freshDo}</button></section>`;
+    ${f.run ? `<h3 style="margin-top:14px">${t().runRando}</h3><div style="margin-top:6px">${kv([[t().fPreset, esc(f.run.name)], [t().fCandies, f.run.candies]])}</div><p>${t().runRandoHint}</p>` : optionsHtml()}${note}${ready ? "" : `<p>${t().freshNeed}</p>`}<button type="button" class="btn2" id="fresh"${ready && !busy ? "" : " disabled"}>${busy ? t().freshBusy : t().freshDo}</button></section>`;
   }
   if (!local) html += `<section class="rblock glass"><h2>${t().setup}</h2><ol class="steps"><li>${t().step1}</li><li>${t().step2}<div class="cmd"><code>${esc(syncCmd())}</code><button type="button">${t().copy}</button></div></li><li>${t().step3}</li></ol></section>`;
   el.innerHTML = html;
@@ -1567,12 +1627,16 @@ function updateSettings() {
   const fresh = $("#fresh");
   if (fresh && !fresh.disabled) confirmButton(fresh, t().freshDo, t().freshSure, async btn => {
     btn.disabled = true;
-    const from = state.attempt || 1;
-    const r = await localPost("fresh").catch(() => null);
-    // A new game is a new attempt. When the other players start over too,
-    // the server counts it once.
-    if (r && r.ok && state.code && !window.SoulSyncDemoRestart) await fetch(`${SRV}/api/runs/${encodeURIComponent(state.code)}/attempt?from=${from}`, { method: "POST" }).catch(() => {});
-    await takeLocal(r);
+    const from = state.attempt || 1, f = local.fresh;
+    // A new game is a new attempt; one player starting over starts it for
+    // everyone, who then only randomize their own game. If someone else
+    // already started it, this game is for that one.
+    let attempt = from;
+    if (!(f.rolled > 0 && from > f.rolled) && state.code && !window.SoulSyncDemoRestart) {
+      const a = await fetch(`${SRV}/api/runs/${encodeURIComponent(state.code)}/attempt?from=${from}`, { method: "POST" }).then(x => x.json()).catch(() => null);
+      attempt = a && a.attempt || from + 1;
+    }
+    await takeLocal(await localPost("fresh", { attempt }).catch(() => null));
   });
   if ($("#myruns", el)) bindRuns($("#myruns", el), () => { el._sig = ""; updateSettings(); });
   const leave = $("#leave");
@@ -2213,13 +2277,22 @@ function updateRail() {
 function updateActions() {
   const el = $("#actions"); if (!el) return;
   const can = local && local.play, fresh = local && local.fresh;
-  const sig = [lang, can, !!fresh].join("|");
+  // Someone started the next attempt: this game belongs to the last one.
+  const behind = fresh && fresh.rolled > 0 && state.attempt > fresh.rolled && !(fresh.progress && fresh.progress.state === "rolling");
+  const sig = [lang, can, !!fresh, behind && state.attempt].join("|");
   if (el._sig === sig) return;
   el._sig = sig;
   el.hidden = !can && !fresh;
-  el.innerHTML = `${can ? `<button type="button" class="play" id="play">${ICON.play}<span>${t().play}<small>${t().playSub}</small></span></button>` : ""}
+  el.innerHTML = `${behind ? `<button type="button" class="play" id="reroll">${ICON.retry}<span>${t().rollNow(state.attempt)}<small>${t().rollNowSub}</small></span></button>` : can ? `<button type="button" class="play" id="play">${ICON.play}<span>${t().play}<small>${t().playSub}</small></span></button>` : ""}
     ${fresh ? `<button type="button" class="sq retry" id="gofresh" aria-label="${t().fresh}">${ICON.retry}<span class="tip">${t().fresh}</span></button>` : ""}
     <button type="button" class="sq" id="gotypes" aria-label="${t().tabs.types}">${ICON.types}<span class="tip">${t().tabs.types}</span></button>`;
+  const reroll = $("#reroll", el);
+  if (reroll) reroll.onclick = async () => {
+    reroll.disabled = true;
+    const r = await localPost("fresh", { attempt: state.attempt }).catch(() => null);
+    if (r && r.ok) local = await r.json();
+    $("small", reroll).textContent = r && r.ok ? t().freshBusy : t().playFail;
+  };
   const play = $("#play", el);
   if (play) play.onclick = async () => {
     play.disabled = true;
