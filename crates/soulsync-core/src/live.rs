@@ -1,6 +1,7 @@
 //! What the SoulSync Lua script reports from a running emulator.
 //!
-//! The script writes one file: the magic `SSL3`, then [`WINDOW`] bytes of the
+//! The script writes one file: the magic `SSL4` (`SSL3` from older scripts,
+//! without the bag), then [`WINDOW`] bytes of the
 //! game's memory starting at the party block, then any number of Pokémon that
 //! turned up in memory while it ran and are not in the party. Those are
 //! mostly the opponents of battles, wild and trainers'. Each is one byte, 1
@@ -18,6 +19,10 @@ use crate::save::{SaveSnapshot, Trainer, PARTY_BLOCK_LEN};
 use serde::{Deserialize, Serialize};
 
 const MAGIC: &[u8] = b"SSL3";
+/// Since the script reads the bag: after the window, the items pocket.
+const MAGIC_BAG: &[u8] = b"SSL4";
+/// Where the bag block lies before the party block, as in a save file.
+pub const BAG_BEFORE_PARTY: usize = 0xA00;
 /// A reported Pokémon: a flag, then the Pokémon.
 const ENTRY: usize = 1 + PARTY_SIZE;
 /// Bytes of memory the script copies, starting at the party block.
@@ -63,6 +68,8 @@ pub fn trainer_note(trainer: &Trainer) -> String {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LiveReport<'a> {
     window: &'a [u8],
+    /// The items pocket as it is in memory, from scripts that send it.
+    items: Option<&'a [u8]>,
     /// Pokémon that appeared in memory, newest last.
     pub seen: Vec<&'a [u8]>,
     /// For each of them, whether it is still in memory.
@@ -72,13 +79,18 @@ pub struct LiveReport<'a> {
 impl<'a> LiveReport<'a> {
     /// Reads a report. `None` if the file is not one or was cut off.
     pub fn parse(data: &'a [u8]) -> Option<Self> {
-        let rest = data.strip_prefix(MAGIC)?;
-        if rest.len() < WINDOW || (rest.len() - WINDOW) % ENTRY != 0 {
+        let (rest, bag) = match data.strip_prefix(MAGIC_BAG) {
+            Some(rest) => (rest, crate::bag::ITEMS_LEN),
+            None => (data.strip_prefix(MAGIC)?, 0),
+        };
+        if rest.len() < WINDOW + bag || (rest.len() - WINDOW - bag) % ENTRY != 0 {
             return None;
         }
-        let (window, seen) = rest.split_at(WINDOW);
+        let (window, rest) = rest.split_at(WINDOW);
+        let (items, seen) = rest.split_at(bag);
         Some(LiveReport {
             window,
+            items: (bag > 0).then_some(items),
             seen: seen.chunks(ENTRY).map(|e| &e[1..]).collect(),
             present: seen.chunks(ENTRY).map(|e| e[0] == 1).collect(),
         })
@@ -92,6 +104,14 @@ impl<'a> LiveReport<'a> {
             .filter(|(_, present)| **present)
             .find_map(|(raw, _)| pk5::parse_wild(raw))
             .filter(|w| !snapshot.owns(w.pid) && !w.is_fainted())
+    }
+
+    /// The Poké Balls in the bag right now. `None` if the script sent no bag
+    /// or what it sent is not one. A pocket without any item is not taken:
+    /// memory that was cleared reads like that, a player's bag hardly does.
+    pub fn balls(&self) -> Option<Vec<(u16, u16)>> {
+        let items = self.items.filter(|i| crate::bag::any_items(i))?;
+        crate::bag::balls(items)
     }
 
     /// The party block, for [`SaveSnapshot::with_live_party`].
@@ -315,6 +335,7 @@ mod tests {
             encounters: vec![],
             fallen: vec![],
             wild: None,
+            balls: None,
         }
     }
 
@@ -336,6 +357,36 @@ mod tests {
             data.extend(raw);
         }
         data
+    }
+
+    #[test]
+    fn reads_the_balls_in_the_bag() {
+        let wild = build_raw_ivs(9, 504, "", 0, 0, Some(&STATS), WILD);
+        let old = report(0x600, 427, std::slice::from_ref(&wild));
+        let mut items = vec![0u8; crate::bag::ITEMS_LEN];
+        // 6 Poké Balls, 17 Potions, 2 Great Balls.
+        for (i, (item, count)) in [(4u16, 6u16), (17, 17), (3, 2)].into_iter().enumerate() {
+            items[i * 4..i * 4 + 2].copy_from_slice(&item.to_le_bytes());
+            items[i * 4 + 2..i * 4 + 4].copy_from_slice(&count.to_le_bytes());
+        }
+        let with_bag = |items: &[u8]| {
+            let mut d = MAGIC_BAG.to_vec();
+            d.extend(&old[4..4 + WINDOW]);
+            d.extend(items);
+            d.extend(&old[4 + WINDOW..]);
+            d
+        };
+        let data = with_bag(&items);
+        let r = LiveReport::parse(&data).unwrap();
+        assert_eq!(r.balls(), Some(vec![(4, 6), (3, 2)]));
+        assert_eq!(r.seen, vec![&wild[..]]);
+        // Older scripts send no bag; cleared or foreign memory is not one.
+        assert_eq!(LiveReport::parse(&old).unwrap().balls(), None);
+        let empty = with_bag(&vec![0u8; crate::bag::ITEMS_LEN]);
+        assert_eq!(LiveReport::parse(&empty).unwrap().balls(), None);
+        let mut junk = items.clone();
+        junk[6..8].copy_from_slice(&5000u16.to_le_bytes());
+        assert_eq!(LiveReport::parse(&with_bag(&junk)).unwrap().balls(), None);
     }
 
     #[test]

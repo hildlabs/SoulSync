@@ -260,6 +260,9 @@ impl Live {
                 self.note(&snap, raw, place);
             }
             snap.wild = report.wild(&snap).map(Box::new);
+            if let Some(balls) = report.balls() {
+                snap.balls = Some(balls);
+            }
         } else if current && !foreign {
             // Caught mid-write, most likely. A file that stays unreadable is
             // not a report; then the save alone counts.
