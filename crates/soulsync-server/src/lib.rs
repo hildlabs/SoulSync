@@ -115,6 +115,7 @@ pub fn app(state: AppState) -> Router {
         .route("/api/runs/{code}/species", get(species))
         .route("/api/runs/{code}/dex", get(dex))
         .route("/api/runs/{code}/attempt", post(new_attempt))
+        .route("/api/runs/{code}/candies", post(set_candies))
         .route("/api/runs/{code}/ws", get(ws))
         .layer(axum::middleware::map_response(allow_any_origin))
         .with_state(state)
@@ -305,6 +306,36 @@ async fn new_attempt(
     tracing::info!(%code, attempt, "new attempt");
     app.broadcast(&code);
     Json(serde_json::json!({ "attempt": attempt })).into_response()
+}
+
+#[derive(Deserialize)]
+struct CandiesQuery {
+    n: u16,
+}
+
+/// Changes how many Rare Candies the run's new games start with; from the
+/// next game each player makes on. A query, not a body, so that a page
+/// of another origin can send it without a preflight.
+async fn set_candies(
+    State(app): State<AppState>,
+    Path(code): Path<String>,
+    Query(q): Query<CandiesQuery>,
+) -> Response {
+    let code = normalize(&code);
+    let candies = q.n.min(soulsync_core::bag::MAX_COUNT);
+    {
+        let mut runs = app.runs.lock().unwrap();
+        let Some(e) = runs.get_mut(&code) else {
+            return (StatusCode::NOT_FOUND, "run not found").into_response();
+        };
+        let Some(r) = e.run.settings.randomizer.as_mut() else {
+            return (StatusCode::CONFLICT, "run has no randomizer settings").into_response();
+        };
+        r.candies = candies;
+    }
+    tracing::info!(%code, candies, "rare candies");
+    app.broadcast(&code);
+    Json(serde_json::json!({ "candies": candies })).into_response()
 }
 
 #[derive(Deserialize)]
@@ -663,6 +694,50 @@ mod tests {
         drop(a);
         let s = next_state(&mut viewer).await;
         assert!(!s.players[0].connected);
+    }
+
+    #[tokio::test]
+    async fn rare_candies_of_a_run_can_change() {
+        let state = AppState::default();
+        let settings = RunSettings {
+            randomizer: Some(soulsync_core::protocol::RunRandomizer {
+                name: "Soul Link".into(),
+                preset: soulsync_core::rnqs::encode(PRESETS[0].5),
+                candies: 187,
+            }),
+            ..RunSettings::default()
+        };
+        let run = state.create(settings).unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let served = state.clone();
+        tokio::spawn(async move { axum::serve(listener, app(served)).await.unwrap() });
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let post = |path: String| async move {
+            let mut tcp = tokio::net::TcpStream::connect(addr).await.unwrap();
+            let req = format!(
+                "POST {path} HTTP/1.1\r\nHost: x\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            );
+            tcp.write_all(req.as_bytes()).await.unwrap();
+            let mut resp = String::new();
+            tcp.read_to_string(&mut resp).await.unwrap();
+            resp
+        };
+        let resp = post(format!("/api/runs/{}/candies?n=5000", run.code)).await;
+        assert!(resp.starts_with("HTTP/1.1 200"), "{resp}");
+        let candies = |s: &AppState| {
+            let runs = s.runs.lock().unwrap();
+            runs[&run.code]
+                .run
+                .settings
+                .randomizer
+                .as_ref()
+                .unwrap()
+                .candies
+        };
+        assert_eq!(candies(&state), 999);
+        let resp = post("/api/runs/NOPE-0000/candies?n=1".into()).await;
+        assert!(resp.starts_with("HTTP/1.1 404"), "{resp}");
     }
 
     #[test]

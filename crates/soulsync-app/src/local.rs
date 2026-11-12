@@ -1047,6 +1047,26 @@ struct Fresh {
 /// place and opens the game. The page follows the progress in the state.
 async fn fresh(State(local): State<Local>, body: Option<Json<Fresh>>) -> Reply {
     let attempt = body.and_then(|b| b.0.attempt);
+    // The run's settings as they are now: someone may have changed the
+    // Rare Candies since this app joined. Offline, the ones kept do.
+    let code = {
+        let inner = local.inner.lock().unwrap();
+        inner
+            .config
+            .run_rando
+            .as_ref()
+            .and(inner.config.code.clone())
+    };
+    if let Some(code) = code {
+        let server = local.server_url();
+        let got = tokio::task::spawn_blocking(move || fetch_randomizer(&server, &code)).await;
+        if let Ok(Ok((Some(rando), _))) = got {
+            let mut inner = local.inner.lock().unwrap();
+            inner.config.run_rando = Some(rando);
+            inner.config.remember(now_ms());
+            write_config(&inner.config);
+        }
+    }
     // Whether the sync ran: it starts again on the new game.
     let syncing = local.inner.lock().unwrap().task.is_some();
     begin_fresh(&local, attempt, syncing)?;
