@@ -69,7 +69,7 @@ window.SoulSyncDemo = function (apply) {
       code: "DEMO-0000", seed: 4821, attempt, settings: { caps: [13, 18, 24, 30, 33, 39, 48, 51] },
       players: joined.map(p => ({
         name: p.name, connected: true, updated_at: p.at,
-        snapshot: { trainer: { name: p.name, badges: p.badges, game: p.game }, party: p.mons.filter(m => m.battle), boxes: p.mons.filter(m => !m.battle) },
+        snapshot: { trainer: { name: p.name, badges: p.badges, game: p.game }, party: p.mons.filter(m => m.battle), boxes: p.mons.filter(m => !m.battle), wild: p.wild || null },
       })),
       links, log: log.slice(0, 30),
     })));
@@ -104,6 +104,13 @@ window.SoulSyncDemo = function (apply) {
     const m = find(p, species); m.battle = null; m.place = { kind: "box", box: 1, slot: 0 };
     say(p, { type: "moved", pokemon: m }); emit(p);
   }
+  // A wild battle on a player's card: species, HP and status as they change.
+  function battle(p, species, level, ratio, ailment) {
+    if (species == null) { p.wild = null; emit(p); return; }
+    const max = 12 + level * 2;
+    p.wild = { pid: 9000 + species, species, species_name: names(DEX[species]), types: DEX[species][2], nickname: "", is_nicknamed: false, is_egg: false, met_location: 0, met_level: level, place: { kind: "party", slot: 0 }, battle: { level, hp: Math.round(max * ratio), max_hp: max }, ailment: ailment || null };
+    emit(p);
+  }
   function badge(p) { p.badges++; say(p, { type: "badges", count: p.badges }); emit(p); }
 
   const [H, M] = players;
@@ -120,6 +127,7 @@ window.SoulSyncDemo = function (apply) {
     [500, () => level(M, 207, 3)], [500, () => hurt(M, 207, .55)], [600, () => level(H, 176, 2)],
     [500, () => level(M, 123, 3)], [700, () => hurt(H, 519, .6)], [600, () => level(H, 375, 3)], [500, () => level(M, 570, 3)],
     [1500, () => badge(H)], [900, () => badge(M)],
+    [1200, () => battle(M, 246, 11, 1)], [1400, () => battle(M, 246, 11, .45)], [1400, () => battle(M, 246, 11, .45, "paralysis")], [1600, () => battle(M, null)],
     [1500, () => caught(H, 479, 5, "", 11)],
     [1100, () => caught(M, 246, 5, "Pebble", 11)],
     [1300, () => caught(H, 215, 6, "", 12)],
