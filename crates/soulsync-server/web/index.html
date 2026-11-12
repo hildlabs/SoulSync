@@ -852,7 +852,7 @@ waitPlayer: n => `Waiting for player ${n}`, playerN: n => `Player ${n}`, fPlayer
     evBadges: (p, n) => `<b>${p}</b> now has ${n === 1 ? "1 badge" : n + " badges"}`,
     startTitle: "Start a Soul Link", startLead: "Two to four players, one run. Every catch is linked to the others’ catches from the same area.",
     setupTitle: "Set up SoulSync", setupLead: "Pick your game once. SoulSync then keeps it in sync and shows the dashboard.",
-    fName: "Your name", fNamePh: "Shown to your partner", fRom: "Your ROM", fSave: "Your save", browse: "Browse", fPathPh: "Path to the file",
+    fName: "Your name", fNamePh: "Shown to your partner", fRom: "Your ROM", fSave: "Your save", sGameHint: "Playing another game in this run, such as one you already started? Choose its ROM: SoulSync takes the save next to it in DeSmuME's Battery folder, or choose the save yourself.", browse: "Browse", fPathPh: "Path to the file",
     romOk: (g, n) => `Pokémon ${g}  ·  Gen ${n}`, romBad: "This is not a supported Pokémon ROM (Black, White, Black 2, White 2).",
     saveOk: (n, b, p) => `Trainer ${n}  ·  ${b} badges  ·  ${p} Pokémon`, saveBad: "This save cannot be read. Pick the .dsv from DeSmuME’s Battery folder.",
     fServer: "Run server", fServerHelp: "Leave empty to keep the run on this computer only. To play with a partner, both enter the same server address.", advanced: "Server",
@@ -919,7 +919,7 @@ waitPlayer: n => `Warte auf Spieler ${n}`, playerN: n => `Spieler ${n}`, fPlayer
     evBadges: (p, n) => `<b>${p}</b> hat jetzt ${n} Orden`,
     startTitle: "Soul Link starten", startLead: "Zwei bis vier Spieler, ein Run. Jeder Fang ist mit den Fängen der anderen aus demselben Gebiet verbunden.",
     setupTitle: "SoulSync einrichten", setupLead: "Wähle einmal dein Spiel aus. SoulSync hält es danach synchron und zeigt das Dashboard.",
-    fName: "Dein Name", fNamePh: "So sieht dich dein Partner", fRom: "Deine ROM", fSave: "Dein Spielstand", browse: "Durchsuchen", fPathPh: "Pfad zur Datei",
+    fName: "Dein Name", fNamePh: "So sieht dich dein Partner", fRom: "Deine ROM", fSave: "Dein Spielstand", sGameHint: "Ein anderes Spiel in diesem Run spielen, etwa eines, das du schon angefangen hast? Wähl seine ROM: SoulSync nimmt den Spielstand daneben im Battery-Ordner von DeSmuME, oder wähl den Spielstand selbst.", browse: "Durchsuchen", fPathPh: "Pfad zur Datei",
     romOk: (g, n) => `Pokémon ${g}  ·  Gen ${n}`, romBad: "Das ist keine unterstützte Pokémon-ROM (Schwarz, Weiß, Schwarz 2, Weiß 2).",
     saveOk: (n, b, p) => `Trainer ${n}  ·  ${b} Orden  ·  ${p} Pokémon`, saveBad: "Dieser Spielstand lässt sich nicht lesen. Wähle die .dsv aus dem Battery-Ordner von DeSmuME.",
     fServer: "Run-Server", fServerHelp: "Leer lassen, dann bleibt der Run nur auf diesem Rechner. Für das Spiel zu zweit tragen beide dieselbe Server-Adresse ein.", advanced: "Server",
@@ -1221,6 +1221,9 @@ function capPicker(on, rom) {
   return `<label><input type="checkbox" id="f-cap" ${on ? "checked" : ""}><span>${t().rules.cap[0]}</span><small>${t().rules.cap[1]}</small>${on ? levels : ""}</label>`;
 }
 const capName = i => i < 8 ? i + 1 + "." : t().league;
+
+// A number field must not change when the page scrolls over it.
+document.addEventListener("wheel", e => { if (e.target.type === "number" && document.activeElement === e.target) e.target.blur(); }, { passive: true });
 
 /* ---------- the runs this app was in */
 function runsHtml(withCurrent) {
@@ -1546,11 +1549,12 @@ function updateSettings() {
   ])}</div></section>`;
   if (local) {
     const rom = local.rom, save = local.save;
+    const gamePick = kind => local.dialogs ? `<button type="button" data-fresh="${kind}">${t().freshPick}</button>` : "";
     html += `<section class="rblock glass"><h2>${t().sGame}</h2><div style="margin-top:6px">${kv([
       [t().fName, esc(local.name)],
-      [t().fRom, rom ? `<span title="${esc(rom.path)}">${name(rom.path)}</span>${rom.ok ? `  ·  ${esc(rom.label[lang])}` : ""}` : "–"],
-      [t().fSave, save ? `<span title="${esc(save.path)}">${name(save.path)}</span>` : "–"],
-    ])}</div></section>
+      [t().fRom, `${rom ? `<span title="${esc(rom.path)}">${name(rom.path)}</span>${rom.ok ? `  ·  ${esc(rom.label[lang])}` : ""}` : "–"}${gamePick("rom")}`],
+      [t().fSave, `${save ? `<span title="${esc(save.path)}">${name(save.path)}</span>${save.ok ? `  ·  ${t().saveOk(esc(save.trainer), save.badges, save.pokemon)}` : ""}` : "–"}${gamePick("save")}`],
+    ])}</div>${local.dialogs ? `<p>${t().sGameHint}</p>` : ""}</section>
     <section class="rblock glass"><h2>${t().sRun}</h2><div style="margin-top:6px">${kv([
       [t().code, `<span class="mono">${esc(state.code)}</span>`],
       [t().sSync, `<i class="dot ${local.phase}"></i>${t().phase[local.phase] || local.phase}${local.message ? `  ·  ${esc(local.message)}` : ""}`],

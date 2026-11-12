@@ -40,7 +40,11 @@ struct Config {
     /// Randomizer options changed in SoulSync on top of the `.rnqs`.
     rando: soulsync_core::rnqs::Overrides,
     /// Rare Candies every fresh start puts in the bag; 0 leaves it alone.
-    candies: u16,
+    /// Under a new name since the default became 999: a count kept under
+    /// the old one may have been changed by accident (the mouse wheel over
+    /// the field), so everyone starts again from 999.
+    #[serde(rename = "rare_candies")]
+    candies: Candies,
     /// DeSmuME, for a game SoulSync makes from scratch.
     emulator: Option<PathBuf>,
     /// The randomizer settings of the current run, if it has its own.
@@ -49,6 +53,18 @@ struct Config {
     rolled: u32,
     /// Every run this app was in, newest first, to go back to.
     runs: Vec<Saved>,
+}
+
+/// A count of Rare Candies, [`MAX_COUNT`](soulsync_core::bag::MAX_COUNT)
+/// unless the player chose another.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+struct Candies(u16);
+
+impl Default for Candies {
+    fn default() -> Self {
+        Candies(soulsync_core::bag::MAX_COUNT)
+    }
 }
 
 /// A run the app was in, with what it takes to play it again.
@@ -595,7 +611,7 @@ fn run_randomizer(config: &Config, choice: &RandoChoice) -> Result<RunRandomizer
     Ok(RunRandomizer {
         name: choice.name.chars().take(48).collect(),
         preset: encode(&preset.with(&config.rando).write()),
-        candies: config.candies,
+        candies: config.candies.0,
     })
 }
 
@@ -661,7 +677,7 @@ impl Local {
                 "preset": c.preset,
                 "options": c.preset.as_deref().map(preset_info),
                 "rando": c.rando,
-                "candies": c.candies,
+                "candies": c.candies.0,
                 "template": c.template.as_deref().filter(|t| t.is_file()).map(save_info),
                 "awaiting": inner.awaiting_template,
                 "emulator": c.emulator,
@@ -858,7 +874,7 @@ fn apply(config: &mut Config, set: Set) {
         config.rando = rando;
     }
     if let Some(candies) = set.candies {
-        config.candies = candies.min(soulsync_core::bag::MAX_COUNT);
+        config.candies = Candies(candies.min(soulsync_core::bag::MAX_COUNT));
     }
     if let Some(randomizer) = set.randomizer {
         config.randomizer = path(randomizer);
@@ -957,9 +973,28 @@ async fn pick(State(local): State<Local>, Json(pick): Json<Pick>) -> Reply {
             Kind::Preset => set.preset = path,
             Kind::Emulator => set.emulator = path,
         }
-        let mut inner = local.inner.lock().unwrap();
-        apply(&mut inner.config, set);
-        write_config(&inner.config);
+        let playing = {
+            let mut inner = local.inner.lock().unwrap();
+            let c = &mut inner.config;
+            // Another game in a run: its own save, when one lies next to it.
+            if kind == Kind::Rom && c.code.is_some() {
+                if let Some(save) = set.rom.as_deref().map(Path::new).and_then(guess_save) {
+                    set.save = Some(save.to_string_lossy().into_owned());
+                }
+            }
+            apply(c, set);
+            let playing = c.code.is_some() && matches!(kind, Kind::Rom | Kind::Save);
+            if playing {
+                c.remember(now_ms());
+            }
+            write_config(c);
+            playing
+        };
+        // The run now syncs the game just chosen.
+        if playing {
+            let starter = local.clone();
+            let _ = tokio::task::spawn_blocking(move || starter.start()).await;
+        }
     }
     Ok(Json(local.view()))
 }
@@ -1042,7 +1077,7 @@ fn begin_fresh(
                 std::fs::write(&path, file).map_err(|e| bad(e.to_string()))?;
                 (path, Default::default(), run.candies)
             }
-            None => (need(&c.preset, "preset")?, c.rando, c.candies),
+            None => (need(&c.preset, "preset")?, c.rando, c.candies.0),
         };
         let plan = Plan {
             java: "java".into(),
@@ -1612,6 +1647,16 @@ pub fn routes(server: soulsync_server::AppState, own: String) -> Router {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn rare_candies_start_at_999() {
+        assert_eq!(super::Config::default().candies.0, 999);
+        // A count kept under the old name is not taken over.
+        let old: super::Config = serde_json::from_str(r#"{"candies":187}"#).unwrap();
+        assert_eq!(old.candies.0, 999);
+        let chosen: super::Config = serde_json::from_str(r#"{"rare_candies":0}"#).unwrap();
+        assert_eq!(chosen.candies.0, 0);
+    }
+
     use super::*;
 
     #[test]
