@@ -916,6 +916,22 @@ async fn template(State(local): State<Local>) -> Reply {
     Ok(Json(local.view()))
 }
 
+/// Forgets the starting save: the next fresh start begins a new game from
+/// the very beginning, and its first save becomes the starting save again.
+async fn untemplate(State(local): State<Local>) -> Reply {
+    {
+        let mut inner = local.inner.lock().unwrap();
+        if let Some(kept) = inner.config.template.take() {
+            // Only the copy SoulSync keeps, never a save the player chose.
+            if data_dir().is_some_and(|d| kept.starts_with(d)) {
+                let _ = std::fs::remove_file(&kept);
+            }
+        }
+        write_config(&inner.config);
+    }
+    Ok(Json(local.view()))
+}
+
 /// Starts the game over: randomizes the ROM anew, puts the starting save in
 /// place and opens the game. The page follows the progress in the state.
 async fn fresh(State(local): State<Local>) -> Reply {
@@ -1411,6 +1427,7 @@ pub fn routes(server: soulsync_server::AppState, own: String) -> Router {
         .route("/api/local/handoff", post(handoff))
         .route("/api/local/forget", post(forget))
         .route("/api/local/template", post(template))
+        .route("/api/local/untemplate", post(untemplate))
         .route("/api/local/fresh", post(fresh))
         .route("/api/local/play", post(play))
         .route("/api/local/sprite/{id}", get(sprite))
