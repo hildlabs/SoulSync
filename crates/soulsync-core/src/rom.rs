@@ -102,7 +102,7 @@ fn file_id(fnt: &[u8], path: &str) -> Option<u16> {
 }
 
 /// Reads one file of the ROM's file system.
-fn read_file<R: Read + Seek>(rom: &mut R, path: &str) -> Result<Vec<u8>, RomError> {
+pub(crate) fn read_file<R: Read + Seek>(rom: &mut R, path: &str) -> Result<Vec<u8>, RomError> {
     let header = read_at(rom, 0, 0x50)?;
     let field = |at| u32_at(&header, at).ok_or(RomError::Layout("header"));
     let (fnt_at, fnt_len, fat_at, fat_len) =
@@ -124,7 +124,7 @@ fn read_file<R: Read + Seek>(rom: &mut R, path: &str) -> Result<Vec<u8>, RomErro
 }
 
 /// The entries of a NARC archive.
-fn narc_entries(narc: &[u8]) -> Option<Vec<&[u8]>> {
+pub(crate) fn narc_entries(narc: &[u8]) -> Option<Vec<&[u8]>> {
     if narc.get(..4)? != b"NARC" {
         return None;
     }

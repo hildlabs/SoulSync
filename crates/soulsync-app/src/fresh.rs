@@ -234,8 +234,19 @@ mod tests {
     /// A stand-in for `java` that writes what it was asked to.
     fn fake_java(dir: &Path, body: &str) -> OsString {
         let path = dir.join("java");
-        std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
+        let script = format!("#!/bin/sh\n[ -n \"$SOULSYNC_PROBE\" ] && exit 0\n{body}\n");
+        std::fs::write(&path, script).unwrap();
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        // A process another test forks while the file is still open for
+        // writing keeps it "busy" until that child execs: wait it out.
+        for _ in 0..100 {
+            match Command::new(&path).env("SOULSYNC_PROBE", "1").status() {
+                Err(e) if e.raw_os_error() == Some(26) => {
+                    std::thread::sleep(std::time::Duration::from_millis(10))
+                }
+                _ => break,
+            }
+        }
         path.into()
     }
 
