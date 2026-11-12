@@ -26,6 +26,10 @@ jobs:
   # looks for updates; see crates/soulsync-app/src/update.rs.
   windows-app:
     runs-on: windows-latest
+    # One build of main at a time, so releases come out in order.
+    concurrency:
+      group: windows-app-${{ github.ref }}
+      cancel-in-progress: false
     permissions:
       contents: write
     env:

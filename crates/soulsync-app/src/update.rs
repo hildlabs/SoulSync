@@ -9,7 +9,10 @@
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
-const LATEST: &str = "https://api.github.com/repos/hildlabs/SoulSync/releases/latest";
+/// The newest releases. Not `releases/latest`: GitHub picks that by the date
+/// of the tagged commit, so a build published late (a rerun) can hide newer
+/// ones. The highest build number decides instead.
+const RELEASES: &str = "https://api.github.com/repos/hildlabs/SoulSync/releases?per_page=20";
 /// Where a release's files come from. Anything else is not installed.
 const DOWNLOADS: &str = "https://github.com/hildlabs/SoulSync/releases/download/";
 const ASSET: &str = "SoulSync.exe";
@@ -48,9 +51,18 @@ fn parse_release(json: &serde_json::Value) -> Option<Release> {
     })
 }
 
+/// The release with the highest build number among `list`.
+fn newest(list: &serde_json::Value) -> Option<Release> {
+    list.as_array()?
+        .iter()
+        .filter(|r| r["draft"] != true && r["prerelease"] != true)
+        .filter_map(parse_release)
+        .max_by_key(|r| r.build)
+}
+
 /// The newest published build. Blocks.
 pub fn latest() -> Option<Release> {
-    let json: serde_json::Value = ureq::get(LATEST)
+    let json: serde_json::Value = ureq::get(RELEASES)
         .header("User-Agent", AGENT)
         .header("Accept", "application/vnd.github+json")
         .call()
@@ -58,7 +70,7 @@ pub fn latest() -> Option<Release> {
         .body_mut()
         .read_json()
         .ok()?;
-    parse_release(&json)
+    newest(&json)
 }
 
 /// The names a program file goes by while it is replaced.
@@ -188,6 +200,22 @@ mod tests {
         let mut elsewhere = json;
         elsewhere["assets"][1]["browser_download_url"] = "https://example.com/SoulSync.exe".into();
         assert_eq!(parse_release(&elsewhere), None);
+    }
+
+    #[test]
+    fn takes_the_highest_build_not_the_first() {
+        let release = |n: u64| {
+            serde_json::json!({
+                "tag_name": format!("build-{n}"),
+                "assets": [{ "name": "SoulSync.exe", "browser_download_url": format!("https://github.com/hildlabs/SoulSync/releases/download/build-{n}/SoulSync.exe") }],
+            })
+        };
+        // As GitHub listed them on 2026-11-12: a rerun of 56 published after 62.
+        let mut draft = release(70);
+        draft["draft"] = true.into();
+        let list = serde_json::json!([release(56), release(62), release(54), draft]);
+        assert_eq!(newest(&list).unwrap().build, 62);
+        assert_eq!(newest(&serde_json::json!([])), None);
     }
 
     /// Answers one request with `body`.

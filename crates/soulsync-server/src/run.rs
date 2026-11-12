@@ -3,8 +3,8 @@
 use soulsync_core::protocol::{
     player_seed, LogEntry, PlayerState, RunSettings, RunState, MAX_PLAYERS,
 };
-use soulsync_core::{diff, links, SaveSnapshot};
-use std::collections::VecDeque;
+use soulsync_core::{diff, links, Event, SaveSnapshot};
+use std::collections::{HashSet, VecDeque};
 
 /// Log entries kept per run.
 const LOG_LIMIT: usize = 200;
@@ -17,6 +17,9 @@ struct Player {
     connections: usize,
     snapshot: Option<SaveSnapshot>,
     updated_at: Option<u64>,
+    /// PIDs of the wild encounters already logged. A client that restarts
+    /// sends its save before its encounters, which must not log them again.
+    met: HashSet<u32>,
 }
 
 #[derive(Debug)]
@@ -67,6 +70,7 @@ impl Run {
         for p in &mut self.players {
             p.snapshot = None;
             p.updated_at = None;
+            p.met.clear();
         }
     }
 
@@ -114,6 +118,7 @@ impl Run {
             connections: 1,
             snapshot: None,
             updated_at: None,
+            met: HashSet::new(),
         });
         Ok(())
     }
@@ -131,11 +136,19 @@ impl Run {
         let Some(p) = self.player_mut(name) else {
             return 0;
         };
-        let events = p
+        let mut events = p
             .snapshot
             .as_ref()
             .map(|old| diff(old, &snapshot))
             .unwrap_or_default();
+        if p.snapshot.is_none() {
+            p.met.extend(snapshot.encounters.iter().map(|w| w.pid));
+        }
+        let met = &mut p.met;
+        events.retain(|e| match e {
+            Event::Encountered { pokemon } => met.insert(pokemon.pid),
+            _ => true,
+        });
         p.snapshot = Some(snapshot);
         p.updated_at = Some(now);
         let n = events.len();
@@ -287,5 +300,36 @@ mod tests {
         assert_eq!(s.links[0].sides.len(), 2);
         assert!(s.links[0].sides[1].is_none());
         assert_eq!(s.players[0].updated_at, Some(2));
+    }
+
+    #[test]
+    fn a_restarted_client_does_not_log_its_encounters_again() {
+        let wild = |pid| {
+            parse(
+                &build_raw(pid, 485, "", 32, 30, None),
+                Place::Box { r#box: 0, slot: 0 },
+            )
+            .unwrap()
+        };
+        let with = |pids: &[u32]| {
+            let mut s = snap(20);
+            s.encounters = pids.iter().map(|&p| wild(p)).collect();
+            s
+        };
+        let mut r = Run::new("ZORUA-1234".into(), 7, RunSettings::default());
+        r.join("Hannes").unwrap();
+        r.update("Hannes", snap(20), 1);
+        assert_eq!(r.update("Hannes", with(&[100]), 2), 1);
+        // The app restarts: first the save alone, then the encounters it kept.
+        assert_eq!(r.update("Hannes", snap(20), 3), 0);
+        assert_eq!(r.update("Hannes", with(&[100]), 4), 0);
+        assert_eq!(r.update("Hannes", with(&[100, 101]), 5), 1);
+        let met = r
+            .state()
+            .log
+            .iter()
+            .filter(|e| matches!(e.event, Event::Encountered { .. }))
+            .count();
+        assert_eq!(met, 2);
     }
 }
