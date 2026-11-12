@@ -1367,7 +1367,7 @@ function mount() {
     <div class="view" data-view="timeline" hidden>${head("timeline")}<div class="glass scroll tl" id="tl"></div></div>
     <div class="view" data-view="types" hidden>${head("types")}<div class="glass scroll types" id="types"></div></div>
     <div class="view" data-view="rules" hidden>${head("rules")}<div class="scroll rules" id="rules"></div></div>
-    <div class="view" data-view="settings" hidden>${head("settings")}<div class="scroll" id="settings"></div></div>`) + `<dialog class="mon" id="mon"></dialog>`;
+    <div class="view" data-view="settings" hidden>${head("settings")}<div class="scroll"><div id="settings"></div></div></div>`) + `<dialog class="mon" id="mon"></dialog>`;
   bindChrome();
   mountCatch();
   $("#efilt").onclick = e => { const b = e.target.closest("button"); if (b) { encUi.f = b.dataset.f; updateEncounters(); } };

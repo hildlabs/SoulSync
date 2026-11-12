@@ -700,14 +700,19 @@ impl Local {
             let mut last = loop {
                 match load(&save) {
                     Ok(s) => break s,
-                    Err(_) if !save.exists() => {
-                        if let Some(note) = &trainer_note {
-                            let _ = std::fs::remove_file(note);
+                    Err(e) => {
+                        // Not there yet, or not a save yet: an emulator may
+                        // create the file before the game first writes it.
+                        let missing = !save.exists();
+                        if missing {
+                            if let Some(note) = &trainer_note {
+                                let _ = std::fs::remove_file(note);
+                            }
                         }
-                        me.set_phase(Phase::Waiting, None);
+                        let why = (!missing).then(|| e.to_string());
+                        me.set_phase(Phase::Waiting, why);
                         tokio::time::sleep(Duration::from_secs(2)).await;
                     }
-                    Err(e) => return me.set_phase(Phase::Error, Some(e.to_string())),
                 }
             };
             me.set_phase(Phase::Connecting, None);
