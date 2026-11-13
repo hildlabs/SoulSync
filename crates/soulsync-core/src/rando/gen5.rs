@@ -12,7 +12,10 @@ mod statics;
 mod tables;
 mod trades;
 mod trainers;
+mod traits;
 mod wild;
+
+pub use traits::{Change, Stats};
 
 use super::random::JavaRandom;
 use super::text::{chars, Text};
@@ -305,6 +308,19 @@ pub struct Options {
     pub random_statics: bool,
     /// Every Pokémon can learn every HM.
     pub full_hm: bool,
+    /// The base stats of every species, and whether an evolution takes
+    /// after what it evolved from: with `stats_grow_at_random` what it
+    /// gains goes to any stat, else all stats rise alike.
+    pub stats: Stats,
+    pub stats_follow_evolutions: bool,
+    pub stats_grow_at_random: bool,
+    /// The types of every species; with `two_types` always two.
+    pub types: Change,
+    pub two_types: bool,
+    /// The abilities of every species; with `wonder_guard` that one may
+    /// come up too.
+    pub abilities: Change,
+    pub wonder_guard: bool,
     /// The TMs hold random moves.
     pub random_tm_moves: bool,
     /// Which Pokémon learn the moves of the TMs and HMs, and which those
@@ -658,6 +674,9 @@ pub struct Game<'a> {
     /// The game code, which tells version and language.
     code: [u8; 4],
     pub random: JavaRandom,
+    /// Whether abilities were changed: forms that exist through an ability
+    /// are then Pokémon like any other.
+    abilities_changed: bool,
     /// The random numbers for what changes nothing about the game but
     /// looks and names; the original keeps these apart.
     pub looks_random: JavaRandom,
@@ -762,6 +781,7 @@ impl<'a> Game<'a> {
             evolution_turn: None,
             code: [rom[12], rom[13], rom[14], rom[15]],
             random: JavaRandom::new(seed),
+            abilities_changed: false,
             looks_random: JavaRandom::new(seed),
             nds,
         })
@@ -1094,9 +1114,19 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
     if options.update_type_effectiveness {
         game.update_type_effectiveness()?;
     }
+    game.randomize_types(options.types, options.two_types);
     if options.random_wild_held_items {
         game.randomize_wild_held_items(options.good_wild_held_items);
     }
+    match options.stats {
+        Stats::Unchanged => {}
+        Stats::Shuffle => game.shuffle_stats(options.stats_follow_evolutions),
+        Stats::Random => game.randomize_stats(
+            options.stats_follow_evolutions,
+            options.stats_grow_at_random,
+        ),
+    }
+    game.randomize_abilities(options.abilities, options.wonder_guard);
     if options.change_impossible_evolutions {
         game.remove_impossible_evolutions();
     }

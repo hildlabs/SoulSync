@@ -460,7 +460,7 @@ echo "$3|$6|$8" > "${10}"; echo log > "${10}.log""#,
         // Settings with something that is not built go to the original.
         let mut other = Overrides::default();
         other.set(
-            "abilities",
+            "evolutions",
             soulsync_core::rnqs::Value::Choice("random".into()),
         );
         plan.overrides = other;

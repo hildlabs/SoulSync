@@ -401,7 +401,7 @@ impl Preset {
     /// what they ask. Anything it has not built yet, down to a single
     /// switch, is `None`: such settings go to the original randomizer.
     pub fn native(&self) -> Option<crate::rando::gen5::Options> {
-        use crate::rando::gen5::Options;
+        use crate::rando::gen5::{Change, Options, Stats};
         // Files of 4.6.0 and 4.6.1 have the same layout; older ones the
         // randomizer rewrites first.
         if !(321..=322).contains(&self.version) {
@@ -418,12 +418,10 @@ impl Preset {
         };
         const TWEAKS: u32 = 1 << 7 | 1 << 8 | 1 << 12;
         let tweaks = u32::from_be_bytes([d[32], d[33], d[34], d[35]]);
-        // Stats, types, abilities, movesets, TMs, evolutions and moves as
-        // they are; no limit on the Pokémon; nothing added to trainers.
-        let untouched = d[1] == 1 << 3
-            && d[2] == 1 << 2
-            && d[3] == 1
-            && d[11] == 1 << 2
+        // Movesets, evolutions and moves as they are; nothing added to
+        // trainers.
+        let untouched = d[11] == 1 << 2
+            && d[48] & (1 << 6) == 0
             && d[12] == 0
             && d[19] & !1 == 0
             && d[20] == 0
@@ -444,6 +442,26 @@ impl Preset {
         if !untouched {
             return None;
         }
+        // What the species are like. Updated stats, levelling alike, a
+        // limit on the Pokémon and the bans on abilities are not built.
+        let stats = match d[1] & 0b0111_1110 {
+            0b1000 => Stats::Unchanged,
+            0b0100 => Stats::Shuffle,
+            0b0010 => Stats::Random,
+            _ => return None,
+        };
+        let types = match d[2] & 0b0111_1111 {
+            0b100 => Change::Unchanged,
+            0b010 => Change::Random,
+            0b001 => Change::FollowEvolutions,
+            _ => return None,
+        };
+        let abilities = match (d[3] & 0b1111_0011, bit(3, 3)) {
+            (0b01, _) => Change::Unchanged,
+            (0b10, false) => Change::Random,
+            (0b10, true) => Change::FollowEvolutions,
+            _ => return None,
+        };
         // Who learns what: one way of four; then the moves themselves,
         // random or not. Nothing else of these bytes is built.
         let learning = |byte: usize| {
@@ -491,6 +509,13 @@ impl Preset {
             },
             wild_forms: bit(39, 7),
             random_starters: either(4, 0xFF, 2, 1)?,
+            stats,
+            stats_follow_evolutions: bit(1, 0),
+            stats_grow_at_random: bit(1, 7),
+            types,
+            two_types: bit(2, 7),
+            abilities,
+            wonder_guard: bit(3, 2),
             random_tutor_moves,
             random_tm_moves,
             machines,
@@ -634,6 +659,7 @@ mod tests {
 
     #[test]
     fn the_soul_link_preset_is_one_for_the_own_randomizer() {
+        use crate::rando::gen5::{Change, Stats};
         let file = include_bytes!("../../soulsync-server/presets/soul-link.rnqs");
         let preset = Preset::read(file).unwrap();
         let o = preset.native().expect("every option of it is built");
@@ -682,6 +708,23 @@ mod tests {
             (Compat::Unchanged, Compat::Unchanged)
         );
 
+        let mut traits = Overrides::default();
+        traits.set("base_stats", Value::Choice("shuffle".into()));
+        traits.set("base_stats_follow_evolutions", Value::Flag(true));
+        traits.set("types", Value::Choice("random_follow_evolutions".into()));
+        traits.set("abilities", Value::Choice("random".into()));
+        traits.set("allow_wonder_guard", Value::Flag(true));
+        let o = preset.with(&traits).native().unwrap();
+        assert_eq!(o.stats, Stats::Shuffle);
+        assert!(o.stats_follow_evolutions && o.wonder_guard && !o.two_types);
+        assert_eq!(
+            (o.types, o.abilities),
+            (Change::FollowEvolutions, Change::Random)
+        );
+        traits.set("abilities_follow_evolutions", Value::Flag(true));
+        let o = preset.with(&traits).native().unwrap();
+        assert_eq!(o.abilities, Change::FollowEvolutions);
+
         let mut tms = Overrides::default();
         tms.set("tm", Value::Choice("full".into()));
         tms.set("tm_moves", Value::Choice("random".into()));
@@ -699,7 +742,8 @@ mod tests {
         let file = include_bytes!("../../soulsync-server/presets/soul-link.rnqs");
         let preset = Preset::read(file).unwrap();
         for (id, value) in [
-            ("abilities", Value::Choice("random".into())),
+            ("evolutions", Value::Choice("random".into())),
+            ("update_base_stats", Value::Flag(true)),
             ("movesets", Value::Choice("random".into())),
             ("wild", Value::Choice("global_mapping".into())),
             ("wild_rule", Value::Choice("catch_em_all".into())),
