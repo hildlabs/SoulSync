@@ -568,6 +568,27 @@ fn preset_info(path: &Path) -> serde_json::Value {
     }
 }
 
+/// Whether SoulSync's own randomizer makes the next game, so that neither
+/// Java nor the original randomizer is needed for it.
+fn own_randomizer(c: &Config) -> bool {
+    use soulsync_core::rnqs::Preset;
+    let file = match &c.run_rando {
+        Some(run) => run.file(),
+        None => c.preset.as_deref().and_then(|p| std::fs::read(p).ok()),
+    };
+    let settings = file.and_then(|f| Preset::read(&f).ok()).map(|p| {
+        // A run's settings are taken as they are.
+        match c.run_rando {
+            Some(_) => p,
+            None => p.with(&c.rando),
+        }
+    });
+    match (settings, &c.original) {
+        (Some(settings), Some(original)) => crate::fresh::own_with(&settings, original).is_some(),
+        _ => false,
+    }
+}
+
 /// The randomizer and its settings usually sit next to the original ROM,
 /// as they come in the randomizer's download; found there, nobody has to
 /// pick them.
@@ -725,7 +746,9 @@ impl Local {
                 "rolled": c.rolled,
                 "candies_due": c.candies_due.as_ref().map(|d| d.count),
                 "progress": inner.fresh,
-                // Used unless the player chose their own randomizer.
+                // SoulSync's own randomizer makes the next game.
+                "own": own_randomizer(c),
+                // Used otherwise, unless the player chose their own randomizer.
                 "builtin": {
                     "name": crate::tools::RANDOMIZER.name,
                     "ready": crate::tools::RANDOMIZER.installed().is_some(),
@@ -1150,6 +1173,7 @@ fn begin_fresh(
             None => (need(&c.preset, "preset")?, c.rando.clone(), c.candies.0),
         };
         let plan = Plan {
+            own: true,
             // Both found or fetched when it runs.
             java: "java".into(),
             randomizer: c.randomizer.clone().unwrap_or_default(),
@@ -1184,6 +1208,14 @@ fn begin_fresh(
             let progress = |name, done, total| {
                 fetcher.inner.lock().unwrap().fetching = Some((name, done, total));
             };
+            // SoulSync's own randomizer needs no download. A game it
+            // cannot make after all is left to the original one.
+            if crate::fresh::own(&work).is_some() {
+                match crate::fresh::run(&work) {
+                    Err((crate::fresh::Why::Randomizer, _)) => work.own = false,
+                    done => return done,
+                }
+            }
             let tools = (|| {
                 let own = Some(work.randomizer.as_path()).filter(|p| !p.as_os_str().is_empty());
                 work.randomizer = crate::tools::randomizer(own, &progress)?;

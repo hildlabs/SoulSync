@@ -396,6 +396,110 @@ impl Preset {
         self.bit(TMS, 3)
     }
 
+    /// These settings for SoulSync's own randomizer, if it can do exactly
+    /// what they ask. Anything it has not built yet, down to a single
+    /// switch, is `None`: such settings go to the original randomizer.
+    pub fn native(&self) -> Option<crate::rando::gen5::Options> {
+        use crate::rando::gen5::Options;
+        // Files of 4.6.0 and 4.6.1 have the same layout; older ones the
+        // randomizer rewrites first.
+        if !(321..=322).contains(&self.version) {
+            return None;
+        }
+        let d = &self.data[..OPTION_BYTES];
+        let bit = |byte: usize, bit: u8| d[byte] & (1 << bit) != 0;
+        // Exactly one of two ways, each a bit of the same byte, and no
+        // other bit of `mask`: whether it is the second.
+        let either = |byte: usize, mask: u8, off: u8, on: u8| match d[byte] & mask {
+            b if b == 1 << off => Some(false),
+            b if b == 1 << on => Some(true),
+            _ => None,
+        };
+        const TWEAKS: u32 = 1 << 7 | 1 << 8 | 1 << 12;
+        let tweaks = u32::from_be_bytes([d[32], d[33], d[34], d[35]]);
+        // Stats, types, abilities, movesets, TMs, evolutions and moves as
+        // they are; no limit on the Pokémon; nothing added to trainers.
+        let untouched = d[1] == 1 << 3
+            && d[2] == 1 << 2
+            && d[3] == 1
+            && d[11] == 1 << 2
+            && d[12] == 0
+            && d[18] == (1 << 2 | 1 << 4)
+            && d[19] & !1 == 0
+            && d[20] == 0
+            && d[22] == 0
+            && d[25] == 0
+            && d[26] == 1
+            && d[27] & !(1 << 1) == 0
+            && d[40] == 0
+            && d[41] & 0xC7 == 0
+            && d[48] & 7 == 0
+            && d[50] & 7 == 0
+            && d[0] & !(1 | 1 << 3 | 1 << 5 | 1 << 6) == 0
+            && d[16] & !(1 << 3 | 1 << 4) == 0
+            && d[39] & (1 << 3 | 1 << 4 | 1 << 5) == 0
+            && tweaks & !TWEAKS == 0
+            // No changed levels of trainers, wild or fixed Pokémon.
+            && [36, 38, 47].iter().all(|&b| d[b] & 0x80 == 0);
+        if !untouched {
+            return None;
+        }
+        let random_trades = match d[23] & (1 | 1 << 1 | 1 << 6) {
+            0x40 => false,
+            // Random trainer names of the traded Pokémon are not built.
+            1 | 2 if !bit(23, 5) => true,
+            _ => return None,
+        };
+        let fully_evolved = match (bit(14, 7), d[14] & 0x7F) {
+            (false, _) => 0,
+            (true, 0) => return None,
+            (true, level) => level as u16,
+        };
+        Some(Options {
+            national_dex: tweaks & 1 << 7 != 0,
+            update_type_effectiveness: tweaks & 1 << 8 != 0,
+            ban_lucky_egg: tweaks & 1 << 12 != 0,
+            random_wild_held_items: bit(16, 3),
+            good_wild_held_items: bit(16, 3) && bit(16, 4),
+            change_impossible_evolutions: bit(0, 0),
+            easier_evolutions: bit(0, 5),
+            no_time_evolutions: bit(0, 6),
+            // Each species of an area becomes one other, with no rule
+            // about which.
+            random_wild: match d[15] {
+                0b0100_0100 => false,
+                0b0000_0110 => true,
+                _ => return None,
+            },
+            wild_forms: bit(39, 7),
+            random_starters: either(4, 0xFF, 2, 1)?,
+            random_tutor_moves: match d[21] {
+                0b0001_0100 => false,
+                0b0000_1100 => true,
+                _ => return None,
+            },
+            random_trainers: either(13, 0xFF, 0, 1)?,
+            trainer_forms: bit(39, 6),
+            rival_carries_starter: bit(27, 1),
+            trainers_fully_evolved_from: fully_evolved,
+            random_trainer_names: bit(0, 3),
+            random_trades,
+            trades_want_random: random_trades && bit(23, 0),
+            random_trade_nicknames: random_trades && bit(23, 4),
+            random_trade_ivs: random_trades && bit(23, 3),
+            random_trade_items: random_trades && bit(23, 2),
+            random_field_items: either(24, !(1 << 3), 2, 0)?,
+            good_field_items: bit(24, 0) && bit(24, 3),
+            random_shops: either(37, !(1 << 3), 2, 0)?,
+            good_shop_items: bit(37, 0) && bit(37, 3),
+            random_pickup: either(49, !(1 << 2), 1, 0)?,
+            good_pickup_items: bit(49, 0) && bit(49, 2),
+            // Legendary for legendary; no other way is built.
+            random_statics: either(17, 0xFF, 0, 1)?,
+            full_hm: bit(19, 0),
+        })
+    }
+
     /// Every option of [`OPTIONS`] as this file has it.
     pub fn options(&self) -> Overrides {
         Overrides(
@@ -509,6 +613,80 @@ mod tests {
 
     fn file() -> Vec<u8> {
         base64_decode(FILE.as_bytes()).unwrap()
+    }
+
+    #[test]
+    fn the_soul_link_preset_is_one_for_the_own_randomizer() {
+        let file = include_bytes!("../../soulsync-server/presets/soul-link.rnqs");
+        let preset = Preset::read(file).unwrap();
+        let o = preset.native().expect("every option of it is built");
+        let all = [
+            o.national_dex,
+            o.update_type_effectiveness,
+            o.ban_lucky_egg,
+            o.random_wild_held_items,
+            o.good_wild_held_items,
+            o.change_impossible_evolutions,
+            o.easier_evolutions,
+            o.no_time_evolutions,
+            o.random_wild,
+            o.wild_forms,
+            o.random_starters,
+            o.random_tutor_moves,
+            o.random_trainers,
+            o.trainer_forms,
+            o.rival_carries_starter,
+            o.random_trainer_names,
+            o.random_trades,
+            o.trades_want_random,
+            o.random_trade_nicknames,
+            o.random_trade_ivs,
+            o.random_trade_items,
+            o.random_field_items,
+            o.good_field_items,
+            o.random_shops,
+            o.good_shop_items,
+            o.random_pickup,
+            o.good_pickup_items,
+            o.random_statics,
+            o.full_hm,
+        ];
+        assert!(all.iter().all(|&on| on), "{o:?}");
+        assert_eq!(o.trainers_fully_evolved_from, 40);
+
+        // Switched off in SoulSync, an option is off here too.
+        let mut off = Overrides::default();
+        off.set("wild", Value::Choice("unchanged".into()));
+        off.set("random_trainer_names", Value::Flag(false));
+        let o = preset.with(&off).native().unwrap();
+        assert!(!o.random_wild && !o.random_trainer_names && o.random_trainers);
+    }
+
+    #[test]
+    fn what_is_not_built_goes_to_the_original_randomizer() {
+        let file = include_bytes!("../../soulsync-server/presets/soul-link.rnqs");
+        let preset = Preset::read(file).unwrap();
+        for (id, value) in [
+            ("abilities", Value::Choice("random".into())),
+            ("movesets", Value::Choice("random".into())),
+            ("tm", Value::Choice("full".into())),
+            ("wild", Value::Choice("global_mapping".into())),
+            ("wild_rule", Value::Choice("catch_em_all".into())),
+            ("statics", Value::Choice("random".into())),
+            ("trainers", Value::Choice("type_themed".into())),
+            ("starters", Value::Choice("random_two_evolutions".into())),
+            ("shops", Value::Choice("shuffle".into())),
+            ("update_moves", Value::Flag(true)),
+            ("trainers_no_legendaries", Value::Flag(true)),
+            ("wild_no_legendaries", Value::Flag(true)),
+            ("random_trainer_classes", Value::Flag(true)),
+        ] {
+            let mut change = Overrides::default();
+            change.set(id, value);
+            assert_eq!(preset.with(&change).native(), None, "{id}");
+        }
+        // The file of the other tests randomizes TM moves.
+        assert_eq!(Preset::read(&super::tests::file()).unwrap().native(), None);
     }
 
     #[test]

@@ -1079,6 +1079,15 @@ impl<'a> Game<'a> {
     }
 }
 
+/// Whether `rom`, or just its first bytes, is a game whose randomization
+/// was compared with the original randomizer's, byte for byte. So far that
+/// is the German Black 2; the others are built from the same tables but
+/// nobody has checked them.
+pub fn verified(rom: &[u8]) -> bool {
+    const VERIFIED: [&[u8]; 1] = [b"IRED"];
+    rom.get(12..16).is_some_and(|code| VERIFIED.contains(&code))
+}
+
 /// Randomizes `rom` with `seed`, in the original randomizer's order of
 /// steps. Only the steps of [`Options`] are built so far.
 pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, RomError> {

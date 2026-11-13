@@ -1,12 +1,15 @@
 //! Starting a game over: a freshly randomized ROM and the save the player
 //! prepared once, so that a failed run costs a click instead of the whole
-//! setup. The randomizer is Universal Pokémon Randomizer ZX, run without its
-//! window: fetched on first use (see [`crate::tools`]) or the player's own.
+//! setup. SoulSync randomizes the game itself where it can do all the
+//! settings ask (see [`own`]). Otherwise the randomizer is Universal Pokémon
+//! Randomizer ZX, run without its window: fetched on first use (see
+//! [`crate::tools`]) or the player's own.
 //!
 //! SoulSync does not ship anything of the game: the player points it at
 //! their own ROM.
 
 use serde::Serialize;
+use soulsync_core::rando::gen5;
 use soulsync_core::rnqs::{Overrides, Preset};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -15,6 +18,9 @@ use std::process::Command;
 /// Everything one fresh start needs.
 #[derive(Debug, Clone)]
 pub struct Plan {
+    /// Whether SoulSync's own randomizer makes the game if it can; without
+    /// it the original randomizer always does.
+    pub own: bool,
     /// The program that runs the randomizer, `java` unless a test says so.
     pub java: OsString,
     /// `PokeRandoZX.jar`.
@@ -122,11 +128,95 @@ fn tail(output: &std::process::Output) -> Option<String> {
     (!lines.is_empty()).then(|| lines[from..].join("\n"))
 }
 
+/// The settings of the plan with SoulSync's options in them.
+fn settings(plan: &Plan) -> Result<Preset, Failure> {
+    let file = std::fs::read(&plan.preset).map_err(|e| (Why::Preset, Some(e.to_string())))?;
+    let preset = Preset::read(&file).map_err(|e| (Why::Preset, Some(e.to_string())))?;
+    Ok(preset.with(&plan.overrides))
+}
+
+/// What SoulSync's own randomizer is to do, if it can make this game: it
+/// has built everything the settings ask for, and the original ROM is a
+/// game its result was checked on. Neither Java nor the original
+/// randomizer is needed then.
+pub fn own(plan: &Plan) -> Option<gen5::Options> {
+    if !plan.own {
+        return None;
+    }
+    own_with(&settings(plan).ok()?, &plan.original)
+}
+
+/// The same for settings and an original ROM, as [`own`] looks at them.
+pub fn own_with(settings: &Preset, original: &Path) -> Option<gen5::Options> {
+    use std::io::Read;
+    let options = settings.native()?;
+    let mut header = [0u8; 16];
+    std::fs::File::open(original)
+        .and_then(|mut f| f.read_exact(&mut header))
+        .ok()?;
+    gen5::verified(&header).then_some(options)
+}
+
+/// A seed no one chose, 48 bits as the original randomizer picks them.
+fn seed() -> i64 {
+    use std::hash::{BuildHasher, Hasher};
+    let mut hasher = std::collections::hash_map::RandomState::new().build_hasher();
+    hasher.write_u128(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos()),
+    );
+    (hasher.finish() & 0xFFFF_FFFF_FFFF) as i64
+}
+
+/// Randomizes the original ROM into `fresh` with SoulSync's own randomizer.
+fn roll(plan: &Plan, options: &gen5::Options, fresh: &Path) -> Result<(), Failure> {
+    let original = std::fs::read(&plan.original).map_err(|e| (Why::Write, Some(e.to_string())))?;
+    let rom = gen5::randomize(&original, options, seed())
+        .map_err(|e| (Why::Randomizer, Some(e.to_string())))?;
+    std::fs::write(fresh, rom).map_err(|e| (Why::Write, Some(e.to_string())))
+}
+
+/// Randomizes the original ROM into `fresh` with the original randomizer.
+fn java(plan: &Plan, fresh: &Path) -> Result<(), Failure> {
+    // The settings with SoulSync's options, in a file of their own: the
+    // player's `.rnqs` stays as it is.
+    let preset = if plan.overrides.is_empty() {
+        None
+    } else {
+        let path = plan.rom.with_extension("soulsync.rnqs");
+        std::fs::write(&path, settings(plan)?.write())
+            .map_err(|e| (Why::Write, Some(e.to_string())))?;
+        Some(path)
+    };
+    let mut command = Command::new(&plan.java);
+    command.arg("-Xmx4096M").arg("-jar").arg(&plan.randomizer);
+    command
+        .arg("cli")
+        .arg("-s")
+        .arg(preset.as_ref().unwrap_or(&plan.preset));
+    command.arg("-i").arg(&plan.original);
+    command.arg("-o").arg(fresh).arg("-l");
+    if let Some(dir) = plan.randomizer.parent().filter(|d| d.is_dir()) {
+        command.current_dir(dir);
+    }
+    let output = quiet(&mut command).output();
+    if let Some(preset) = &preset {
+        let _ = std::fs::remove_file(preset);
+    }
+    let output = output.map_err(|e| (Why::Java, Some(e.to_string())))?;
+    if !fresh.is_file() {
+        return Err((Why::Randomizer, tail(&output)));
+    }
+    Ok(())
+}
+
 /// Randomizes the ROM anew and puts the starting save in place.
 pub fn run(plan: &Plan) -> Result<(), Failure> {
+    let own = own(plan);
     let files = [
         ("original", Some(&plan.original)),
-        ("randomizer", Some(&plan.randomizer)),
+        ("randomizer", own.is_none().then_some(&plan.randomizer)),
         ("preset", Some(&plan.preset)),
         ("template", plan.template.as_ref()),
     ];
@@ -160,41 +250,13 @@ pub fn run(plan: &Plan) -> Result<(), Failure> {
         None => None,
     };
 
-    // The settings with SoulSync's options, in a file of their own: the
-    // player's `.rnqs` stays as it is.
-    let preset = if plan.overrides.is_empty() {
-        None
-    } else {
-        let file = std::fs::read(&plan.preset).map_err(|e| (Why::Preset, Some(e.to_string())))?;
-        let preset = Preset::read(&file).map_err(|e| (Why::Preset, Some(e.to_string())))?;
-        let path = plan.rom.with_extension("soulsync.rnqs");
-        std::fs::write(&path, preset.with(&plan.overrides).write())
-            .map_err(|e| (Why::Write, Some(e.to_string())))?;
-        Some(path)
-    };
-
-    // The randomizer writes next to the ROM first: a run that fails leaves
-    // the game that is there untouched.
+    // The new game is written next to the ROM first: a run that fails
+    // leaves the game that is there untouched.
     let fresh = plan.rom.with_extension("new.nds");
     let _ = std::fs::remove_file(&fresh);
-    let mut command = Command::new(&plan.java);
-    command.arg("-Xmx4096M").arg("-jar").arg(&plan.randomizer);
-    command
-        .arg("cli")
-        .arg("-s")
-        .arg(preset.as_ref().unwrap_or(&plan.preset));
-    command.arg("-i").arg(&plan.original);
-    command.arg("-o").arg(&fresh).arg("-l");
-    if let Some(dir) = plan.randomizer.parent().filter(|d| d.is_dir()) {
-        command.current_dir(dir);
-    }
-    let output = quiet(&mut command).output();
-    if let Some(preset) = &preset {
-        let _ = std::fs::remove_file(preset);
-    }
-    let output = output.map_err(|e| (Why::Java, Some(e.to_string())))?;
-    if !fresh.is_file() {
-        return Err((Why::Randomizer, tail(&output)));
+    match &own {
+        Some(options) => roll(plan, options, &fresh)?,
+        None => java(plan, &fresh)?,
     }
 
     let write = |e: std::io::Error| (Why::Write, Some(e.to_string()));
@@ -269,6 +331,7 @@ mod tests {
             std::fs::write(dir.join(file), text).unwrap();
         }
         let plan = Plan {
+            own: false,
             java: "java".into(),
             randomizer: dir.join("rando.jar"),
             preset: dir.join("mine.rnqs"),
@@ -367,6 +430,71 @@ echo "$3|$6|$8" > "${10}"; echo log > "${10}.log""#,
 
         std::fs::write(&plan.preset, "broken").unwrap();
         assert_eq!(run(&plan).unwrap_err().0, Why::Preset);
+    }
+
+    #[test]
+    fn the_own_randomizer_takes_what_it_can_do() {
+        let (dir, mut plan) = plan("own");
+        plan.own = true;
+        let soul_link = include_bytes!("../../soulsync-server/presets/soul-link.rnqs");
+        std::fs::write(&plan.preset, soul_link).unwrap();
+        let rom = |code: &[u8]| {
+            let mut rom = b"POKEMON B2\0\0".to_vec();
+            rom.extend_from_slice(code);
+            rom.resize(64, 0);
+            std::fs::write(&plan.original, rom).unwrap();
+        };
+        // A game nobody compared with the original randomizer.
+        rom(b"IREO");
+        assert_eq!(own(&plan), None);
+        rom(b"IRED");
+        assert!(own(&plan).is_some_and(|o| o.random_wild && o.full_hm));
+        // No Java and no randomizer are asked for; this is no real ROM,
+        // though, and what is there stays.
+        plan.java = dir.join("no-such-java").into();
+        std::fs::remove_file(&plan.randomizer).unwrap();
+        assert_eq!(run(&plan).unwrap_err().0, Why::Randomizer);
+        assert_eq!(std::fs::read_to_string(&plan.rom).unwrap(), "old game");
+        assert_eq!(std::fs::read_to_string(&plan.save).unwrap(), "old save");
+
+        // Settings with something that is not built go to the original.
+        let mut tm = Overrides::default();
+        tm.set("tm", soulsync_core::rnqs::Value::Choice("full".into()));
+        plan.overrides = tm;
+        assert_eq!(own(&plan), None);
+        plan.overrides = Overrides::default();
+        plan.own = false;
+        assert_eq!(own(&plan), None);
+    }
+
+    /// With a real German Black 2 at `SOULSYNC_ROM`:
+    /// `cargo test --release -p soulsync-app -- --ignored a_real_game`.
+    #[test]
+    #[ignore = "needs the player's own ROM"]
+    fn a_real_game_is_made_without_java() {
+        let (dir, mut plan) = plan("real");
+        plan.own = true;
+        plan.original = std::env::var_os("SOULSYNC_ROM").unwrap().into();
+        plan.java = dir.join("no-such-java").into();
+        let soul_link = include_bytes!("../../soulsync-server/presets/soul-link.rnqs");
+        std::fs::write(&plan.preset, soul_link).unwrap();
+        run(&plan).unwrap();
+        let original = std::fs::read(&plan.original).unwrap();
+        let first = std::fs::read(&plan.rom).unwrap();
+        assert!(gen5::verified(&first));
+        assert_ne!(first, original);
+        assert_eq!(std::fs::read_to_string(&plan.save).unwrap(), "start");
+        // Every game is another one.
+        run(&plan).unwrap();
+        assert_ne!(std::fs::read(&plan.rom).unwrap(), first);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn seeds_differ() {
+        let (a, b) = (seed(), seed());
+        assert_ne!(a, b);
+        assert!((0..1 << 48).contains(&a));
     }
 
     #[test]
