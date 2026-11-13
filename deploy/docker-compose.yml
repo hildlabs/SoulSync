@@ -30,6 +30,15 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:${SOULSYNC_PORT:-3000}:3000"
+    # Only Caddy or your own proxy reaches the port, so the client address
+    # comes from X-Forwarded-For. The SOULSYNC_* limits are described in the
+    # README; set them in `.env` to change them.
+    environment:
+      SOULSYNC_TRUST_PROXY: "1"
+      SOULSYNC_RUNS_PER_HOUR: ${SOULSYNC_RUNS_PER_HOUR:-10}
+      SOULSYNC_CONNECTIONS: ${SOULSYNC_CONNECTIONS:-20}
+      SOULSYNC_MAX_RUNS: ${SOULSYNC_MAX_RUNS:-2000}
+      SOULSYNC_IDLE_DAYS: ${SOULSYNC_IDLE_DAYS:-60}
     # Runs survive updates and restarts here.
     volumes:
       - runs:/data

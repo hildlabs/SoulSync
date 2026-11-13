@@ -468,11 +468,23 @@ fn config_path() -> Option<PathBuf> {
     Some(data_dir()?.join("config.json"))
 }
 
+/// The run server a fresh install plays on, so that two players only need
+/// to share a code. A fork sets its own with `SOULSYNC_SERVER` at build time.
+const PUBLIC_SERVER: &str = match option_env!("SOULSYNC_SERVER") {
+    Some(s) => s,
+    None => "https://v2202611361749553675.megasrv.de",
+};
+
 fn read_config() -> Config {
-    config_path()
-        .and_then(|p| std::fs::read(p).ok())
-        .and_then(|d| serde_json::from_slice(&d).ok())
-        .unwrap_or_default()
+    let Some(data) = config_path().and_then(|p| std::fs::read(p).ok()) else {
+        // A fresh install: the public server. Whoever set things up before
+        // keeps their choice, also an empty one.
+        return Config {
+            server: PUBLIC_SERVER.to_owned(),
+            ..Config::default()
+        };
+    };
+    serde_json::from_slice(&data).unwrap_or_default()
 }
 
 fn write_config(config: &Config) {
