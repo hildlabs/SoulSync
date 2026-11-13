@@ -2,7 +2,7 @@
 //! built: `randomize in.nds out.nds <seed> [option ...]`, with options
 //! `dex`, `types`, `egg`, `held`, `goodheld`, `impossible`, `easier`,
 //! `time`, `wild`, `starters`, `hm`, `tutors`, `trainers`, `forms`,
-//! `rival`, `evolved` (from level 40) and `names`.
+//! `rival`, `evolved` (from level 40), `names` and `statics`.
 use soulsync_core::rando::gen5;
 
 fn main() {
@@ -30,6 +30,7 @@ fn main() {
         rival_carries_starter: on("rival"),
         trainers_fully_evolved_from: if on("evolved") { 40 } else { 0 },
         random_trainer_names: on("names"),
+        random_statics: on("statics"),
     };
     let rom = std::fs::read(from).expect("the ROM is readable");
     let seed = seed.parse().expect("the seed is a number");

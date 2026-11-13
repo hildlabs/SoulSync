@@ -96,7 +96,7 @@ impl<'a> Game<'a> {
 
     /// The number of a form of a species, the species itself if it has no
     /// such form with stats of its own.
-    fn form_of(&self, species: usize, form: u16) -> usize {
+    pub(super) fn form_of(&self, species: usize, form: u16) -> usize {
         let forms = SPECIES + 1..=SPECIES + FORMS;
         let own = |&n: &usize| self.species[n].base == species && self.species[n].form == form;
         forms.into_iter().find(own).unwrap_or(species)

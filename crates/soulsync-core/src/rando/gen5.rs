@@ -6,6 +6,8 @@
 //! held items and evolutions the randomizer has no use for are dropped,
 //! and the code it looked at is packed anew.
 
+mod statics;
+mod tables;
 mod trainers;
 
 use super::random::JavaRandom;
@@ -274,6 +276,8 @@ pub struct Options {
     pub trainers_fully_evolved_from: u16,
     /// Trainers get random names.
     pub random_trainer_names: bool,
+    /// Pokémon at fixed spots are swapped, legendary for legendary.
+    pub random_statics: bool,
     /// Every Pokémon can learn every HM.
     pub full_hm: bool,
 }
@@ -1097,6 +1101,9 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
     }
     if options.random_trainer_names {
         game.randomize_trainer_names()?;
+    }
+    if options.random_statics {
+        game.randomize_statics()?;
     }
     game.randomize_intro()?;
     game.save()
