@@ -27,11 +27,13 @@ async fn main() {
     let saver = state.clone();
     tokio::spawn(async move {
         let mut tick = tokio::time::interval(Duration::from_secs(5));
-        for n in 0u64.. {
+        let mut n = 0u32;
+        loop {
             tick.tick().await;
             saver.save();
             // Once an hour, idle runs go.
-            if n % 720 == 0 {
+            n = (n + 1) % 720;
+            if n == 1 {
                 let now = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .map_or(0, |d| d.as_millis() as u64);
