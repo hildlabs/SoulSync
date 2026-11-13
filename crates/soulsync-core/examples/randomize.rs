@@ -1,6 +1,7 @@
 //! Randomizes a ROM with SoulSync's own randomizer, as far as it is
 //! built: `randomize in.nds out.nds <seed> [option ...]`, with options
-//! `impossible`, `easier`, `time`, `wild`, `starters` and `hm`.
+//! `dex`, `types`, `egg`, `held`, `goodheld`, `impossible`, `easier`,
+//! `time`, `wild`, `starters` and `hm`.
 use soulsync_core::rando::gen5;
 
 fn main() {
@@ -11,6 +12,11 @@ fn main() {
     };
     let on = |name: &str| flags.iter().any(|f| f == name);
     let options = gen5::Options {
+        national_dex: on("dex"),
+        update_type_effectiveness: on("types"),
+        ban_lucky_egg: on("egg"),
+        random_wild_held_items: on("held") || on("goodheld"),
+        good_wild_held_items: on("goodheld"),
         change_impossible_evolutions: on("impossible"),
         easier_evolutions: on("easier"),
         no_time_evolutions: on("time"),

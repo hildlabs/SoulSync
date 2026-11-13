@@ -134,6 +134,60 @@ const TYPES: [&str; 17] = [
     "Water", "Grass", "Electric", "Psychic", "Ice", "Dragon", "Dark",
 ];
 
+/// The script that gets the national Pokédex switched on, its length in
+/// the games this is built for, and the two instructions put into it.
+const DEX_SCRIPT: usize = 854;
+const DEX_SCRIPT_LEN: usize = 7996;
+const DEX_INSERTS: [(usize, [u8; 2]); 2] = [(1654, [0xC6, 0x01]), (3695, [0, 0])];
+/// The jumps in that script that cross one of the two new instructions.
+const DEX_JUMPS: [usize; 80] = [
+    4, 8, 12, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 68, 72, 76, 80, 88, 92, 96, 100, 104, 108,
+    112, 116, 120, 124, 128, 449, 459, 467, 591, 717, 1052, 1085, 1118, 1148, 1179, 1602, 2106,
+    2116, 2128, 2155, 2165, 2183, 2193, 2205, 2232, 2242, 2305, 2332, 2342, 2489, 2499, 2529, 2564,
+    2597, 2630, 2663, 2704, 2714, 2728, 2752, 2776, 2812, 2824, 2939, 2947, 3190, 3356, 3368, 3401,
+    3413, 3446, 3458, 3488, 3500, 3610, 3646, 3660,
+];
+/// The overlay with the table of what each type does to each other, and
+/// how that table starts.
+const BATTLE_OVERLAY: usize = 167;
+const TYPE_TABLE: [u8; 8] = [4, 4, 4, 4, 4, 2, 4, 0];
+const TYPE_COUNT: usize = 17;
+const GHOST: usize = 7;
+const STEEL: usize = 8;
+const DARK: usize = 16;
+const NORMAL_DAMAGE: u8 = 4;
+/// The highest item number, and the items no random choice may give: key
+/// items, items of other games, TMs and HMs, items of the Wonder Launcher.
+const LAST_ITEM: usize = 638;
+const NO_ITEMS: [(usize, usize); 10] = [
+    (428, 76),
+    (505, 32),
+    (621, 18),
+    (574, 1),
+    (578, 2),
+    (616, 5),
+    (113, 3),
+    (120, 14),
+    (328, 100),
+    (592, 24),
+];
+/// Items of little use, left out where only good ones are wanted.
+const BAD_ITEMS: [(usize, usize); 12] = [
+    (111, 2),
+    (225, 1),
+    (236, 1),
+    (155, 1),
+    (274, 1),
+    (575, 1),
+    (95, 4),
+    (135, 2),
+    (137, 12),
+    (159, 25),
+    (256, 4),
+    (260, 5),
+];
+const LUCKY_EGG: usize = 231;
+
 const HAPPINESS_MARK: [u8; 4] = [0xDC, 0x28, 0x2F, 0xD3];
 
 /// Where `mark` stands in `data`, if it does exactly once and not at the
@@ -151,6 +205,16 @@ fn find(data: &[u8], mark: &[u8]) -> Option<usize> {
 /// What a randomization changes; everything is off by default.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Options {
+    /// The national Pokédex from the start.
+    pub national_dex: bool,
+    /// Ghost and Dark hit Steel normally, as in later games.
+    pub update_type_effectiveness: bool,
+    /// No random choice gives a Lucky Egg.
+    pub ban_lucky_egg: bool,
+    /// Wild Pokémon hold random items, with `good_wild_held_items` only
+    /// useful ones.
+    pub random_wild_held_items: bool,
+    pub good_wild_held_items: bool,
     /// Evolutions by trade become ones a single player can reach.
     pub change_impossible_evolutions: bool,
     /// Lower levels and less happiness for evolutions.
@@ -171,6 +235,82 @@ fn word(d: &[u8], at: usize) -> u16 {
 
 fn set_word(d: &mut [u8], at: usize, value: u16) {
     d[at..at + 2].copy_from_slice(&value.to_le_bytes());
+}
+
+/// The items a random choice may give.
+#[derive(Debug, Clone)]
+struct Items {
+    allowed: Vec<bool>,
+}
+
+impl Items {
+    fn new(good: bool) -> Self {
+        let mut allowed = vec![true; LAST_ITEM + 1];
+        allowed[0] = false;
+        let bad = if good { &BAD_ITEMS[..] } else { &[] };
+        for &(first, count) in NO_ITEMS.iter().chain(bad) {
+            allowed[first..first + count].fill(false);
+        }
+        Items { allowed }
+    }
+
+    fn ban(&mut self, item: usize) {
+        self.allowed[item] = false;
+    }
+
+    fn random(&self, random: &mut JavaRandom) -> u16 {
+        let mut chosen = 0;
+        while !self.allowed[chosen] {
+            chosen = random.index(self.allowed.len());
+        }
+        chosen as u16
+    }
+}
+
+/// Gives every species new items for its wild Pokémon to hold.
+fn random_held_items(all: &mut [Species], items: &Items, random: &mut JavaRandom) {
+    for species in all.iter_mut().skip(1) {
+        let held = &mut species.items;
+        let decision = random.double();
+        let mut dark_grass = true;
+        let pair = |held: &mut HeldItems, random: &mut JavaRandom| {
+            held.common = items.random(random);
+            held.rare = items.random(random);
+            while held.rare == held.common {
+                held.rare = items.random(random);
+            }
+        };
+        if held.always > 0 {
+            if decision < 0.9 {
+                dark_grass = false;
+                held.always = items.random(random);
+            } else {
+                held.always = 0;
+                pair(held, random);
+            }
+        } else if decision < 0.5 {
+            held.common = 0;
+            held.rare = 0;
+        } else if decision < 0.65 {
+            held.common = 0;
+            held.rare = items.random(random);
+        } else if decision < 0.8 {
+            held.common = items.random(random);
+            held.rare = 0;
+        } else if decision < 0.95 {
+            pair(held, random);
+        } else {
+            dark_grass = false;
+            held.always = items.random(random);
+            held.common = 0;
+            held.rare = 0;
+        }
+        held.dark_grass = if dark_grass && random.double() < 0.5 {
+            items.random(random)
+        } else {
+            0
+        };
+    }
 }
 
 /// The items a wild Pokémon of a species may hold.
@@ -416,6 +556,9 @@ pub struct Game<'a> {
     pub species: Vec<Species>,
     /// The three starters, once they are chosen anew.
     pub starters: Option<[u16; 3]>,
+    /// The items random choices may give: all of them, and the good ones.
+    items: Items,
+    good_items: Items,
     japanese: bool,
     pub random: JavaRandom,
 }
@@ -482,10 +625,61 @@ impl<'a> Game<'a> {
             stats,
             species,
             starters: None,
+            items: Items::new(false),
+            good_items: Items::new(true),
             japanese: rom.get(15) == Some(&b'J'),
             random: JavaRandom::new(seed),
             nds,
         })
+    }
+
+    /// Keeps the Lucky Egg out of every random choice of items.
+    pub fn ban_lucky_egg(&mut self) {
+        self.items.ban(LUCKY_EGG);
+        self.good_items.ban(LUCKY_EGG);
+    }
+
+    /// Switches the national Pokédex on together with the Pokédex. The
+    /// original randomizer does this with a patch that replaces most of
+    /// the script; this puts the same two instructions in and moves the
+    /// jumps across them, which gives the same script.
+    pub fn national_dex_at_start(&mut self) -> Result<(), RomError> {
+        let script = self.scripts.get_mut(DEX_SCRIPT).ok_or(layout("script"))?;
+        if script.len() != DEX_SCRIPT_LEN {
+            return Err(layout("script of the Pokédex"));
+        }
+        let moved =
+            |at: usize| at + DEX_INSERTS.iter().filter(|(place, _)| *place < at).count() * 2;
+        for at in DEX_JUMPS {
+            let jump =
+                i32::from_le_bytes([script[at], script[at + 1], script[at + 2], script[at + 3]]);
+            let target = (at as i32 + 4 + jump) as usize;
+            let jump = moved(target) as i32 - moved(at) as i32 - 4;
+            script[at..at + 4].copy_from_slice(&jump.to_le_bytes());
+        }
+        for (place, bytes) in DEX_INSERTS.iter().rev() {
+            script.splice(place..place, *bytes);
+        }
+        Ok(())
+    }
+
+    /// Ghost and Dark hit Steel normally, as in later games.
+    pub fn update_type_effectiveness(&mut self) -> Result<(), RomError> {
+        let mut code = self.nds.overlay(BATTLE_OVERLAY).ok_or(layout("overlay"))?;
+        let table =
+            find(&code, &TYPE_TABLE).filter(|at| at + TYPE_COUNT * TYPE_COUNT <= code.len());
+        if let Some(table) = table {
+            code[table + GHOST * TYPE_COUNT + STEEL] = NORMAL_DAMAGE;
+            code[table + DARK * TYPE_COUNT + STEEL] = NORMAL_DAMAGE;
+            self.nds.set_overlay(BATTLE_OVERLAY, &code);
+        }
+        Ok(())
+    }
+
+    /// Wild Pokémon hold random items, with `good` only useful ones.
+    pub fn randomize_wild_held_items(&mut self, good: bool) {
+        let items = if good { &self.good_items } else { &self.items };
+        random_held_items(&mut self.species, items, &mut self.random);
     }
 
     /// Evolutions that need a trade become possible alone.
@@ -730,6 +924,18 @@ impl<'a> Game<'a> {
 /// steps. Only the steps of [`Options`] are built so far.
 pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, RomError> {
     let mut game = Game::load(rom, seed)?;
+    if options.ban_lucky_egg {
+        game.ban_lucky_egg();
+    }
+    if options.national_dex {
+        game.national_dex_at_start()?;
+    }
+    if options.update_type_effectiveness {
+        game.update_type_effectiveness()?;
+    }
+    if options.random_wild_held_items {
+        game.randomize_wild_held_items(options.good_wild_held_items);
+    }
     if options.change_impossible_evolutions {
         game.remove_impossible_evolutions();
     }
@@ -943,6 +1149,41 @@ mod tests {
         assert_eq!(stats[MACHINES], 0b101);
         assert_eq!(stats[MACHINES + 11], 0b1000_0000);
         assert_eq!(stats[MACHINES + 12], 0b0001_1111);
+    }
+
+    #[test]
+    fn random_items_leave_out_what_nobody_may_get() {
+        let (all, mut good) = (Items::new(false), Items::new(true));
+        // No "none", no TM, no key item; the Lucky Egg until it is banned.
+        for item in [0, 328, 427, 428, 620, LAST_ITEM] {
+            assert!(!all.allowed[item], "{item}");
+        }
+        assert!(all.allowed[1] && all.allowed[580] && all.allowed[155]);
+        assert!(!good.allowed[155] && good.allowed[LUCKY_EGG]);
+        good.ban(LUCKY_EGG);
+        let mut random = JavaRandom::new(1);
+        for _ in 0..2000 {
+            let item = usize::from(good.random(&mut random));
+            assert!(good.allowed[item] && item != LUCKY_EGG);
+        }
+    }
+
+    #[test]
+    fn held_items_stay_sound() {
+        let mut all = species(&[(1, &[]), (2, &[]), (3, &[])]);
+        all[2].items.always = 5;
+        let mut random = JavaRandom::new(3);
+        for _ in 0..200 {
+            random_held_items(&mut all, &Items::new(true), &mut random);
+            for species in &all[1..] {
+                let held = species.items;
+                if held.always > 0 {
+                    assert_eq!((held.common, held.rare, held.dark_grass), (0, 0, 0));
+                } else if held.common > 0 {
+                    assert_ne!(held.common, held.rare);
+                }
+            }
+        }
     }
 
     #[test]
