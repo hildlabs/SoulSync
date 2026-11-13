@@ -60,6 +60,9 @@ struct Config {
     candies_checked: bool,
     /// Every run this app was in, newest first, to go back to.
     runs: Vec<Saved>,
+    /// Whether builds of main are offered as updates too, not only
+    /// released versions.
+    preview: bool,
 }
 
 /// A count of Rare Candies, [`MAX_COUNT`](soulsync_core::bag::MAX_COUNT)
@@ -684,7 +687,10 @@ impl Local {
             })),
             "update": serde_json::json!({
                 "build": crate::update::build(),
+                "version": crate::update::version(),
+                "preview": c.preview,
                 "latest": inner.update.as_ref().map(|r| r.build),
+                "latest_version": inner.update.as_ref().and_then(|r| r.version.clone()),
                 "progress": inner.progress,
             }),
             "fresh": serde_json::json!({
@@ -861,6 +867,7 @@ struct Set {
     rando: Option<soulsync_core::rnqs::Overrides>,
     candies: Option<u16>,
     emulator: Option<String>,
+    preview: Option<bool>,
 }
 
 fn apply(config: &mut Config, set: Set) {
@@ -901,6 +908,9 @@ fn apply(config: &mut Config, set: Set) {
     }
     if let Some(server) = set.server {
         config.server = soulsync_client::base(&server).to_owned();
+    }
+    if let Some(preview) = set.preview {
+        config.preview = preview;
     }
 }
 
@@ -1573,17 +1583,26 @@ fn look_for_update(local: &Local) {
         return;
     };
     let local = local.clone();
-    std::thread::spawn(move || loop {
-        let busy = local.inner.lock().unwrap().progress.is_some();
-        if !busy {
-            if let Some(release) = crate::update::latest().filter(|r| r.build > own) {
+    std::thread::spawn(move || {
+        // The choice of channel last looked with, and when.
+        let mut last: Option<(bool, std::time::Instant)> = None;
+        loop {
+            let (busy, preview) = {
+                let inner = local.inner.lock().unwrap();
+                (inner.progress.is_some(), inner.config.preview)
+            };
+            // Looked again right away when the player switches channels.
+            let due = last.map_or(true, |(p, at)| p != preview || at.elapsed() >= UPDATE_EVERY);
+            if !busy && due {
+                last = Some((preview, std::time::Instant::now()));
+                let found = crate::update::latest(preview).filter(|r| r.build > own);
                 let mut inner = local.inner.lock().unwrap();
                 if inner.progress.is_none() {
-                    inner.update = Some(release);
+                    inner.update = found;
                 }
             }
+            std::thread::sleep(Duration::from_secs(5));
         }
-        std::thread::sleep(UPDATE_EVERY);
     });
 }
 
