@@ -402,8 +402,8 @@ impl Preset {
     /// switch, is `None`: such settings go to the original randomizer.
     pub fn native(&self) -> Option<crate::rando::gen5::Options> {
         use crate::rando::gen5::{
-            Change, Evolving, Movesets, Options, Spread, Stats, Themes, TrainerItems, TrainerRules,
-            Wild, WildRule, WildRules,
+            Change, Evolving, Movesets, Options, Spread, StaticRules, Statics, Stats, Themes,
+            TrainerItems, TrainerRules, Wild, WildRule, WildRules,
         };
         // Files of 4.6.0 and 4.6.1 have the same layout; older ones the
         // randomizer rewrites first.
@@ -433,9 +433,7 @@ impl Preset {
             && d[0] & !(1 | 1 << 3 | 1 << 4 | 1 << 5 | 1 << 6) == 0
             && d[16] & (1 | 1 << 5 | 1 << 6) == 0
             && d[39] & (1 << 4 | 1 << 5) == 0
-            && tweaks & !TWEAKS == 0
-            // No changed levels of fixed Pokémon.
-            && d[47] & 0x80 == 0;
+            && tweaks & !TWEAKS == 0;
         if !untouched {
             return None;
         }
@@ -623,8 +621,24 @@ impl Preset {
             good_shop_items: bit(37, 0) && bit(37, 3),
             random_pickup: either(49, !(1 << 2), 1, 0)?,
             good_pickup_items: bit(49, 0) && bit(49, 2),
-            // Legendary for legendary; no other way is built.
-            random_statics: either(17, 0xFF, 0, 1)?,
+            random_statics: !bit(17, 0),
+            static_rules: StaticRules {
+                // Mega evolutions are not of these games.
+                mode: match d[17] & 0x8F {
+                    1 | 2 => Statics::Matching,
+                    4 => Statics::Random,
+                    8 => Statics::SimilarStrength,
+                    _ => return None,
+                },
+                limit_main_legendaries: bit(17, 4),
+                limit_600: bit(17, 5),
+                forms: bit(17, 6),
+                levels: if bit(47, 7) {
+                    (d[47] & 0x7F) as i8 - 50
+                } else {
+                    0
+                },
+            },
             full_hm: bit(19, 0),
         })
     }
@@ -735,7 +749,7 @@ fn base64_decode(text: &[u8]) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rando::gen5::{Wild, WildRule, WildRules};
+    use crate::rando::gen5::{StaticRules, Statics, Wild, WildRule, WildRules};
 
     /// A real settings file for Black 2 (German), saved by randomizer 4.6.0:
     /// TM moves random, TM compatibility unchanged, full HM compatibility.
@@ -899,6 +913,31 @@ mod tests {
             (Wild::Everywhere, WildRule::TypeThemes)
         );
 
+        // Fixed Pokémon: alike in strength with both limits and other
+        // forms, half as high in level again.
+        let mut fixed = preset.clone();
+        assert_eq!(fixed.native().unwrap().static_rules, StaticRules::default());
+        fixed.data[17] = 1 << 3 | 1 << 4 | 1 << 5 | 1 << 6;
+        fixed.data[47] = 0x80 | 100;
+        let native = fixed.native().unwrap();
+        assert!(native.random_statics);
+        let rules = native.static_rules;
+        assert_eq!(rules.mode, Statics::SimilarStrength);
+        assert!(rules.limit_main_legendaries && rules.limit_600 && rules.forms);
+        assert_eq!(rules.levels, 50);
+        fixed.data[17] = 1 << 2;
+        assert_eq!(fixed.native().unwrap().static_rules.mode, Statics::Random);
+        // Unchanged, they can still change in level.
+        fixed.data[17] = 1;
+        let native = fixed.native().unwrap();
+        assert!(!native.random_statics);
+        assert_eq!(native.static_rules.levels, 50);
+        // Two ways at once, or mega evolutions, are not of these games.
+        fixed.data[17] = 1 << 1 | 1 << 2;
+        assert!(fixed.native().is_none());
+        fixed.data[17] = 1 << 1 | 1 << 7;
+        assert!(fixed.native().is_none());
+
         let mut evolving = Overrides::default();
         evolving.set("evolutions", Value::Choice("random".into()));
         let mut evolving = preset.with(&evolving);
@@ -933,7 +972,6 @@ mod tests {
         for (id, value) in [
             ("evolutions", Value::Choice("random_every_level".into())),
             ("update_base_stats", Value::Flag(true)),
-            ("statics", Value::Choice("random".into())),
             ("starters", Value::Choice("random_two_evolutions".into())),
             ("shops", Value::Choice("shuffle".into())),
             ("update_moves", Value::Flag(true)),

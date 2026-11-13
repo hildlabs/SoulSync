@@ -151,6 +151,7 @@ fn main() {
         trainers_fully_evolved_from: if on("evolved") { 40 } else { 0 },
         random_trainer_names: on("names"),
         random_statics: on("statics"),
+        static_rules: Default::default(),
         random_shops: on("shops") || on("goodshops"),
         good_shop_items: on("goodshops"),
         random_pickup: on("pickup") || on("goodpickup"),

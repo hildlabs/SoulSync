@@ -22,6 +22,7 @@ mod wild;
 
 pub use evolutions::Evolving;
 pub use movesets::Movesets;
+pub use statics::{StaticRules, Statics};
 pub use trainer_items::TrainerItems;
 pub use trainers::{Spread, Themes, TrainerRules};
 pub use traits::{Change, Stats};
@@ -334,8 +335,9 @@ pub struct Options {
     /// ones.
     pub random_pickup: bool,
     pub good_pickup_items: bool,
-    /// Pokémon at fixed spots are swapped, legendary for legendary.
+    /// Pokémon at fixed spots are swapped, as `static_rules` says.
     pub random_statics: bool,
+    pub static_rules: StaticRules,
     /// Every Pokémon can learn every HM.
     pub full_hm: bool,
     /// The base stats of every species, and whether an evolution takes
@@ -1300,7 +1302,9 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
         game.metronome_only()?;
     }
     if options.random_statics {
-        game.randomize_statics()?;
+        game.randomize_statics(&options.static_rules)?;
+    } else if options.static_rules.levels != 0 {
+        game.change_static_levels(options.static_rules.levels)?;
     }
     if options.random_wild {
         game.randomize_wild(options.wild_forms, &options.wild_rules)?;
