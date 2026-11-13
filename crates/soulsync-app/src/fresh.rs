@@ -461,7 +461,7 @@ echo "$3|$6|$8" > "${10}"; echo log > "${10}.log""#,
         let mut other = Overrides::default();
         other.set(
             "evolutions",
-            soulsync_core::rnqs::Value::Choice("random".into()),
+            soulsync_core::rnqs::Value::Choice("random_every_level".into()),
         );
         plan.overrides = other;
         assert_eq!(own(&plan), None);

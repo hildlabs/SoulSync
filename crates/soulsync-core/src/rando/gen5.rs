@@ -6,6 +6,7 @@
 //! held items and evolutions the randomizer has no use for are dropped,
 //! and the code it looked at is packed anew.
 
+mod evolutions;
 mod items;
 mod machines;
 mod moves;
@@ -17,6 +18,7 @@ mod trainers;
 mod traits;
 mod wild;
 
+pub use evolutions::Evolving;
 pub use movesets::Movesets;
 pub use traits::{Change, Stats};
 
@@ -331,6 +333,8 @@ pub struct Options {
     pub random_move_accuracies: bool,
     pub random_move_pps: bool,
     pub random_move_types: bool,
+    /// Every species evolves into random others.
+    pub random_evolutions: Option<Evolving>,
     /// The moves every species learns by level and hatches with. With
     /// `moves_at_start` it knows that many at level 1 at least (0 for as
     /// it was); `good_attacks` percent of its moves are good attacks;
@@ -701,6 +705,9 @@ pub struct Game<'a> {
     /// Whether abilities were changed: forms that exist through an ability
     /// are then Pokémon like any other.
     abilities_changed: bool,
+    /// The order random evolutions were made in, which is the order of
+    /// what a species evolves from since.
+    evolved_in: Option<Vec<usize>>,
     /// The random numbers for what changes nothing about the game but
     /// looks and names; the original keeps these apart.
     pub looks_random: JavaRandom,
@@ -806,6 +813,7 @@ impl<'a> Game<'a> {
             code: [rom[12], rom[13], rom[14], rom[15]],
             random: JavaRandom::new(seed),
             abilities_changed: false,
+            evolved_in: None,
             looks_random: JavaRandom::new(seed),
             nds,
         })
@@ -1170,6 +1178,9 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
     game.randomize_types(options.types, options.two_types);
     if options.random_wild_held_items {
         game.randomize_wild_held_items(options.good_wild_held_items);
+    }
+    if let Some(how) = options.random_evolutions {
+        game.randomize_evolutions(how)?;
     }
     match options.stats {
         Stats::Unchanged => {}
