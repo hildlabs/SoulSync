@@ -47,11 +47,11 @@ impl From<io::Error> for RomError {
     }
 }
 
-fn u16_at(d: &[u8], at: usize) -> Option<u16> {
+pub(crate) fn u16_at(d: &[u8], at: usize) -> Option<u16> {
     Some(u16::from_le_bytes(d.get(at..at + 2)?.try_into().ok()?))
 }
 
-fn u32_at(d: &[u8], at: usize) -> Option<u32> {
+pub(crate) fn u32_at(d: &[u8], at: usize) -> Option<u32> {
     Some(u32::from_le_bytes(d.get(at..at + 4)?.try_into().ok()?))
 }
 
@@ -66,7 +66,7 @@ fn read_at<R: Read + Seek>(rom: &mut R, offset: u32, len: u32) -> Result<Vec<u8>
 }
 
 /// Finds a file in the ROM's file name table and returns its file id.
-fn file_id(fnt: &[u8], path: &str) -> Option<u16> {
+pub(crate) fn file_id(fnt: &[u8], path: &str) -> Option<u16> {
     let mut dir = 0usize;
     let mut parts = path.split('/').peekable();
     while let Some(part) = parts.next() {
