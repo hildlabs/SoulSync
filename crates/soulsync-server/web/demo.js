@@ -53,26 +53,40 @@ window.SoulSyncDemo = function (apply) {
   const names = a => ({ en: a[0], de: a[1] });
   const players = [["Hannes", "black2"], ["Mika", "white2"]].map(([name, game]) => ({ name, game, joined: false, badges: 0, mons: [], at: null }));
   const log = [];
-  let pid = 1, attempt = 3, timer = null;
+  let pid = 1, attempt = 3, timer = null, began = Date.now(), finished = null, playedAt = 0;
+  // The two attempts before this one, for the archive under Timeline.
+  const DAY = 864e5, mon = (species, level, nickname = "") => ({ species, species_name: names(DEX[species]), level, nickname });
+  const history = [
+    { attempt: 1, outcome: "lost", started_at: began - 9 * DAY, ended_at: began - 9 * DAY + 3.1 * 36e5, played_ms: 2.6 * 36e5, linked: 3, lost: 4, players: [
+      { name: "Hannes", badges: 2, team: [mon(519, 17, "Taube"), mon(176, 14), mon(58, 15)] },
+      { name: "Mika", badges: 2, team: [mon(551, 17, "Otto"), mon(207, 15), mon(123, 14)] }] },
+    { attempt: 2, outcome: "lost", started_at: began - 4 * DAY, ended_at: began - 4 * DAY + 5.4 * 36e5, played_ms: 4.9 * 36e5, linked: 5, lost: 6, players: [
+      { name: "Hannes", badges: 3, team: [mon(375, 27, "Bolt"), mon(448, 25), mon(176, 24, "Pip"), mon(58, 22)] },
+      { name: "Mika", badges: 3, team: [mon(570, 27, "Kitsune"), mon(207, 25, "Batsy"), mon(123, 24), mon(179, 23, "Wolle")] }] },
+  ];
 
   function emit(who) {
     if (who) who.at = Date.now();
     const joined = players.filter(p => p.joined);
-    const links = Object.keys(LOC).map(Number).map(location => ({
-      location, location_name: names(LOC[location]),
-      sides: joined.map(p => {
-        const m = p.mons.find(x => x.met_location === location);
-        return m ? { pokemon: m, status: !m.battle ? "boxed" : m.battle.hp === 0 ? "fainted" : "party" } : null;
-      }),
-    })).filter(l => l.sides.some(Boolean));
     apply(JSON.parse(JSON.stringify({
       code: "DEMO-0000", seed: 4821, attempt, settings: { caps: [13, 18, 24, 30, 33, 39, 48, 51] },
       players: joined.map(p => ({
         name: p.name, connected: true, updated_at: p.at,
         snapshot: { trainer: { name: p.name, badges: p.badges, game: p.game }, party: p.mons.filter(m => m.battle), boxes: p.mons.filter(m => !m.battle), wild: p.wild || null },
       })),
-      links, log: log.slice(0, 30),
+      links: links(), log: log.slice(0, 30),
+      started_at: began, played_ms: played(), finished, history,
     })));
+  }
+  function links() {
+    const joined = players.filter(p => p.joined);
+    return Object.keys(LOC).map(Number).map(location => ({
+      location, location_name: names(LOC[location]),
+      sides: joined.map(p => {
+        const m = p.mons.find(x => x.met_location === location);
+        return m ? { pokemon: m, status: !m.battle ? "boxed" : m.battle.hp === 0 ? "fainted" : "party" } : null;
+      }),
+    })).filter(l => l.sides.some(Boolean));
   }
   const say = (p, event) => log.unshift({ at: Date.now(), player: p.name, event });
   const find = (p, species) => p.mons.find(m => m.species === species);
@@ -156,9 +170,25 @@ window.SoulSyncDemo = function (apply) {
     const [wait, fn] = steps[i++];
     timer = setTimeout(() => { fn(); next(); }, wait);
   }
+  function played() { return (finished ? playedAt : Date.now()) - began + 2.2 * 36e5; }
+  function record(outcome) {
+    const party = p => p.mons.filter(m => m.battle).map(m => mon(m.species, m.battle.level, m.nickname));
+    const linked = links().filter(l => l.sides.length > 1 && l.sides.every(x => x && x.status !== "fainted")).length;
+    const lost = links().filter(l => l.sides.some(x => x && x.status === "fainted")).length;
+    history.push({ attempt, outcome, started_at: began, ended_at: Date.now(), played_ms: played(), linked, lost, players: players.map(p => ({ name: p.name, badges: p.badges, team: party(p) })) });
+  }
+  // "We made it" / "The run failed" in the demo.
+  window.SoulSyncDemoFinish = outcome => {
+    if (finished) history[history.length - 1].outcome = outcome;
+    else { record(outcome); playedAt = Date.now(); }
+    finished = outcome;
+    emit();
+  };
   // "Start next attempt" in the demo: count up and play the run again.
   window.SoulSyncDemoRestart = () => {
-    clearTimeout(timer); attempt++; i = 0; log.length = 0;
+    clearTimeout(timer); i = 0; log.length = 0;
+    if (!finished) record("lost");
+    attempt++; began = Date.now(); finished = null;
     players.forEach(p => { p.mons = []; p.badges = 0; p.at = null; });
     emit(); next();
   };

@@ -35,7 +35,7 @@ In a Soul Link, two or more players play the same game side by side. The first P
 - **Rules that watch themselves.** Level caps read from the gym leaders in your ROM, shared fate, "together or not at all", failed catches. SoulSync points out when a team breaks one; it never stops you from playing.
 - **Catch odds in battle.** The wild Pokémon's HP, status and the Poké Balls in your bag give the chance to catch it, before you throw.
 - **Made for randomizers.** Moves, abilities and learnsets come from each player's own ROM, so a randomized game shows what is really in it. A new attempt rerolls the ROM and restarts the save in one click.
-- **Runs that last.** Pause a run, switch to another and come back later; attempts are counted.
+- **Runs that last.** Pause a run, switch to another and come back later. Every attempt keeps its real time played, and once it ends, won or lost, it goes to an archive with its badges and final teams.
 - **English and German**, light and dark.
 
 <table>
@@ -91,7 +91,6 @@ SoulSync reads the game **from the outside**, through the save file and the emul
 Next up, roughly in this order:
 
 - [ ] Starting a randomized run without bringing your own randomizer
-- [ ] End of a run with an archive of past attempts
 - [ ] Playing alone (classic Nuzlocke)
 - [ ] A smoother first start and a signed Windows build
 - [ ] An OBS overlay for streamers

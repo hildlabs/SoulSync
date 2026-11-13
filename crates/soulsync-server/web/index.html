@@ -149,6 +149,23 @@ button:active{transform:scale(.97)}
 .sum{font-size:14px;color:var(--muted);white-space:pre-wrap}
 .sum b{font-weight:600;color:var(--text)}
 .sum .bad{color:var(--danger)}
+.done{display:inline-block;margin-right:10px;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600;vertical-align:1px;white-space:nowrap}
+.done.won{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.done.lost{background:color-mix(in srgb,var(--danger) 14%,transparent);color:var(--danger)}
+.btnrow{display:flex;flex-wrap:wrap;gap:8px}
+.btn2.on{border-color:var(--text);background:var(--ov-2)}
+.hist{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin:4px 0 0 52px}
+.hcard{padding:14px 16px;border-radius:14px;border:1px solid var(--edge-hi);background:var(--ov-1)}
+.hcard header{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.hcard header .done{margin:0}
+.hcard>p{margin:4px 0 10px;font-size:12.5px;color:var(--muted);white-space:pre-wrap}
+.hcard>p span{white-space:nowrap}
+.hpl{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 0}
+.hpl .who{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;min-width:0}
+.hpl .who i{width:7px;height:7px;border-radius:50%;background:var(--c)}
+.hpl .who small{font-weight:400;color:var(--faint)}
+.hteam{display:flex;gap:2px;flex-wrap:wrap;justify-content:flex-end}
+.hteam small{color:var(--faint)}
 
 /* hero */
 .hero{flex:none;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:end;padding:6px 6px 0}
@@ -806,6 +823,7 @@ details.adv .field{margin-top:12px}
   .thead>:last-child,.est,.ecell small{display:none}
   .ecell{flex-direction:column;align-items:flex-start;gap:4px}
   .trow{grid-template-columns:40px 28px minmax(0,1fr)}
+  .hist{margin-left:0;grid-template-columns:minmax(0,1fr)}
   .trow::before{left:62px}
   .trow .who{display:none}
   .search{min-width:0;flex:1}
@@ -876,7 +894,7 @@ const T = {
     turn: n => `<b>${n}</b> is up`, partnerInTeam: "partner is in the team", and: "&",
     attempt: n => `Attempt ${n}`, kAttempt: "Attempt", kGame: "Game", gen: n => `Gen ${n}`,
     games: { black: "Black", white: "White", black2: "Black 2", white2: "White 2" },
-    rRetry: "Wiped? Start the next attempt. Links and timeline are cleared, the code stays.", retry: "Start next attempt", retrySure: "Click again to confirm",
+    rRetry: "Wiped? Start the next attempt. Links and timeline are cleared, the code stays.", retry: "Start next attempt", retrySure: "Click again to confirm", endLead: "Beat the game, or is the run over for good? End this attempt: it goes to the archive under Timeline, with its time played, badges and final teams.", endWon: "We made it", endLost: "The run failed", endSure: "Click again to confirm", ended: { won: "This attempt is over, and you made it. Start the next one whenever you like.", lost: "This attempt is over. Start the next one whenever you like." }, endChange: "Changed your mind? Ending it the other way changes the archive.", doneChip: { won: "Made it", lost: "Run over" }, played: ms => { const h = Math.floor(ms / 36e5), m = Math.floor(ms / 6e4) % 60; return h ? `${h} h ${m} min played` : `${m} min played`; }, hist: "Earlier attempts", histOutcome: { won: "Made it", lost: "Failed" }, histLinks: (l, x) => `${l} linked  ·  ${x} lost`, histBadges: n => n === 1 ? "1 badge" : `${n} badges`, histNoTeam: "no team",
     tLead: "Rows attack, columns defend. Click a type to highlight it.", tSe: "super effective", tNve: "not very effective", tNo: "no effect",
     wildTip: "In battle with this wild Pokémon right now; the chance is for a Poké Ball", wildBall: "Poké Ball", cTitle: "Catch chance", cFind: "Wild Pokémon…", cHp: "HP", cStatus: "Status", cNone: "None", cMinor: "PAR PSN BRN", cMajor: "SLP FRZ", cGrass: "Dark grass", cRate: r => `Catch rate ${r}`, cRom: "from your ROM", cStd: "original value",
     balls: [["Poké Ball", ""], ["Great Ball", ""], ["Ultra Ball", ""], ["Quick Ball", "turn 1"], ["Dusk Ball", "cave or night"]],
@@ -950,7 +968,7 @@ rando: { title: "What gets randomized", lead: "Preset for a Soul Link. Open a gr
     turn: n => `<b>${n}</b> ist dran`, partnerInTeam: "Partner ist im Team", and: "&",
     attempt: n => `Versuch ${n}`, kAttempt: "Versuch", kGame: "Spiel", gen: n => `Gen ${n}`,
     games: { black: "Schwarz", white: "Weiß", black2: "Schwarz 2", white2: "Weiß 2" },
-    rRetry: "Alles verloren? Starte den nächsten Versuch. Links und Verlauf werden geleert, der Code bleibt.", retry: "Nächsten Versuch starten", retrySure: "Zum Bestätigen nochmal klicken",
+    rRetry: "Alles verloren? Starte den nächsten Versuch. Links und Verlauf werden geleert, der Code bleibt.", retry: "Nächsten Versuch starten", retrySure: "Zum Bestätigen nochmal klicken", endLead: "Spiel durchgespielt oder der Run endgültig vorbei? Beende diesen Versuch: Er kommt ins Archiv unter Verlauf, mit Spielzeit, Orden und den Teams am Ende.", endWon: "Geschafft", endLost: "Gescheitert", endSure: "Zum Bestätigen nochmal klicken", ended: { won: "Dieser Versuch ist vorbei, und ihr habt es geschafft. Den nächsten startet ihr, wann ihr wollt.", lost: "Dieser Versuch ist vorbei. Den nächsten startet ihr, wann ihr wollt." }, endChange: "Doch anders? Beendet ihn andersherum, dann ändert sich das Archiv.", doneChip: { won: "Geschafft", lost: "Vorbei" }, played: ms => { const h = Math.floor(ms / 36e5), m = Math.floor(ms / 6e4) % 60; return h ? `${h} Std. ${m} Min. gespielt` : `${m} Min. gespielt`; }, hist: "Frühere Versuche", histOutcome: { won: "Geschafft", lost: "Gescheitert" }, histLinks: (l, x) => `${l} verbunden  ·  ${x} verloren`, histBadges: n => n === 1 ? "1 Orden" : `${n} Orden`, histNoTeam: "kein Team",
     tLead: "Zeilen greifen an, Spalten verteidigen. Klick auf einen Typ hebt ihn hervor.", tSe: "sehr effektiv", tNve: "nicht sehr effektiv", tNo: "keine Wirkung",
     wildTip: "Kämpft gerade gegen dieses wilde Pokémon; die Chance gilt für einen Pokéball", wildBall: "Pokéball", cTitle: "Fangchance", cFind: "Wildes Pokémon…", cHp: "KP", cStatus: "Status", cNone: "Kein", cMinor: "PAR GIF BRT", cMajor: "SLF GFR", cGrass: "Dunkles Gras", cRate: r => `Fangrate ${r}`, cRom: "aus deiner ROM", cStd: "Originalwert",
     balls: [["Pokéball", ""], ["Superball", ""], ["Hyperball", ""], ["Flottball", "Runde 1"], ["Finsterball", "Höhle oder Nacht"]],
@@ -1662,7 +1680,8 @@ function updateTimeline() {
   const log = shownLog();
   const idx = Object.fromEntries(state.players.map((p, i) => [p.name, i]));
   const two = n => String(n).padStart(2, "0");
-  const sig = [lang, log.length, log.length && log[log.length - 1].at, state.players.map(p => p.name).join()].join("|"), el = $("#tl");
+  const hist = (state.history || []).slice().reverse();
+  const sig = [lang, log.length, log.length && log[log.length - 1].at, state.players.map(p => p.name).join(), hist.length, hist.map(h => h.outcome).join()].join("|"), el = $("#tl");
   if (el._sig === sig) return;
   el._sig = sig;
   let day = "";
@@ -1673,6 +1692,15 @@ function updateTimeline() {
     const [g, c] = evIcon(e);
     return `${sep}<div class="trow reveal" style="--i:${Math.min(k, 10)}"><time>${two(d.getHours())}:${two(d.getMinutes())}</time><i class="evi" style="--c:${c}">${g}</i><p>${eventHtml(e)}</p><span class="who" style="--c:${col(idx[e.player] || 0)}"><i></i>${esc(e.player)}</span></div>`;
   }).join("") : `<p class="empty-list">${t().noEvents}</p>`;
+  if (hist.length) el.innerHTML += `<div class="tday">${t().hist}</div><div class="hist">${hist.map(histCard).join("")}</div>`;
+}
+
+// One finished attempt in the archive: how it ended, how long it took, and
+// the teams that were left.
+function histCard(h) {
+  const when = h.started_at ? new Date(h.started_at).toLocaleDateString(lang, { day: "numeric", month: "long", year: "numeric" }) : "";
+  const team = (pl, i) => `<div class="hpl" style="--c:${col(i)}"><span class="who"><i></i>${esc(pl.name)}<small>${t().histBadges(pl.badges)}</small></span><span class="hteam">${pl.team.length ? pl.team.map(m => `<span class="slot sm" title="${esc((m.nickname ? m.nickname + " · " : "") + species(m))} · ${t().lv} ${m.level}">${spriteImg(m)}</span>`).join("") : `<small>${t().histNoTeam}</small>`}</span></div>`;
+  return `<article class="hcard ${h.outcome}"><header><b>${t().attempt(h.attempt)}</b><span class="done ${h.outcome}">${t().histOutcome[h.outcome]}</span></header><p>${[when, h.played_ms >= 6e4 ? t().played(h.played_ms) : "", t().histLinks(h.linked, h.lost)].filter(Boolean).map(x => `<span>${esc(x)}</span>`).join("  ·  ")}</p>${h.players.map(team).join("")}</article>`;
 }
 
 let armUntil = 0;
@@ -1736,7 +1764,7 @@ function updateSettings() {
   const runCandies = state.settings && state.settings.randomizer ? state.settings.randomizer.candies : null;
   const mine = local && state.players.find(p => p.name === local.name), snap = mine && mine.snapshot;
   const seen = snap ? JSON.stringify([snap.party.map(p => p.battle && p.battle.hp), snap.wild && [snap.wild.pid, snap.wild.battle && snap.wild.battle.hp, snap.wild.ailment], snap.balls, (snap.encounters || []).length]) : "";
-  const sig = [lang, state.code, state.attempt, runCandies, JSON.stringify(local), seen, JSON.stringify(reportUi)].join("|");
+  const sig = [lang, state.code, state.attempt, state.finished, runCandies, JSON.stringify(local), seen, JSON.stringify(reportUi)].join("|");
   if (el._sig === sig) return;
   el._sig = sig;
   const kv = rows => rows.map(([k, v]) => `<div class="kv"><span>${k}</span><b>${v}</b></div>`).join("");
@@ -1773,7 +1801,8 @@ function updateSettings() {
     const repNote = r.busy ? `<p>${r.dump ? t().repBusyDump : t().repBusy}</p>` : r.error ? `<p class="bad">${t().repFail} ${esc(r.error)}</p>` : r.path ? `<p>${t().repDone(`<span class="mono">${esc(r.path)}</span>`)}</p>${r.dump && !r.dumped ? `<p class="bad">${t().repNoDump}</p>` : ""}` : "";
     html += `<section class="rblock glass" id="repsec"><h2>${t().rep}</h2><p>${t().repLead}</p><label class="check"><input type="checkbox" id="repDump"${canDump ? "" : " disabled"}${canDump && r.want ? " checked" : ""}> ${t().repDump}</label>${canDump ? "" : `<p><small>${t().repDumpOff}</small></p>`}${repNote}<button type="button" class="btn2" id="report"${r.busy ? " disabled" : ""}>${r.busy ? t().repBusy : t().repDo}</button></section>`;
   }
-  html += `<section class="rblock glass"><h2>${t().attempt(state.attempt || 1)}</h2><p>${t().rRetry}</p><button type="button" class="btn2" id="retry">${t().retry}</button></section>`;
+  const fin = state.finished;
+  html += `<section class="rblock glass"><h2>${t().attempt(state.attempt || 1)}</h2>${fin ? `<p>${t().ended[fin]} ${t().endChange}</p>` : `<p>${t().endLead}</p>`}<div class="btnrow"><button type="button" class="btn2${fin === "won" ? " on" : ""}" id="endWon">${t().endWon}</button><button type="button" class="btn2${fin === "lost" ? " on" : ""}" id="endLost">${t().endLost}</button></div><p>${t().rRetry}</p><button type="button" class="btn2" id="retry">${t().retry}</button></section>`;
   if (local && local.fresh) {
     const f = local.fresh, pr = f.progress, busy = pr && pr.state === "rolling";
     const pickBtn = kind => local.dialogs ? `<button type="button" data-fresh="${kind}">${t().freshPick}</button>` : "";
@@ -1818,6 +1847,11 @@ function updateSettings() {
     else Object.assign(reportUi, { busy: false, error: await res.text() });
     updateSettings();
   };
+  for (const [id, outcome] of [["endWon", "won"], ["endLost", "lost"]]) confirmButton($("#" + id), id === "endWon" ? t().endWon : t().endLost, t().endSure, btn => {
+    btn.disabled = true;
+    if (window.SoulSyncDemoFinish) { window.SoulSyncDemoFinish(outcome); el._sig = ""; updateSettings(); }
+    else fetch(`${SRV}/api/runs/${encodeURIComponent(state.code)}/finish?outcome=${outcome}`, { method: "POST" }).catch(() => {}).finally(() => { el._sig = ""; updateSettings(); });
+  });
   confirmButton($("#retry"), t().retry, t().retrySure, btn => {
     btn.disabled = true;
     if (window.SoulSyncDemoRestart) { window.SoulSyncDemoRestart(); btn.disabled = false; btn.classList.remove("arm"); btn.textContent = t().retry; }
@@ -2233,7 +2267,8 @@ function updateLinks() {
   });
   $("#none").hidden = ms.length > 0 || state.players.length < seats();
   const n = s => ms.filter(m => m.sec === s).length;
-  $("#sum").innerHTML = t().sum(n("team") + n("boxed"), n("open"), n("lost"));
+  const fin = state.finished, played = state.played_ms || 0;
+  $("#sum").innerHTML = (fin ? `<span class="done ${fin}">${t().doneChip[fin]}</span>` : "") + t().sum(n("team") + n("boxed"), n("open"), n("lost")) + (played >= 6e4 ? `  ·  <span class="played">${t().played(played)}</span>` : "");
 }
 
 /* ---------- type chart (generations 2 to 5) */

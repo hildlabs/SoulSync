@@ -123,6 +123,7 @@ pub fn app(state: AppState) -> Router {
         .route("/api/runs/{code}/species", get(species))
         .route("/api/runs/{code}/dex", get(dex))
         .route("/api/runs/{code}/attempt", post(new_attempt))
+        .route("/api/runs/{code}/finish", post(finish_attempt))
         .route("/api/runs/{code}/candies", post(set_candies))
         .route("/api/runs/{code}/ws", get(ws))
         .layer(axum::middleware::map_response(allow_any_origin))
@@ -334,13 +335,38 @@ async fn new_attempt(
             return (StatusCode::NOT_FOUND, "run not found").into_response();
         };
         if q.from.map_or(true, |from| from == e.run.attempt) {
-            e.run.restart();
+            e.run.restart(now_ms());
         }
         e.run.attempt
     };
     tracing::info!(%code, attempt, "new attempt");
     app.broadcast(&code);
     Json(serde_json::json!({ "attempt": attempt })).into_response()
+}
+
+#[derive(Deserialize)]
+struct FinishQuery {
+    outcome: soulsync_core::protocol::Outcome,
+}
+
+/// The players end this attempt, won or lost; it goes into the run's
+/// history. A query, not a body, as with the Rare Candies below.
+async fn finish_attempt(
+    State(app): State<AppState>,
+    Path(code): Path<String>,
+    Query(q): Query<FinishQuery>,
+) -> Response {
+    let code = normalize(&code);
+    {
+        let mut runs = app.runs.lock().unwrap();
+        let Some(e) = runs.get_mut(&code) else {
+            return (StatusCode::NOT_FOUND, "run not found").into_response();
+        };
+        e.run.finish(q.outcome, now_ms());
+    }
+    tracing::info!(%code, outcome = ?q.outcome, "attempt finished");
+    app.broadcast(&code);
+    StatusCode::NO_CONTENT.into_response()
 }
 
 #[derive(Deserialize)]

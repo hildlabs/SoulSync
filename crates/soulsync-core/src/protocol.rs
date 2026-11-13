@@ -176,6 +176,67 @@ pub struct RunState {
     pub links: Vec<Link>,
     /// Newest first.
     pub log: Vec<LogEntry>,
+    /// When this attempt began: the first save anyone sent in it, in Unix
+    /// milliseconds.
+    #[serde(default)]
+    pub started_at: Option<u64>,
+    /// Real time played in this attempt, in milliseconds: the time between
+    /// updates from the players, leaving out breaks. Not the game's own
+    /// clock, which emulator speed-up would distort.
+    #[serde(default)]
+    pub played_ms: u64,
+    /// Set once the players ended this attempt.
+    #[serde(default)]
+    pub finished: Option<Outcome>,
+    /// Attempts before this one, oldest first, and this one once finished.
+    #[serde(default)]
+    pub history: Vec<AttemptRecord>,
+}
+
+/// How an attempt ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Outcome {
+    /// The players beat the game, or reached the goal they set themselves.
+    Won,
+    /// The run is over: wiped, or given up.
+    Lost,
+}
+
+/// What is kept of an attempt once it is over.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AttemptRecord {
+    pub attempt: u32,
+    pub outcome: Outcome,
+    /// Unix milliseconds; `None` if nobody sent a save in it.
+    pub started_at: Option<u64>,
+    pub ended_at: u64,
+    pub played_ms: u64,
+    /// Links with every side caught and none lost.
+    pub linked: u16,
+    /// Links lost to a faint or a missed catch.
+    pub lost: u16,
+    /// In join order.
+    pub players: Vec<AttemptPlayer>,
+}
+
+/// One player at the end of an attempt.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AttemptPlayer {
+    pub name: String,
+    pub badges: u8,
+    /// The party as it was at the end.
+    pub team: Vec<AttemptMon>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AttemptMon {
+    pub species: u16,
+    #[serde(default)]
+    pub species_name: Option<crate::lang::Names>,
+    /// Empty without a nickname.
+    pub nickname: String,
+    pub level: u8,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
