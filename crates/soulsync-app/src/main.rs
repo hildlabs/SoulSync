@@ -14,6 +14,7 @@
 mod fresh;
 mod local;
 mod report;
+mod tools;
 mod update;
 mod window;
 

@@ -21,6 +21,8 @@ axum = "0.8"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time"] }
 open = "5"
 ureq = { version = "3", features = ["json"] }
+sha2 = "0.10"
+zip = { version = "4.2.0", default-features = false, features = ["deflate"] }
 
 [target.'cfg(any(windows, target_os = "macos"))'.dependencies]
 rfd = { version = "0.15", default-features = false }

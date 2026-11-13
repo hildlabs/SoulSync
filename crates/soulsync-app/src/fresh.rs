@@ -1,10 +1,10 @@
 //! Starting a game over: a freshly randomized ROM and the save the player
 //! prepared once, so that a failed run costs a click instead of the whole
-//! setup. The randomizer is the player's own copy of Universal Pokémon
-//! Randomizer ZX, run without its window.
+//! setup. The randomizer is Universal Pokémon Randomizer ZX, run without its
+//! window: fetched on first use (see [`crate::tools`]) or the player's own.
 //!
-//! SoulSync does not ship the randomizer or anything of the game: the player
-//! points it at their own copies.
+//! SoulSync does not ship anything of the game: the player points it at
+//! their own ROM.
 
 use serde::Serialize;
 use soulsync_core::rnqs::{Overrides, Preset};
@@ -60,6 +60,8 @@ pub enum Why {
     Running,
     /// Java could not be started.
     Java,
+    /// The randomizer or Java could not be fetched.
+    Download,
     /// The randomizer ran and left no ROM.
     Randomizer,
     /// The randomizer settings could not be read.
@@ -73,14 +75,14 @@ pub enum Why {
 pub type Failure = (Why, Option<String>);
 
 #[cfg(windows)]
-fn quiet(command: &mut Command) -> &mut Command {
+pub fn quiet(command: &mut Command) -> &mut Command {
     use std::os::windows::process::CommandExt;
     // CREATE_NO_WINDOW: no console flashing up next to the app.
     command.creation_flags(0x0800_0000)
 }
 
 #[cfg(not(windows))]
-fn quiet(command: &mut Command) -> &mut Command {
+pub fn quiet(command: &mut Command) -> &mut Command {
     command
 }
 
