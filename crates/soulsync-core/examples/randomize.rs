@@ -62,6 +62,8 @@ fn main() {
         random_move_accuracies: on("moveaccuracy"),
         random_move_pps: on("movepp"),
         random_move_types: on("movetypes"),
+        random_move_categories: false,
+        level_alike: None,
         movesets: if on("movesets") {
             gen5::Movesets::Random
         } else if on("movesetstype") {
@@ -176,6 +178,7 @@ fn main() {
         random_trades: on("trades") || on("tradeall"),
         trades_want_random: on("tradeall"),
         random_trade_nicknames: on("tradeall"),
+        random_trade_trainers: false,
         random_trade_ivs: on("tradeall"),
         random_trade_items: on("tradeall"),
     });

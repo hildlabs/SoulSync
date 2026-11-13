@@ -24,12 +24,17 @@ const FIRST_SPOKEN: usize = 24;
 const SPOKEN_BLACK: [usize; 6] = [529, 555, 193, 594, 628, 628];
 const SPOKEN_WHITE: [usize; 6] = [537, 555, 193, 594, 628, 628];
 const LONGEST_NICKNAME: usize = 10;
+const LONGEST_TRAINER: usize = 7;
+/// The number of the trainer a traded Pokémon comes from, a word.
+const TRAINER_NUMBER: usize = 0x34;
 
 struct Trade {
     file: usize,
     given: usize,
     wanted: usize,
     nickname: Vec<u16>,
+    /// The name and number of the trainer it comes from, if new.
+    trainer: Option<(Vec<u16>, u16)>,
     ivs: [u32; 6],
     item: u32,
 }
@@ -71,11 +76,13 @@ fn replace(line: &[u16], old: &[u16], new: &[u16]) -> Vec<u16> {
 
 impl<'a> Game<'a> {
     /// Every trade gives a random Pokémon; with `wanted` it also asks for
-    /// one. Nicknames, IVs and held items are random as chosen.
+    /// one. Nicknames, first trainers, IVs and held items are random as
+    /// chosen.
     pub fn randomize_trades(
         &mut self,
         wanted: bool,
         nicknames: bool,
+        trainers: bool,
         ivs: bool,
         items: bool,
     ) -> Result<(), RomError> {
@@ -106,6 +113,7 @@ impl<'a> Game<'a> {
                 given,
                 wanted,
                 nickname: names.lines[file * 2].clone(),
+                trainer: None,
                 ivs: [0; 6],
                 item: long(data, ITEM),
             };
@@ -127,6 +135,18 @@ impl<'a> Game<'a> {
                 }
             }
         }
+        let mut trainer_pool: Vec<Vec<u16>> = Vec::new();
+        if trainers {
+            let fitting = names::TRAINERS
+                .iter()
+                .filter(|n| n.chars().count() <= LONGEST_TRAINER);
+            for name in fitting.map(|n| chars(n)) {
+                if !trainer_pool.contains(&name) {
+                    trainer_pool.push(name);
+                }
+            }
+        }
+        let mut used_trainers: Vec<usize> = Vec::new();
         let (mut all_given, mut all_wanted, mut used) = (Vec::new(), Vec::new(), Vec::new());
         for trade in &mut trades {
             let old = trade.given;
@@ -156,6 +176,15 @@ impl<'a> Game<'a> {
             } else if same_name(&trade.nickname, &species_names[old]) {
                 trade.nickname = species_names[given].clone();
             }
+            if trainer_pool.len() > used_trainers.len() {
+                let mut pick = self.random.index(trainer_pool.len());
+                while used_trainers.contains(&pick) {
+                    pick = self.random.index(trainer_pool.len());
+                }
+                used_trainers.push(pick);
+                let number = self.random.index(65536) as u16;
+                trade.trainer = Some((trainer_pool[pick].clone(), number));
+            }
             if ivs {
                 for iv in &mut trade.ivs {
                     *iv = self.random.index(32) as u32;
@@ -169,6 +198,10 @@ impl<'a> Game<'a> {
         for trade in &trades {
             let data = &mut files[trade.file];
             names.lines[trade.file * 2] = trade.nickname.clone();
+            if let Some((name, number)) = &trade.trainer {
+                names.lines[trade.file * 2 + 1] = name.clone();
+                set_word(data, TRAINER_NUMBER, *number);
+            }
             set_long(data, GIVEN, trade.given as u32);
             set_long(data, GIVEN_FORM, 0);
             for (i, iv) in trade.ivs.iter().enumerate() {
