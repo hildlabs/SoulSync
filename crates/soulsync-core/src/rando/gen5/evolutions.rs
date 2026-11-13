@@ -96,8 +96,8 @@ impl Game<'_> {
 
     /// The sum of a species' base stats, as far as it says how strong it
     /// is: Shedinja's single HP does not count against it.
-    fn strength(&self, number: usize) -> i32 {
-        let stats = &self.stats[number];
+    pub(super) fn strength(&self, number: usize) -> i32 {
+        let stats = &self.stats[Self::stats_file(number)];
         let sum = |range: std::ops::Range<usize>| -> i32 {
             stats[range].iter().map(|&s| i32::from(s)).sum()
         };

@@ -401,7 +401,9 @@ impl Preset {
     /// what they ask. Anything it has not built yet, down to a single
     /// switch, is `None`: such settings go to the original randomizer.
     pub fn native(&self) -> Option<crate::rando::gen5::Options> {
-        use crate::rando::gen5::{Change, Evolving, Movesets, Options, Stats};
+        use crate::rando::gen5::{
+            Change, Evolving, Movesets, Options, Spread, Stats, TrainerRules,
+        };
         // Files of 4.6.0 and 4.6.1 have the same layout; older ones the
         // randomizer rewrites first.
         if !(321..=322).contains(&self.version) {
@@ -424,7 +426,7 @@ impl Preset {
             && d[20] == 0
             && d[22] == 0
             && d[25] & 0xF0 == 0
-            && d[27] & !(1 << 1) == 0
+            && d[27] & !(1 | 1 << 1 | 1 << 3 | 1 << 4) == 0
             && d[40] == 0
             && d[41] & 0xC7 == 0
             && d[48] & 7 == 0
@@ -433,11 +435,31 @@ impl Preset {
             && d[16] & !(1 << 3 | 1 << 4) == 0
             && d[39] & (1 << 4 | 1 << 5) == 0
             && tweaks & !TWEAKS == 0
-            // No changed levels of trainers, wild or fixed Pokémon.
-            && [36, 38, 47].iter().all(|&b| d[b] & 0x80 == 0);
+            // No changed levels of wild or fixed Pokémon.
+            && [38, 47].iter().all(|&b| d[b] & 0x80 == 0);
         if !untouched {
             return None;
         }
+        // The trainers' Pokémon: as they are, random, or random and about
+        // equally often; by type is not built.
+        let (random_trainers, spread) = match d[13] {
+            0b0001 => (false, Spread::Free),
+            0b0010 => (true, Spread::Free),
+            0b0100 => (true, Spread::Even),
+            0b1000 => (true, Spread::EvenInStory),
+            _ => return None,
+        };
+        let trainer_rules = TrainerRules {
+            spread,
+            similar_strength: bit(27, 0),
+            no_legendaries: bit(27, 3),
+            no_early_wonder_guard: bit(27, 4),
+            levels: if bit(36, 7) {
+                (d[36] & 0x7F) as i8 - 50
+            } else {
+                0
+            },
+        };
         // What the species evolve into; a new one at every level is not
         // built, and other forms the game cannot evolve into.
         let random_evolutions = match d[26] & 0b1100_0011 {
@@ -546,7 +568,8 @@ impl Preset {
             random_tm_moves,
             machines,
             tutors,
-            random_trainers: either(13, 0xFF, 0, 1)?,
+            random_trainers,
+            trainer_rules,
             trainer_forms: bit(39, 6),
             rival_carries_starter: bit(27, 1),
             trainers_fully_evolved_from: fully_evolved,
@@ -685,7 +708,7 @@ mod tests {
 
     #[test]
     fn the_soul_link_preset_is_one_for_the_own_randomizer() {
-        use crate::rando::gen5::{Change, Evolving, Movesets, Stats};
+        use crate::rando::gen5::{Change, Evolving, Movesets, Spread, Stats};
         let file = include_bytes!("../../soulsync-server/presets/soul-link.rnqs");
         let preset = Preset::read(file).unwrap();
         let o = preset.native().expect("every option of it is built");
@@ -767,6 +790,21 @@ mod tests {
         assert_eq!((o.moves_at_start, o.good_attacks), (4, 40));
         assert!(o.no_broken_moves && o.order_moves_by_damage);
 
+        let mut fights = Overrides::default();
+        fights.set("trainers", Value::Choice("distributed".into()));
+        fights.set("trainers_no_legendaries", Value::Flag(true));
+        let mut fights = preset.with(&fights);
+        let o = fights.native().unwrap();
+        assert!(o.random_trainers && o.trainer_rules.no_legendaries);
+        assert_eq!(o.trainer_rules.spread, Spread::Even);
+        assert_eq!(o.trainer_rules.levels, 0);
+        // A fifth lower, about as strong as before.
+        fights.data[36] = 0x80 | 30;
+        fights.data[27] |= 1;
+        let rules = fights.native().unwrap().trainer_rules;
+        assert!(rules.similar_strength && !rules.no_early_wonder_guard);
+        assert_eq!(rules.levels, -20);
+
         let mut evolving = Overrides::default();
         evolving.set("evolutions", Value::Choice("random".into()));
         let mut evolving = preset.with(&evolving);
@@ -808,7 +846,6 @@ mod tests {
             ("starters", Value::Choice("random_two_evolutions".into())),
             ("shops", Value::Choice("shuffle".into())),
             ("update_moves", Value::Flag(true)),
-            ("trainers_no_legendaries", Value::Flag(true)),
             ("wild_no_legendaries", Value::Flag(true)),
             ("random_trainer_classes", Value::Flag(true)),
         ] {

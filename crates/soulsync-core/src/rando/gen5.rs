@@ -20,6 +20,7 @@ mod wild;
 
 pub use evolutions::Evolving;
 pub use movesets::Movesets;
+pub use trainers::{Spread, TrainerRules};
 pub use traits::{Change, Stats};
 
 use super::random::JavaRandom;
@@ -287,6 +288,9 @@ pub struct Options {
     /// forms of them.
     pub random_trainers: bool,
     pub trainer_forms: bool,
+    /// What the random ones have to be like; the levels in it change
+    /// without random trainers too.
+    pub trainer_rules: TrainerRules,
     /// The rival fights with the starter the player left for them.
     pub rival_carries_starter: bool,
     /// Trainers' Pokémon from this level on are fully evolved; 0 for off.
@@ -1230,7 +1234,9 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
         game.change_tutor_compatibility(options.tutors)?;
     }
     if options.random_trainers {
-        game.randomize_trainers(options.trainer_forms)?;
+        game.randomize_trainers(options.trainer_forms, &options.trainer_rules)?;
+    } else if options.trainer_rules.levels != 0 {
+        game.change_trainer_levels(options.trainer_rules.levels)?;
     }
     if options.rival_carries_starter && (options.random_trainers || options.random_starters) {
         game.rival_carries_starter()?;
