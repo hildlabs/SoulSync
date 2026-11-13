@@ -562,6 +562,7 @@ fn preset_info(path: &Path) -> serde_json::Value {
             "tutor": p.tutor(),
             "full_hm": p.full_hm(),
             "random_tm_moves": p.random_tm_moves(),
+            "options": p.options(),
         }),
         Err(e) => serde_json::json!({ "ok": false, "error": e }),
     }
@@ -1146,7 +1147,7 @@ fn begin_fresh(
                 std::fs::write(&path, file).map_err(|e| bad(e.to_string()))?;
                 (path, Default::default(), run.candies)
             }
-            None => (need(&c.preset, "preset")?, c.rando, c.candies.0),
+            None => (need(&c.preset, "preset")?, c.rando.clone(), c.candies.0),
         };
         let plan = Plan {
             // Both found or fetched when it runs.

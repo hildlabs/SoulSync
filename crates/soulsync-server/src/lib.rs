@@ -263,6 +263,7 @@ async fn presets() -> Json<serde_json::Value> {
                 "tutor": p.tutor(),
                 "full_hm": p.full_hm(),
                 "random_tm_moves": p.random_tm_moves(),
+                "options": p.options(),
             }))
         })
         .collect();
