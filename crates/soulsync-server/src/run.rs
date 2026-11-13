@@ -2,13 +2,19 @@
 
 use serde::{Deserialize, Serialize};
 use soulsync_core::protocol::{
-    player_seed, LogEntry, PlayerState, RunSettings, RunState, MAX_PLAYERS,
+    player_seed, AttemptMon, AttemptPlayer, AttemptRecord, LogEntry, Outcome, PlayerState,
+    RunSettings, RunState, MAX_PLAYERS,
 };
 use soulsync_core::{diff, links, Event, RomDex, SaveSnapshot};
 use std::collections::{HashSet, VecDeque};
 
 /// Log entries kept per run.
 const LOG_LIMIT: usize = 200;
+/// Finished attempts kept per run.
+const HISTORY_LIMIT: usize = 50;
+/// A gap between two updates longer than this is a break and does not count
+/// as time played.
+const BREAK_MS: u64 = 10 * 60 * 1000;
 /// Species in generation 5.
 pub const SPECIES: usize = 649;
 
@@ -46,6 +52,19 @@ pub struct Run {
     /// this was kept.
     #[serde(default)]
     pub(crate) touched: u64,
+    /// The first update of this attempt.
+    #[serde(default)]
+    started_at: Option<u64>,
+    /// Time played in this attempt; see [`RunState::played_ms`].
+    #[serde(default)]
+    played_ms: u64,
+    /// The last update of this attempt, to tell play from breaks.
+    #[serde(default)]
+    active_at: Option<u64>,
+    #[serde(default)]
+    finished: Option<Outcome>,
+    #[serde(default)]
+    history: Vec<AttemptRecord>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -74,12 +93,86 @@ impl Run {
             players: Vec::new(),
             log: VecDeque::new(),
             touched: 0,
+            started_at: None,
+            played_ms: 0,
+            active_at: None,
+            finished: None,
+            history: Vec::new(),
+        }
+    }
+
+    /// Ends this attempt as `outcome` and keeps a record of it. Ending it
+    /// again changes the outcome of that record.
+    pub fn finish(&mut self, outcome: Outcome, now: u64) {
+        if self.finished.is_some() {
+            if let Some(last) = self.history.last_mut() {
+                last.outcome = outcome;
+            }
+        } else {
+            let record = self.record(outcome, now);
+            self.history.push(record);
+            let extra = self.history.len().saturating_sub(HISTORY_LIMIT);
+            self.history.drain(..extra);
+        }
+        self.finished = Some(outcome);
+    }
+
+    /// What is kept of this attempt.
+    fn record(&self, outcome: Outcome, now: u64) -> AttemptRecord {
+        let snaps: Vec<Option<&SaveSnapshot>> =
+            self.players.iter().map(|p| p.snapshot.as_ref()).collect();
+        let all = links(&snaps);
+        let count = |f: &dyn Fn(&soulsync_core::Link) -> bool| {
+            all.iter()
+                .filter(|l| f(l))
+                .count()
+                .min(usize::from(u16::MAX)) as u16
+        };
+        AttemptRecord {
+            attempt: self.attempt,
+            outcome,
+            started_at: self.started_at,
+            ended_at: now,
+            played_ms: self.played_ms,
+            linked: count(&|l| l.is_complete() && !l.is_dead()),
+            lost: count(&|l| l.is_dead()),
+            players: self
+                .players
+                .iter()
+                .map(|p| AttemptPlayer {
+                    name: p.name.clone(),
+                    badges: p.snapshot.as_ref().map_or(0, |s| s.trainer.badges),
+                    team: p.snapshot.as_ref().map_or_else(Vec::new, |s| {
+                        s.party
+                            .iter()
+                            .map(|m| AttemptMon {
+                                species: m.species,
+                                species_name: m.species_name.clone(),
+                                nickname: if m.is_nicknamed {
+                                    m.nickname.clone()
+                                } else {
+                                    String::new()
+                                },
+                                level: m.battle.as_ref().map_or(m.met_level, |b| b.level),
+                            })
+                            .collect()
+                    }),
+                })
+                .collect(),
         }
     }
 
     /// Starts over: counts a new attempt and forgets saves and log. Players
-    /// keep their seats.
-    pub fn restart(&mut self) {
+    /// keep their seats. An attempt nobody ended counts as lost, if anyone
+    /// played in it.
+    pub fn restart(&mut self, now: u64) {
+        if self.finished.is_none() && self.started_at.is_some() {
+            self.finish(Outcome::Lost, now);
+        }
+        self.finished = None;
+        self.started_at = None;
+        self.played_ms = 0;
+        self.active_at = None;
         self.attempt += 1;
         self.log.clear();
         for p in &mut self.players {
@@ -145,7 +238,7 @@ impl Run {
             p.connections += 1;
             return Ok(());
         }
-        if self.players.len() >= self.settings.players.clamp(2, MAX_PLAYERS) {
+        if self.players.len() >= self.settings.players.clamp(1, MAX_PLAYERS) {
             return Err(JoinError::Full);
         }
         self.players.push(Player {
@@ -187,6 +280,16 @@ impl Run {
         });
         p.snapshot = Some(snapshot);
         p.updated_at = Some(now);
+        if self.finished.is_none() {
+            self.started_at.get_or_insert(now);
+            if let Some(last) = self.active_at {
+                let gap = now.saturating_sub(last);
+                if gap <= BREAK_MS {
+                    self.played_ms += gap;
+                }
+            }
+            self.active_at = Some(now);
+        }
         let n = events.len();
         for event in events {
             self.log.push_front(LogEntry {
@@ -205,7 +308,7 @@ impl Run {
         RunState {
             code: self.code.clone(),
             seed: self.seed,
-            seeds: (0..self.settings.players.clamp(2, MAX_PLAYERS))
+            seeds: (0..self.settings.players.clamp(1, MAX_PLAYERS))
                 .map(|seat| player_seed(self.seed, seat, self.settings.shared_seed))
                 .collect(),
             attempt: self.attempt,
@@ -224,6 +327,10 @@ impl Run {
                 .collect(),
             links: links(&snaps),
             log: self.log.iter().cloned().collect(),
+            started_at: self.started_at,
+            played_ms: self.played_ms,
+            finished: self.finished,
+            history: self.history.clone(),
         }
     }
 }
@@ -290,11 +397,68 @@ mod tests {
         let mut r = Run::new("ZORUA-1234".into(), 7, RunSettings::default());
         r.join("Hannes").unwrap();
         r.update("Hannes", snap(20), 1);
-        r.restart();
+        r.restart(2);
         let s = r.state();
         assert_eq!(s.attempt, 2);
         assert_eq!(s.players.len(), 1);
         assert!(s.players[0].snapshot.is_none() && s.links.is_empty() && s.log.is_empty());
+    }
+
+    #[test]
+    fn play_time_leaves_out_breaks_and_attempts_go_into_history() {
+        const MIN: u64 = 60 * 1000;
+        let mut r = Run::new("ZORUA-1234".into(), 7, RunSettings::default());
+        r.join("Hannes").unwrap();
+        r.join("Mika").unwrap();
+        r.update("Hannes", snap(20), 1000);
+        r.update("Mika", snap(20), 1000 + 2 * MIN);
+        r.update("Hannes", snap(19), 1000 + 5 * MIN);
+        // Lunch.
+        r.update("Hannes", snap(18), 1000 + 65 * MIN);
+        r.update("Mika", snap(18), 1000 + 66 * MIN);
+        let s = r.state();
+        assert_eq!(s.started_at, Some(1000));
+        assert_eq!(s.played_ms, 6 * MIN);
+
+        r.finish(Outcome::Won, 1000 + 70 * MIN);
+        r.update("Mika", snap(17), 1000 + 71 * MIN);
+        let s = r.state();
+        assert_eq!(s.finished, Some(Outcome::Won));
+        assert_eq!(s.played_ms, 6 * MIN, "a finished attempt's clock stops");
+        assert_eq!(s.history.len(), 1);
+        let h = &s.history[0];
+        assert_eq!(
+            (h.attempt, h.outcome, h.played_ms),
+            (1, Outcome::Won, 6 * MIN)
+        );
+        assert_eq!(h.players.len(), 2);
+        assert_eq!(h.players[0].name, "Hannes");
+        assert_eq!(h.players[0].team.len(), 1);
+        assert_eq!(h.players[0].team[0].species, 375);
+        assert_eq!(h.players[0].team[0].level, 5);
+
+        // Changing one's mind changes the record, without a second one.
+        r.finish(Outcome::Lost, 1000 + 72 * MIN);
+        assert_eq!(r.state().history.len(), 1);
+        assert_eq!(r.state().history[0].outcome, Outcome::Lost);
+
+        // Starting over after an ended attempt keeps no second record of it.
+        r.restart(1000 + 80 * MIN);
+        let s = r.state();
+        assert_eq!((s.attempt, s.history.len(), s.played_ms), (2, 1, 0));
+        assert_eq!((s.finished, s.started_at), (None, None));
+
+        // An attempt nobody ended counts as lost; one nobody played in leaves no trace.
+        r.update("Hannes", snap(20), 1000 + 90 * MIN);
+        r.restart(1000 + 95 * MIN);
+        r.restart(1000 + 96 * MIN);
+        let s = r.state();
+        assert_eq!(s.attempt, 4);
+        assert_eq!(s.history.len(), 2);
+        assert_eq!(
+            (s.history[1].attempt, s.history[1].outcome),
+            (2, Outcome::Lost)
+        );
     }
 
     #[test]
@@ -307,7 +471,7 @@ mod tests {
         assert!(!r.set_catch_rates(vec![190; SPECIES]));
         assert_eq!(r.catch_rate(1), Some(190));
         assert_eq!(r.catch_rate(650), None);
-        r.restart();
+        r.restart(0);
         assert!(r.state().rom_data);
     }
 
@@ -325,6 +489,25 @@ mod tests {
         let s = r.state();
         assert_eq!(s.seeds.len(), 3);
         assert!(s.seeds[0] != s.seeds[1] && s.seeds[1] != s.seeds[2]);
+    }
+
+    #[test]
+    fn a_solo_run_has_one_seat_and_its_catches_stand_alone() {
+        let settings = RunSettings {
+            players: 1,
+            ..RunSettings::default()
+        };
+        assert!(settings.validate().is_ok());
+        let mut r = Run::new("ZORUA-1234".into(), 7, settings);
+        r.join("Hannes").unwrap();
+        assert_eq!(r.join("Buddy"), Err(JoinError::Full));
+        r.update("Hannes", snap(20), 1);
+        let s = r.state();
+        assert_eq!(s.seeds.len(), 1);
+        assert_eq!(s.links.len(), 2);
+        assert!(s.links.iter().all(|l| l.is_complete() && !l.is_dead()));
+        r.update("Hannes", snap(0), 2);
+        assert!(r.state().links.iter().any(|l| l.is_dead()));
     }
 
     #[test]

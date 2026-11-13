@@ -149,6 +149,23 @@ button:active{transform:scale(.97)}
 .sum{font-size:14px;color:var(--muted);white-space:pre-wrap}
 .sum b{font-weight:600;color:var(--text)}
 .sum .bad{color:var(--danger)}
+.done{display:inline-block;margin-right:10px;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600;vertical-align:1px;white-space:nowrap}
+.done.won{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.done.lost{background:color-mix(in srgb,var(--danger) 14%,transparent);color:var(--danger)}
+.btnrow{display:flex;flex-wrap:wrap;gap:8px}
+.btn2.on{border-color:var(--text);background:var(--ov-2)}
+.hist{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin:4px 0 0 52px}
+.hcard{padding:14px 16px;border-radius:14px;border:1px solid var(--edge-hi);background:var(--ov-1)}
+.hcard header{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.hcard header .done{margin:0}
+.hcard>p{margin:4px 0 10px;font-size:12.5px;color:var(--muted);white-space:pre-wrap}
+.hcard>p span{white-space:nowrap}
+.hpl{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 0}
+.hpl .who{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;min-width:0}
+.hpl .who i{width:7px;height:7px;border-radius:50%;background:var(--c)}
+.hpl .who small{font-weight:400;color:var(--faint)}
+.hteam{display:flex;gap:2px;flex-wrap:wrap;justify-content:flex-end}
+.hteam small{color:var(--faint)}
 
 /* hero */
 .hero{flex:none;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:end;padding:6px 6px 0}
@@ -453,6 +470,7 @@ button:active{transform:scale(.97)}
 .pairc .ploc{position:absolute;left:50%;top:10px;transform:translateX(-50%);z-index:1;max-width:60%;padding:2px 9px;border-radius:999px;background:var(--pillbg);border:1px solid var(--edge-hi);font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pairc::before{content:"";position:absolute;left:50%;top:22px;bottom:22px;width:2px;background:linear-gradient(var(--a),var(--b));opacity:.8}
 .pairc.multi::before{display:none}
+.pairs.solo{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
 .tm{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 10px;border-radius:14px;min-width:0;text-align:center;transition:background .2s}
 .tm:hover{background:var(--ov-1)}
 .tm .stage{width:96px;height:80px}
@@ -669,6 +687,9 @@ dialog.mon[open]{animation:rise .5s var(--spring) backwards}
 .rgroup .kv.chg span{color:var(--a)}
 .field select{width:100%;height:44px;padding:0 10px;background:var(--ov-1);border:1px solid var(--edge);border-radius:12px;font:inherit;font-size:14px;color:var(--text);outline:0}
 .field .seg3{margin-bottom:4px}
+#f-players{grid-template-columns:repeat(4,1fr)}
+#f-rules.solo .linkrule{display:none}
+#f-rules.solo .pair-t,#f-rules:not(.solo) .solo-t{display:none}
 .field small{display:block;margin-top:8px;font-size:12.5px;line-height:1.45;color:var(--muted)}
 .field small.ok{color:var(--ok)}
 .field small.bad{color:var(--danger)}
@@ -806,6 +827,7 @@ details.adv .field{margin-top:12px}
   .thead>:last-child,.est,.ecell small{display:none}
   .ecell{flex-direction:column;align-items:flex-start;gap:4px}
   .trow{grid-template-columns:40px 28px minmax(0,1fr)}
+  .hist{margin-left:0;grid-template-columns:minmax(0,1fr)}
   .trow::before{left:62px}
   .trow .who{display:none}
   .search{min-width:0;flex:1}
@@ -863,6 +885,9 @@ details.adv .field{margin-top:12px}
 const T = {
   en: {
     links: "Links", run: "Run", activity: "Activity", copy: "Copy", copied: "Copied",
+    // Where a run with one player, a classic Nuzlocke, says it differently.
+    solo: { links: "Catches", soulLink: () => "Nuzlocke  ·  solo", liveAll: () => "Live", sum: (l, o, x) => [`<b>${l} alive</b>`, x ? `<span class="bad">${x} lost</span>` : `0 lost`].join("  ·  "), hint: { team: "in the team", boxed: "resting in the PC", open: "", lost: "fainted or not caught" }, teamLead: "Your team. Click a Pokémon for its moves and stats.", teamEmpty: "No Pokémon in the team yet.", rCapsHint: "The highlighted cap applies until you have the next badge.", rRules: "Nuzlocke rules", rules: { fate: ["Fainted means gone", "A Pokémon that faints counts as dead and stays out for the rest of the run."], failed: ["Failed catch", "If the first Pokémon of an area gets away or faints, the area is used up."] } },
+    fSolo: "Solo",
     liveAll: n => n === 2 ? "Both players live" : `All ${n} players live`, liveSome: (k, n) => `${k} of ${n} players live`, live0: "Waiting for players", offline: "Reconnecting", missing: "Run not found",
     theme: "Switch theme",
     ballHave: (b, n) => `${b}: ${n} in the bag`,
@@ -876,7 +901,7 @@ const T = {
     turn: n => `<b>${n}</b> is up`, partnerInTeam: "partner is in the team", and: "&",
     attempt: n => `Attempt ${n}`, kAttempt: "Attempt", kGame: "Game", gen: n => `Gen ${n}`,
     games: { black: "Black", white: "White", black2: "Black 2", white2: "White 2" },
-    rRetry: "Wiped? Start the next attempt. Links and timeline are cleared, the code stays.", retry: "Start next attempt", retrySure: "Click again to confirm",
+    rRetry: "Wiped? Start the next attempt. Links and timeline are cleared, the code stays.", retry: "Start next attempt", retrySure: "Click again to confirm", endLead: "Beat the game, or is the run over for good? End this attempt: it goes to the archive under Timeline, with its time played, badges and final teams.", endWon: "We made it", endLost: "The run failed", endSure: "Click again to confirm", ended: { won: "This attempt is over, and you made it. Start the next one whenever you like.", lost: "This attempt is over. Start the next one whenever you like." }, endChange: "Changed your mind? Ending it the other way changes the archive.", doneChip: { won: "Made it", lost: "Run over" }, played: ms => { const h = Math.floor(ms / 36e5), m = Math.floor(ms / 6e4) % 60; return h ? `${h} h ${m} min played` : `${m} min played`; }, hist: "Earlier attempts", histOutcome: { won: "Made it", lost: "Failed" }, histLinks: (l, x) => `${l} linked  ·  ${x} lost`, histBadges: n => n === 1 ? "1 badge" : `${n} badges`, histNoTeam: "no team",
     tLead: "Rows attack, columns defend. Click a type to highlight it.", tSe: "super effective", tNve: "not very effective", tNo: "no effect",
     wildTip: "In battle with this wild Pokémon right now; the chance is for a Poké Ball", wildBall: "Poké Ball", cTitle: "Catch chance", cFind: "Wild Pokémon…", cHp: "HP", cStatus: "Status", cNone: "None", cMinor: "PAR PSN BRN", cMajor: "SLP FRZ", cGrass: "Dark grass", cRate: r => `Catch rate ${r}`, cRom: "from your ROM", cStd: "original value",
     balls: [["Poké Ball", ""], ["Great Ball", ""], ["Ultra Ball", ""], ["Quick Ball", "turn 1"], ["Dusk Ball", "cave or night"]],
@@ -903,7 +928,7 @@ waitPlayer: n => `Waiting for player ${n}`, playerN: n => `Player ${n}`, fPlayer
     evEvolved: (m, s) => `<b>${m}</b> evolved into ${s}`, evLevel: (m, n) => `<b>${m}</b> grew to Lv ${n}`,
     evParty: m => `<b>${m}</b> moved to the team`, evBox: (m, n) => `<b>${m}</b> moved to Box ${n}`, evGone: m => `<b>${m}</b> is gone`, evMet: (n, m, l) => `<b>${n}</b> met <b>${m}</b> first in ${l}.`, missed: "Not caught", forget: "Remove", forgetSure: "Really remove?", forgetTip: "Remove this encounter if it was recorded by mistake", locked: "Location used up", sPlace: "You are in", sPlaceNone: "unknown",
     evBadges: (p, n) => `<b>${p}</b> now has ${n === 1 ? "1 badge" : n + " badges"}`,
-    startTitle: "Start a Soul Link", startLead: "Two to four players, one run. Every catch is linked to the others’ catches from the same area.",
+    startTitle: "Start a Soul Link", startLead: "Two to four players, one run. Every catch is linked to the others’ catches from the same area. Or play a classic Nuzlocke on your own.",
     setupTitle: "Set up SoulSync", setupLead: "Pick your game once. SoulSync then keeps it in sync and shows the dashboard.",
     fName: "Your name", fNamePh: "Shown to your partner", fRom: "Your ROM", fSave: "Your save", sGameHint: "Playing another game in this run, such as one you already started? Choose its ROM: SoulSync takes the save next to it in DeSmuME's Battery folder, or choose the save yourself.", browse: "Browse", fPathPh: "Path to the file",
     romOk: (g, n) => `Pokémon ${g}  ·  Gen ${n}`, romBad: "This is not a supported Pokémon ROM (Black, White, Black 2, White 2).",
@@ -937,6 +962,8 @@ rando: { title: "What gets randomized", lead: "Preset for a Soul Link. Open a gr
   },
   de: {
     links: "Links", run: "Run", activity: "Verlauf", copy: "Kopieren", copied: "Kopiert",
+    solo: { links: "Fänge", soulLink: () => "Nuzlocke  ·  solo", liveAll: () => "Live", sum: (l, o, x) => [`<b>${l} am Leben</b>`, x ? `<span class="bad">${x} verloren</span>` : `0 verloren`].join("  ·  "), hint: { team: "im Team", boxed: "ruhen im PC", open: "", lost: "besiegt oder nicht gefangen" }, teamLead: "Dein Team. Klick auf ein Pokémon für Attacken und Werte.", teamEmpty: "Noch kein Pokémon im Team.", rCapsHint: "Das markierte Limit gilt, bis du den nächsten Orden hast.", rRules: "Nuzlocke-Regeln", rules: { fate: ["Besiegt heißt weg", "Ein Pokémon, das besiegt wird, gilt als tot und bleibt für den Rest des Runs draußen."], failed: ["Fehlgeschlagener Fang", "Entkommt das erste Pokémon eines Gebiets oder wird es besiegt, ist das Gebiet verbraucht."] } },
+    fSolo: "Solo",
     liveAll: n => n === 2 ? "Beide Spieler live" : `Alle ${n} Spieler live`, liveSome: (k, n) => `${k} von ${n} Spielern live`, live0: "Warte auf Spieler", offline: "Verbinde neu", missing: "Run nicht gefunden",
     theme: "Farbschema wechseln",
     ballHave: (b, n) => `${b}: ${n} im Beutel`,
@@ -950,7 +977,7 @@ rando: { title: "What gets randomized", lead: "Preset for a Soul Link. Open a gr
     turn: n => `<b>${n}</b> ist dran`, partnerInTeam: "Partner ist im Team", and: "&",
     attempt: n => `Versuch ${n}`, kAttempt: "Versuch", kGame: "Spiel", gen: n => `Gen ${n}`,
     games: { black: "Schwarz", white: "Weiß", black2: "Schwarz 2", white2: "Weiß 2" },
-    rRetry: "Alles verloren? Starte den nächsten Versuch. Links und Verlauf werden geleert, der Code bleibt.", retry: "Nächsten Versuch starten", retrySure: "Zum Bestätigen nochmal klicken",
+    rRetry: "Alles verloren? Starte den nächsten Versuch. Links und Verlauf werden geleert, der Code bleibt.", retry: "Nächsten Versuch starten", retrySure: "Zum Bestätigen nochmal klicken", endLead: "Spiel durchgespielt oder der Run endgültig vorbei? Beende diesen Versuch: Er kommt ins Archiv unter Verlauf, mit Spielzeit, Orden und den Teams am Ende.", endWon: "Geschafft", endLost: "Gescheitert", endSure: "Zum Bestätigen nochmal klicken", ended: { won: "Dieser Versuch ist vorbei, und ihr habt es geschafft. Den nächsten startet ihr, wann ihr wollt.", lost: "Dieser Versuch ist vorbei. Den nächsten startet ihr, wann ihr wollt." }, endChange: "Doch anders? Beendet ihn andersherum, dann ändert sich das Archiv.", doneChip: { won: "Geschafft", lost: "Vorbei" }, played: ms => { const h = Math.floor(ms / 36e5), m = Math.floor(ms / 6e4) % 60; return h ? `${h} Std. ${m} Min. gespielt` : `${m} Min. gespielt`; }, hist: "Frühere Versuche", histOutcome: { won: "Geschafft", lost: "Gescheitert" }, histLinks: (l, x) => `${l} verbunden  ·  ${x} verloren`, histBadges: n => n === 1 ? "1 Orden" : `${n} Orden`, histNoTeam: "kein Team",
     tLead: "Zeilen greifen an, Spalten verteidigen. Klick auf einen Typ hebt ihn hervor.", tSe: "sehr effektiv", tNve: "nicht sehr effektiv", tNo: "keine Wirkung",
     wildTip: "Kämpft gerade gegen dieses wilde Pokémon; die Chance gilt für einen Pokéball", wildBall: "Pokéball", cTitle: "Fangchance", cFind: "Wildes Pokémon…", cHp: "KP", cStatus: "Status", cNone: "Kein", cMinor: "PAR GIF BRT", cMajor: "SLF GFR", cGrass: "Dunkles Gras", cRate: r => `Fangrate ${r}`, cRom: "aus deiner ROM", cStd: "Originalwert",
     balls: [["Pokéball", ""], ["Superball", ""], ["Hyperball", ""], ["Flottball", "Runde 1"], ["Finsterball", "Höhle oder Nacht"]],
@@ -977,7 +1004,7 @@ waitPlayer: n => `Warte auf Spieler ${n}`, playerN: n => `Spieler ${n}`, fPlayer
     evEvolved: (m, s) => `<b>${m}</b> hat sich zu ${s} entwickelt`, evLevel: (m, n) => `<b>${m}</b> ist jetzt Lv ${n}`,
     evParty: m => `<b>${m}</b> ist jetzt im Team`, evBox: (m, n) => `<b>${m}</b> liegt jetzt in Box ${n}`, evGone: m => `<b>${m}</b> ist weg`, evMet: (n, m, l) => `<b>${n}</b> trifft zuerst auf <b>${m}</b> (${l}).`, missed: "Nicht gefangen", forget: "Entfernen", forgetSure: "Wirklich entfernen?", forgetTip: "Begegnung entfernen, wenn sie versehentlich erfasst wurde", locked: "Ort verbraucht", sPlace: "Du bist in", sPlaceNone: "unbekannt",
     evBadges: (p, n) => `<b>${p}</b> hat jetzt ${n} Orden`,
-    startTitle: "Soul Link starten", startLead: "Zwei bis vier Spieler, ein Run. Jeder Fang ist mit den Fängen der anderen aus demselben Gebiet verbunden.",
+    startTitle: "Soul Link starten", startLead: "Zwei bis vier Spieler, ein Run. Jeder Fang ist mit den Fängen der anderen aus demselben Gebiet verbunden. Oder spiel allein einen klassischen Nuzlocke.",
     setupTitle: "SoulSync einrichten", setupLead: "Wähle einmal dein Spiel aus. SoulSync hält es danach synchron und zeigt das Dashboard.",
     fName: "Dein Name", fNamePh: "So sieht dich dein Partner", fRom: "Deine ROM", fSave: "Dein Spielstand", sGameHint: "Ein anderes Spiel in diesem Run spielen, etwa eines, das du schon angefangen hast? Wähl seine ROM: SoulSync nimmt den Spielstand daneben im Battery-Ordner von DeSmuME, oder wähl den Spielstand selbst.", browse: "Durchsuchen", fPathPh: "Pfad zur Datei",
     romOk: (g, n) => `Pokémon ${g}  ·  Gen ${n}`, romBad: "Das ist keine unterstützte Pokémon-ROM (Schwarz, Weiß, Schwarz 2, Weiß 2).",
@@ -1267,15 +1294,16 @@ async function loadPresets() {
   try { const r = await fetch(`${SRV}/api/presets`); PRESETS = r.ok ? await r.json() : []; } catch { PRESETS = []; }
   return PRESETS;
 }
-function rulePicker(chosen, first = "") {
-  return `<div class="field"><label>${t().pickRules}</label><div class="checks" id="f-rules">${first}${RULES.filter(id => id !== "cap").map(id => {
+function rulePicker(chosen, first = "", alone = false) {
+  return `<div class="field"><label>${t().pickRules}</label><div class="checks${alone ? " solo" : ""}" id="f-rules">${first}${RULES.filter(id => id !== "cap").map(id => {
     const fixed = RULES_FIXED.includes(id);
-    return `<label><input type="checkbox" value="${id}" ${chosen.includes(id) ? "checked" : ""} ${fixed ? "disabled" : ""}><span>${t().rules[id][0]}${fixed ? `  ·  ${t().rAlways}` : ""}</span><small>${t().rules[id][1]}</small></label>`;
+    return `<label${LINK_RULES.includes(id) || id === "fate" ? ` class="linkrule"` : ""}><input type="checkbox" value="${id}" ${chosen.includes(id) ? "checked" : ""} ${fixed ? "disabled" : ""}><span>${t().rules[id][0]}${fixed ? `  ·  ${t().rAlways}` : ""}</span>${t().solo.rules[id] && !fixed ? `<small class="pair-t">${t().rules[id][1]}</small><small class="solo-t">${t().solo.rules[id][1]}</small>` : `<small>${t().rules[id][1]}</small>`}</label>`;
   }).join("")}</div></div>`;
 }
 function readRules(caps) {
+  const box = document.getElementById("f-rules"), alone = box && box.classList.contains("solo");
   const ids = [...document.querySelectorAll("#f-rules input:checked")].map(i => i.value);
-  return RULES.filter(id => ids.includes(id) || (id === "cap" && caps.length));
+  return RULES.filter(id => (ids.includes(id) || (id === "cap" && caps.length)) && !(alone && LINK_RULES.includes(id)));
 }
 function parseCaps(raw) {
   const caps = raw.trim() ? raw.trim().split(/[\s,;]+/).filter(Boolean).map(Number) : [];
@@ -1402,7 +1430,7 @@ function renderSetup() {
       <div class="ptabs glass" role="tablist" data-i="${u.tab}"><button type="button" role="tab" aria-selected="${u.tab === 0}" data-i="0">${t().tabJoin}</button><button type="button" role="tab" aria-selected="${u.tab === 1}" data-i="1">${t().tabNew}</button></div>
       <div class="pane glass reveal" style="--i:1">${u.tab === 0
         ? `<div class="field"><label for="f-code">${t().code}</label><input id="f-code" class="mono" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="HYPNO-6811" value="${esc(u.code)}"><small>${t().codeHelp}${u.mode === "roll" ? " " + t().pJoin : ""}</small></div>`
-        : playersField(u.players) + presetField(u, fr) + rulePicker(u.rules, capPicker(u.capOn, u.mode === "roll" ? fr.original : rom))}
+        : playersField(u.players) + presetField(u, fr) + rulePicker(u.rules, capPicker(u.capOn, u.mode === "roll" ? fr.original : rom), u.players === 1)}
         <details class="adv" ${local.server ? "open" : ""}><summary>${t().advanced}</summary><div class="field"><label for="f-server">${t().fServer}</label><input id="f-server" autocomplete="off" spellcheck="false" placeholder="https://" value="${esc(local.server)}"><small>${t().fServerHelp}</small></div>${u.tab === 1 ? `<div class="field"><div class="checks"><label><input type="checkbox" id="f-seed" ${u.sharedSeed ? "checked" : ""}><span>${t().fSeed}</span><small>${t().fSeedHelp}</small></label></div></div>` : ""}</details>
         <p class="err" id="err" ${u.error ? "" : "hidden"}>${esc(u.error)}</p>
         <button class="btn" type="submit">${ICON.play.replace("<svg", '<svg width="20" height="20"')}${u.tab === 0 ? t().startJoin : t().startNew}</button>
@@ -1453,7 +1481,7 @@ function renderSetup() {
     if (!caps) return fail(t().capsNoRom);
     if (roll && !(fr.original && fr.original.ok)) return fail(t().eRoll);
     if (roll && !fr.emulator) return fail(t().eEmu);
-    const body = u.tab === 0 ? { code: u.code.trim(), roll } : { roll, settings: { players: u.players, caps, shared_seed: u.sharedSeed, rules: RULES.filter(id => u.rules.includes(id) || (id === "cap" && caps.length)) } };
+    const body = u.tab === 0 ? { code: u.code.trim(), roll } : { roll, settings: { players: u.players, caps, shared_seed: u.sharedSeed, rules: RULES.filter(id => (u.rules.includes(id) || (id === "cap" && caps.length)) && !(u.players === 1 && LINK_RULES.includes(id))) } };
     if (u.tab === 1 && u.preset !== "none") {
       const p = (PRESETS || []).find(x => x.id === u.preset);
       if (u.preset === "own" && !(fr.options && fr.options.ok)) return fail(t().pOwnMissing);
@@ -1480,13 +1508,21 @@ const SECTIONS = ["open", "team", "boxed", "lost"];
 // A run has two to four seats; each has its colour.
 const COLS = ["--a", "--b", "--p3", "--p4"];
 const col = i => `var(${COLS[i] || "--muted"})`;
-const seats = () => Math.max(2, Math.min(4, state && state.settings && state.settings.players || 2), state ? state.players.length : 0);
+const seats = () => Math.max(1, Math.min(4, state && state.settings && state.settings.players || 2), state ? state.players.length : 0);
+const solo = () => seats() === 1;
+// The texts for this run: a solo run has no partners to speak of.
+const ts = () => solo() ? { ...t(), ...t().solo, rules: { ...t().rules, ...t().solo.rules } } : t();
+// Rules about partners, which a solo run goes without. Shared fate stays,
+// as plain "fainted means gone".
+const LINK_RULES = ["linked", "together"];
 const seatList = () => [...Array(seats()).keys()];
 const seatName = i => state.players[i] ? state.players[i].name : t().playerN(i + 1);
-const playersField = n => `<div class="field"><label>${t().fPlayers}</label><div class="seg3" id="f-players">${[2, 3, 4].map(k => `<button type="button" data-n="${k}" aria-pressed="${k === n}">${k}</button>`).join("")}</div></div>`;
+const playersField = n => `<div class="field"><label>${t().fPlayers}</label><div class="seg3" id="f-players">${[1, 2, 3, 4].map(k => `<button type="button" data-n="${k}" aria-pressed="${k === n}">${k === 1 ? t().fSolo : k}</button>`).join("")}</div></div>`;
 const pickPlayers = e => {
   const b = e.target.closest("#f-players button");
   if (b) b.parentNode.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
+  const rules = document.getElementById("f-rules");
+  if (b && rules) rules.classList.toggle("solo", b.dataset.n === "1");
   return b ? +b.dataset.n : null;
 };
 const TILED = { boxed: true, lost: true };
@@ -1505,9 +1541,9 @@ function mount() {
       </div>
       <div class="hpanel glass">
         <div class="col live blk" data-b="live"><h3>${t().live}<small id="livesrc"></small>${layBar("live")}</h3><div id="pcards"></div></div>
-        <div class="col links blk" data-b="links"><h3>${t().links}<em id="nlinks"></em><small id="sum2"></small>${layBar("links")}</h3>
+        <div class="col links blk" data-b="links"><h3>${ts().links}<em id="nlinks"></em><small id="sum2"></small>${layBar("links")}</h3>
           <div id="setup"></div>
-          ${SECTIONS.map(s => `<section class="sec" data-sec="${s}" hidden><h3><span class="glyph"><i></i><u></u><i></i></span><span>${t()[s]}</span><em></em><small>${t().hint[s]}</small></h3><div class="${TILED[s] ? "tiles" : "rows"}"></div></section>`).join("")}
+          ${SECTIONS.map(s => `<section class="sec" data-sec="${s}" hidden><h3><span class="glyph"><i></i><u></u><i></i></span><span>${t()[s]}</span><em></em><small>${ts().hint[s]}</small></h3><div class="${TILED[s] ? "tiles" : "rows"}"></div></section>`).join("")}
           <p class="empty-list" id="none" hidden>${t().noLinks}</p>
         </div>
         <div class="col feedc blk" data-b="feed"><h3>${t().activity}${layBar("feed")}</h3><div class="feed" id="feed"></div><p class="feed-empty" id="nofeed" hidden>${t().noEvents}</p></div>
@@ -1517,7 +1553,7 @@ function mount() {
       ${head("encounters", `<div class="etools"><div class="filters glass" id="efilt"></div><label class="search glass">${ICON.search}<input id="efind" type="search" autocomplete="off" spellcheck="false" placeholder="${t().encFind}" aria-label="${t().encFind}"></label></div>`)}
       <div class="tablep glass"><div class="thead" id="ehead"></div><div class="scroll" id="enc"></div></div>
     </div>
-    <div class="view" data-view="team" hidden>${head("team", "", t().teamLead)}<div class="scroll" id="team"></div></div>
+    <div class="view" data-view="team" hidden>${head("team", "", ts().teamLead)}<div class="scroll" id="team"></div></div>
     <div class="view" data-view="timeline" hidden>${head("timeline")}<div class="glass scroll tl" id="tl"></div></div>
     <div class="view" data-view="types" hidden>${head("types")}<div class="glass scroll types" id="types"></div></div>
     <div class="view" data-view="rules" hidden>${head("rules")}<div class="scroll rules" id="rules"></div></div>
@@ -1630,7 +1666,7 @@ function updateEncounters() {
   $("#ehead").innerHTML = `<span>${t().area}</span>${seatList().map(i => `<span><i style="background:${col(i)}"></i>${esc(seatName(i))}</span>`).join("")}<span>${t().status}</span>`;
   const count = s => ms.filter(m => s === "all" || m.sec === s).length;
   const ec = $("#ecount"); if (ec) ec.textContent = ms.length || "";
-  $("#efilt").innerHTML = ["all", ...SECTIONS].map(s => `<button type="button" data-f="${s}" aria-pressed="${u.f === s}">${s === "all" ? t().encAll : t()[s]}<em>${count(s)}</em></button>`).join("");
+  $("#efilt").innerHTML = ["all", ...SECTIONS.filter(x => !(solo() && x === "open"))].map(s => `<button type="button" data-f="${s}" aria-pressed="${u.f === s}">${s === "all" ? t().encAll : t()[s]}<em>${count(s)}</em></button>`).join("");
   const cell = (s, i) => {
     if (!s) return `<span class="ecell none">–</span>`;
     const p = s.pokemon, b = p.battle;
@@ -1662,7 +1698,8 @@ function updateTimeline() {
   const log = shownLog();
   const idx = Object.fromEntries(state.players.map((p, i) => [p.name, i]));
   const two = n => String(n).padStart(2, "0");
-  const sig = [lang, log.length, log.length && log[log.length - 1].at, state.players.map(p => p.name).join()].join("|"), el = $("#tl");
+  const hist = (state.history || []).slice().reverse();
+  const sig = [lang, log.length, log.length && log[log.length - 1].at, state.players.map(p => p.name).join(), hist.length, hist.map(h => h.outcome).join()].join("|"), el = $("#tl");
   if (el._sig === sig) return;
   el._sig = sig;
   let day = "";
@@ -1673,6 +1710,15 @@ function updateTimeline() {
     const [g, c] = evIcon(e);
     return `${sep}<div class="trow reveal" style="--i:${Math.min(k, 10)}"><time>${two(d.getHours())}:${two(d.getMinutes())}</time><i class="evi" style="--c:${c}">${g}</i><p>${eventHtml(e)}</p><span class="who" style="--c:${col(idx[e.player] || 0)}"><i></i>${esc(e.player)}</span></div>`;
   }).join("") : `<p class="empty-list">${t().noEvents}</p>`;
+  if (hist.length) el.innerHTML += `<div class="tday">${t().hist}</div><div class="hist">${hist.map(histCard).join("")}</div>`;
+}
+
+// One finished attempt in the archive: how it ended, how long it took, and
+// the teams that were left.
+function histCard(h) {
+  const when = h.started_at ? new Date(h.started_at).toLocaleDateString(lang, { day: "numeric", month: "long", year: "numeric" }) : "";
+  const team = (pl, i) => `<div class="hpl" style="--c:${col(i)}"><span class="who"><i></i>${esc(pl.name)}<small>${t().histBadges(pl.badges)}</small></span><span class="hteam">${pl.team.length ? pl.team.map(m => `<span class="slot sm" title="${esc((m.nickname ? m.nickname + " · " : "") + species(m))} · ${t().lv} ${m.level}">${spriteImg(m)}</span>`).join("") : `<small>${t().histNoTeam}</small>`}</span></div>`;
+  return `<article class="hcard ${h.outcome}"><header><b>${t().attempt(h.attempt)}</b><span class="done ${h.outcome}">${t().histOutcome[h.outcome]}</span></header><p>${[when, h.played_ms >= 6e4 ? t().played(h.played_ms) : "", t().histLinks(h.linked, h.lost)].filter(Boolean).map(x => `<span>${esc(x)}</span>`).join("  ·  ")}</p>${h.players.map(team).join("")}</article>`;
 }
 
 let armUntil = 0;
@@ -1687,14 +1733,14 @@ function updateRules() {
   const withSave = state.players.filter(p => p.snapshot);
   const badges = withSave.length ? Math.min(...withSave.map(p => p.snapshot.trainer.badges)) : 0;
   const now = Math.min(badges, caps.length - 1);
-  const sig = [lang, caps.join(), now, chosen.join()].join("|"), el = $("#rules");
+  const sig = [lang, caps.join(), now, chosen.join(), seats()].join("|"), el = $("#rules");
   if (el._sig === sig) return;
   el._sig = sig;
-  const list = RULES.filter(id => chosen.includes(id) && (id !== "cap" || caps.length));
+  const list = RULES.filter(id => chosen.includes(id) && (id !== "cap" || caps.length) && !(solo() && LINK_RULES.includes(id)));
   el.innerHTML = `<section class="rblock glass reveal"><h2>${t().rCaps}</h2>${caps.length
-      ? `<div class="caps">${caps.map((c, i) => `<span class="capc ${i < now ? "done" : i === now ? "now" : ""}"><small>${i < 8 ? t().gym(i + 1) : t().league}</small><b>${c}</b></span>`).join("")}</div><p>${t().rCapsHint}</p>`
+      ? `<div class="caps">${caps.map((c, i) => `<span class="capc ${i < now ? "done" : i === now ? "now" : ""}"><small>${i < 8 ? t().gym(i + 1) : t().league}</small><b>${c}</b></span>`).join("")}</div><p>${ts().rCapsHint}</p>`
       : `<p>${t().rNoCaps}</p>`}</section>
-    <section class="rblock glass reveal" style="--i:1"><h2>${t().rRules}</h2><ol class="rlist">${list.map(id => `<li><b>${t().rules[id][0]}</b><span>${t().rules[id][1]}</span></li>`).join("")}</ol><p>${t().rNote}</p></section>`;
+    <section class="rblock glass reveal" style="--i:1"><h2>${ts().rRules}</h2><ol class="rlist">${list.map(id => `<li><b>${ts().rules[id][0]}</b><span>${ts().rules[id][1]}</span></li>`).join("")}</ol><p>${t().rNote}</p></section>`;
 }
 
 // A button that asks for a second click before it acts.
@@ -1736,7 +1782,7 @@ function updateSettings() {
   const runCandies = state.settings && state.settings.randomizer ? state.settings.randomizer.candies : null;
   const mine = local && state.players.find(p => p.name === local.name), snap = mine && mine.snapshot;
   const seen = snap ? JSON.stringify([snap.party.map(p => p.battle && p.battle.hp), snap.wild && [snap.wild.pid, snap.wild.battle && snap.wild.battle.hp, snap.wild.ailment], snap.balls, (snap.encounters || []).length]) : "";
-  const sig = [lang, state.code, state.attempt, runCandies, JSON.stringify(local), seen, JSON.stringify(reportUi)].join("|");
+  const sig = [lang, state.code, state.attempt, state.finished, runCandies, JSON.stringify(local), seen, JSON.stringify(reportUi)].join("|");
   if (el._sig === sig) return;
   el._sig = sig;
   const kv = rows => rows.map(([k, v]) => `<div class="kv"><span>${k}</span><b>${v}</b></div>`).join("");
@@ -1773,7 +1819,8 @@ function updateSettings() {
     const repNote = r.busy ? `<p>${r.dump ? t().repBusyDump : t().repBusy}</p>` : r.error ? `<p class="bad">${t().repFail} ${esc(r.error)}</p>` : r.path ? `<p>${t().repDone(`<span class="mono">${esc(r.path)}</span>`)}</p>${r.dump && !r.dumped ? `<p class="bad">${t().repNoDump}</p>` : ""}` : "";
     html += `<section class="rblock glass" id="repsec"><h2>${t().rep}</h2><p>${t().repLead}</p><label class="check"><input type="checkbox" id="repDump"${canDump ? "" : " disabled"}${canDump && r.want ? " checked" : ""}> ${t().repDump}</label>${canDump ? "" : `<p><small>${t().repDumpOff}</small></p>`}${repNote}<button type="button" class="btn2" id="report"${r.busy ? " disabled" : ""}>${r.busy ? t().repBusy : t().repDo}</button></section>`;
   }
-  html += `<section class="rblock glass"><h2>${t().attempt(state.attempt || 1)}</h2><p>${t().rRetry}</p><button type="button" class="btn2" id="retry">${t().retry}</button></section>`;
+  const fin = state.finished;
+  html += `<section class="rblock glass"><h2>${t().attempt(state.attempt || 1)}</h2>${fin ? `<p>${t().ended[fin]} ${t().endChange}</p>` : `<p>${t().endLead}</p>`}<div class="btnrow"><button type="button" class="btn2${fin === "won" ? " on" : ""}" id="endWon">${t().endWon}</button><button type="button" class="btn2${fin === "lost" ? " on" : ""}" id="endLost">${t().endLost}</button></div><p>${t().rRetry}</p><button type="button" class="btn2" id="retry">${t().retry}</button></section>`;
   if (local && local.fresh) {
     const f = local.fresh, pr = f.progress, busy = pr && pr.state === "rolling";
     const pickBtn = kind => local.dialogs ? `<button type="button" data-fresh="${kind}">${t().freshPick}</button>` : "";
@@ -1818,6 +1865,11 @@ function updateSettings() {
     else Object.assign(reportUi, { busy: false, error: await res.text() });
     updateSettings();
   };
+  for (const [id, outcome] of [["endWon", "won"], ["endLost", "lost"]]) confirmButton($("#" + id), id === "endWon" ? t().endWon : t().endLost, t().endSure, btn => {
+    btn.disabled = true;
+    if (window.SoulSyncDemoFinish) { window.SoulSyncDemoFinish(outcome); el._sig = ""; updateSettings(); }
+    else fetch(`${SRV}/api/runs/${encodeURIComponent(state.code)}/finish?outcome=${outcome}`, { method: "POST" }).catch(() => {}).finally(() => { el._sig = ""; updateSettings(); });
+  });
   confirmButton($("#retry"), t().retry, t().retrySure, btn => {
     btn.disabled = true;
     if (window.SoulSyncDemoRestart) { window.SoulSyncDemoRestart(); btn.disabled = false; btn.classList.remove("arm"); btn.textContent = t().retry; }
@@ -1975,8 +2027,8 @@ function patchRow(el, m, fresh) {
 // under their names.
 function newRow() {
   const el = document.createElement("div"), n = seats();
-  el.className = "row enter" + (n > 2 ? " multi" : ""); el._kind = "row";
-  el.innerHTML = n > 2
+  el.className = "row enter" + (n !== 2 ? " multi" : ""); el._kind = "row";
+  el.innerHTML = n !== 2
     ? `<span class="loc"></span>` + seatList().map(i => `<div class="side" style="--c:${col(i)}"></div>`).join("")
     : `<div class="side a" style="--c:var(--a)"></div><div class="tether"><i class="seg a"></i><span class="loc"></span><i class="seg b"></i></div><div class="side b" style="--c:var(--b)"></div>`;
   el.addEventListener("animationend", e => { if (e.target === el) el.classList.remove("enter"); });
@@ -2233,7 +2285,8 @@ function updateLinks() {
   });
   $("#none").hidden = ms.length > 0 || state.players.length < seats();
   const n = s => ms.filter(m => m.sec === s).length;
-  $("#sum").innerHTML = t().sum(n("team") + n("boxed"), n("open"), n("lost"));
+  const fin = state.finished, played = state.played_ms || 0;
+  $("#sum").innerHTML = (fin ? `<span class="done ${fin}">${t().doneChip[fin]}</span>` : "") + ts().sum(n("team") + n("boxed"), n("open"), n("lost")) + (played >= 6e4 ? `  ·  <span class="played">${t().played(played)}</span>` : "");
 }
 
 /* ---------- type chart (generations 2 to 5) */
@@ -2454,7 +2507,7 @@ function updateStatus() {
   const el = $("#status"); if (!el) return;
   const live = state ? state.players.filter(p => p.connected).length : 0;
   el.className = "status" + (conn === "missing" ? " bad" : conn === "live" && live ? " live" : "");
-  $("span", el).textContent = conn === "missing" ? t().missing : conn !== "live" ? t().offline : !live ? t().live0 : live >= seats() ? t().liveAll(live) : t().liveSome(live, seats());
+  $("span", el).textContent = conn === "missing" ? t().missing : conn !== "live" ? t().offline : !live ? t().live0 : live >= seats() ? ts().liveAll(live) : t().liveSome(live, seats());
 }
 
 function syncCmd() {
@@ -2480,7 +2533,7 @@ function updateRail() {
   const seeds = state.seeds && state.seeds.length ? state.seeds : [state.seed];
   const shared = state.settings.shared_seed || seeds.length < 2;
   const chip = (v, hl) => `<span class="tag${hl ? " hl" : ""}">${v}</span>`;
-  const html = [chip(t().soulLink(seats()), true), games.length ? chip(`Pokémon ${esc(games.join(" / "))}  ·  ${t().gen(5)}`) : "", seeds[0] != null ? chip(shared ? `${t().kSeed} <span class="mono">${esc(seeds[0])}</span>` : t().seedOwn) : ""].join("");
+  const html = [chip(ts().soulLink(seats()), true), games.length ? chip(`Pokémon ${esc(games.join(" / "))}  ·  ${t().gen(5)}`) : "", seeds[0] != null ? chip(shared ? `${t().kSeed} <span class="mono">${esc(seeds[0])}</span>` : t().seedOwn) : ""].join("");
   const el = $("#chips");
   if (el._h !== html) { el._h = html; el.innerHTML = html; el.title = shared ? "" : seeds.map((v, i) => `${seatName(i)}: ${v}`).join("\n"); }
   updateActions();
@@ -2585,10 +2638,10 @@ function updateTeam() {
     const tys = (p.types || []).map(tyChip).join("");
     return `<div class="tm" style="--c:${col(i)}" data-mon="${p.pid}" data-seat="${i}" role="button" tabindex="0" title="${esc(t().mon.open)}"><span class="stage">${spriteImg(p)}</span><b>${esc(label(p))}</b><small>${esc(species(p))}${b ? `  ·  ${t().lv} ${b.level}` : `  ·  ${t().box(p.place.box ?? "")}`}</small><div class="tys">${tys}</div>${b ? hpLine(b) : ""}</div>`;
   };
-  const card = (m, k) => `<article class="pairc glass reveal${n > 2 ? " multi" : ""}" style="--n:${n};--i:${Math.min(k, 10)}"><span class="ploc">${esc(locName(m.link))}</span>${m.sides.map(mon).join("")}</article>`;
+  const card = (m, k) => `<article class="pairc glass reveal${n !== 2 ? " multi" : ""}" style="--n:${n};--i:${Math.min(k, 10)}"><span class="ploc">${esc(locName(m.link))}</span>${m.sides.map(mon).join("")}</article>`;
   const team = ms.filter(m => m.sec === "team"), boxed = ms.filter(m => m.sec === "boxed");
-  el.innerHTML = (team.length ? `<div class="pairs">${team.map(card).join("")}</div>` : `<p class="empty-list">${t().teamEmpty}</p>`)
-    + (boxed.length ? `<div class="sec" style="margin-top:20px"><h3><span>${t().boxed}</span><em>${boxed.length}</em><small>${t().hint.boxed}</small></h3></div><div class="pairs">${boxed.map(card).join("")}</div>` : "");
+  el.innerHTML = (team.length ? `<div class="pairs${n === 1 ? " solo" : ""}">${team.map(card).join("")}</div>` : `<p class="empty-list">${ts().teamEmpty}</p>`)
+    + (boxed.length ? `<div class="sec" style="margin-top:20px"><h3><span>${t().boxed}</span><em>${boxed.length}</em><small>${ts().hint.boxed}</small></h3></div><div class="pairs${n === 1 ? " solo" : ""}">${boxed.map(card).join("")}</div>` : "");
 }
 const tyChip = ty => `<span class="ty" style="--tc:${TCOL[ty]}">${esc(typeName(ty))}</span>`;
 function hpLine(b) {
