@@ -56,7 +56,7 @@ enum Step {
 }
 
 /// `Math.round` of Java.
-fn round(x: f64) -> f64 {
+pub(super) fn round(x: f64) -> f64 {
     let floor = x.floor();
     if x - floor >= 0.5 {
         floor + 1.0
@@ -264,7 +264,7 @@ impl Game<'_> {
     }
 
     /// A type of the game, as the original randomizer draws it.
-    fn random_type(&mut self) -> u8 {
+    pub(super) fn random_type(&mut self) -> u8 {
         loop {
             if let Some(&kind) = TYPE_BYTES.get(self.random.index(LISTED_TYPES)) {
                 return kind;

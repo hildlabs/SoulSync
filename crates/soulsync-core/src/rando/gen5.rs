@@ -8,6 +8,7 @@
 
 mod items;
 mod machines;
+mod moves;
 mod statics;
 mod tables;
 mod trades;
@@ -321,6 +322,11 @@ pub struct Options {
     /// come up too.
     pub abilities: Change,
     pub wonder_guard: bool,
+    /// The moves get random power, accuracy, PP or types.
+    pub random_move_powers: bool,
+    pub random_move_accuracies: bool,
+    pub random_move_pps: bool,
+    pub random_move_types: bool,
     /// The TMs hold random moves.
     pub random_tm_moves: bool,
     /// Which Pokémon learn the moves of the TMs and HMs, and which those
@@ -1105,6 +1111,18 @@ pub fn verified(rom: &[u8]) -> bool {
 /// steps. Only the steps of [`Options`] are built so far.
 pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, RomError> {
     let mut game = Game::load(rom, seed)?;
+    if options.random_move_powers {
+        game.randomize_move_powers();
+    }
+    if options.random_move_accuracies {
+        game.randomize_move_accuracies();
+    }
+    if options.random_move_pps {
+        game.randomize_move_pps();
+    }
+    if options.random_move_types {
+        game.randomize_move_types();
+    }
     if options.ban_lucky_egg {
         game.ban_lucky_egg();
     }
