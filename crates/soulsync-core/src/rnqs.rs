@@ -402,8 +402,8 @@ impl Preset {
     /// switch, is `None`: such settings go to the original randomizer.
     pub fn native(&self) -> Option<crate::rando::gen5::Options> {
         use crate::rando::gen5::{
-            Change, Evolving, Movesets, Options, Spread, StaticRules, Statics, Stats, Themes,
-            TrainerItems, TrainerRules, Wild, WildRule, WildRules,
+            AbilityRules, Change, Evolving, Movesets, Options, Spread, StaticRules, Statics, Stats,
+            Themes, TrainerItems, TrainerRules, Wild, WildRule, WildRules,
         };
         // Files of 4.6.0 and 4.6.1 have the same layout; older ones the
         // randomizer rewrites first.
@@ -422,16 +422,14 @@ impl Preset {
         const TWEAKS: u32 = 1 << 7 | 1 << 8 | 1 << 12;
         let tweaks = u32::from_be_bytes([d[32], d[33], d[34], d[35]]);
         // Evolutions and moves as they are; nothing added to trainers.
-        let untouched = d[48] & (1 << 6) == 0
-            && d[19] & !1 == 0
+        let untouched = d[19] & !1 == 0
             && d[20] == 0
             && d[22] == 0
             && d[25] & 0xF0 == 0
             && d[27] & (1 << 5 | 1 << 6) == 0
-            && d[40] & 0x80 == 0
             && d[41] & 0xC0 == 0
             && d[0] & !(1 | 1 << 3 | 1 << 4 | 1 << 5 | 1 << 6) == 0
-            && d[16] & (1 | 1 << 5 | 1 << 6) == 0
+            && d[16] & (1 << 5 | 1 << 6) == 0
             && d[39] & (1 << 4 | 1 << 5) == 0
             && tweaks & !TWEAKS == 0;
         if !untouched {
@@ -496,7 +494,7 @@ impl Preset {
             0b001 => Change::FollowEvolutions,
             _ => return None,
         };
-        let abilities = match (d[3] & 0b1111_0011, bit(3, 3)) {
+        let abilities = match (d[3] & 0b1000_0011, bit(3, 3)) {
             (0b01, _) => Change::Unchanged,
             (0b10, false) => Change::Random,
             (0b10, true) => Change::FollowEvolutions,
@@ -575,6 +573,11 @@ impl Preset {
                     0
                 },
             },
+            min_catch_rate: match (bit(16, 0), (d[50] >> 3) & 7) {
+                (false, _) => 0,
+                (true, step @ 0..=4) => step + 1,
+                _ => return None,
+            },
             wild_forms: bit(39, 7),
             random_starters: either(4, 0xFF, 2, 1)?,
             random_move_powers: bit(25, 0),
@@ -587,7 +590,14 @@ impl Preset {
             types,
             two_types: bit(2, 7),
             abilities,
-            wonder_guard: bit(3, 2),
+            ability_rules: AbilityRules {
+                wonder_guard: bit(3, 2),
+                no_trapping: bit(3, 4),
+                no_negative: bit(3, 5),
+                no_bad: bit(3, 6),
+                always_two: bit(48, 6),
+                alike_together: bit(40, 7),
+            },
             random_tutor_moves,
             random_tm_moves,
             machines,
@@ -749,7 +759,7 @@ fn base64_decode(text: &[u8]) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rando::gen5::{StaticRules, Statics, Wild, WildRule, WildRules};
+    use crate::rando::gen5::{AbilityRules, StaticRules, Statics, Wild, WildRule, WildRules};
 
     /// A real settings file for Black 2 (German), saved by randomizer 4.6.0:
     /// TM moves random, TM compatibility unchanged, full HM compatibility.
@@ -818,7 +828,7 @@ mod tests {
         traits.set("allow_wonder_guard", Value::Flag(true));
         let o = preset.with(&traits).native().unwrap();
         assert_eq!(o.stats, Stats::Shuffle);
-        assert!(o.stats_follow_evolutions && o.wonder_guard && !o.two_types);
+        assert!(o.stats_follow_evolutions && o.ability_rules.wonder_guard && !o.two_types);
         assert_eq!(
             (o.types, o.abilities),
             (Change::FollowEvolutions, Change::Random)
@@ -937,6 +947,28 @@ mod tests {
         assert!(fixed.native().is_none());
         fixed.data[17] = 1 << 1 | 1 << 7;
         assert!(fixed.native().is_none());
+
+        // Easier catching, in the fourth of five steps.
+        let mut catching = preset.clone();
+        assert_eq!(catching.native().unwrap().min_catch_rate, 0);
+        catching.data[16] |= 1;
+        catching.data[50] = catching.data[50] & 7 | 3 << 3;
+        assert_eq!(catching.native().unwrap().min_catch_rate, 4);
+        catching.data[50] |= 7 << 3;
+        assert!(catching.native().is_none());
+
+        // Random abilities with every rule there is.
+        let mut able = preset.clone();
+        assert_eq!(
+            able.native().unwrap().ability_rules,
+            AbilityRules::default()
+        );
+        able.data[3] = 1 << 1 | 1 << 2 | 1 << 4 | 1 << 5 | 1 << 6;
+        able.data[40] |= 0x80;
+        able.data[48] |= 1 << 6;
+        let rules = able.native().unwrap().ability_rules;
+        assert!(rules.wonder_guard && rules.no_trapping && rules.no_negative && rules.no_bad);
+        assert!(rules.always_two && rules.alike_together);
 
         let mut evolving = Overrides::default();
         evolving.set("evolutions", Value::Choice("random".into()));

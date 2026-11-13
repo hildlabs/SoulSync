@@ -25,7 +25,7 @@ pub use movesets::Movesets;
 pub use statics::{StaticRules, Statics};
 pub use trainer_items::TrainerItems;
 pub use trainers::{Spread, Themes, TrainerRules};
-pub use traits::{Change, Stats};
+pub use traits::{AbilityRules, Change, Stats};
 pub use wild::{Wild, WildRule, WildRules};
 
 use super::random::JavaRandom;
@@ -289,6 +289,8 @@ pub struct Options {
     pub wild_forms: bool,
     /// How they are made random; the levels in it change anyway.
     pub wild_rules: WildRules,
+    /// Pokémon get easier to catch, in steps from 1 to 5; 0 leaves them.
+    pub min_catch_rate: u8,
     /// Three random Pokémon to choose the first one from.
     pub random_starters: bool,
     /// The move tutors teach random moves.
@@ -349,10 +351,9 @@ pub struct Options {
     /// The types of every species; with `two_types` always two.
     pub types: Change,
     pub two_types: bool,
-    /// The abilities of every species; with `wonder_guard` that one may
-    /// come up too.
+    /// The abilities of every species, and which ones may come up.
     pub abilities: Change,
-    pub wonder_guard: bool,
+    pub ability_rules: AbilityRules,
     /// The moves get random power, accuracy, PP or types.
     pub random_move_powers: bool,
     pub random_move_accuracies: bool,
@@ -1224,7 +1225,11 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
             options.stats_grow_at_random,
         ),
     }
-    game.randomize_abilities(options.abilities, options.wonder_guard);
+    game.randomize_abilities(
+        options.abilities,
+        &options.ability_rules,
+        options.double_battles,
+    );
     if options.change_impossible_evolutions {
         game.remove_impossible_evolutions(options.movesets != Movesets::Unchanged)?;
     }
@@ -1305,6 +1310,9 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
         game.randomize_statics(&options.static_rules)?;
     } else if options.static_rules.levels != 0 {
         game.change_static_levels(options.static_rules.levels)?;
+    }
+    if options.min_catch_rate != 0 {
+        game.raise_catch_rates(options.min_catch_rate)?;
     }
     if options.random_wild {
         game.randomize_wild(options.wild_forms, &options.wild_rules)?;

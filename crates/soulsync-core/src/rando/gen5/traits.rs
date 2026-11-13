@@ -39,6 +39,44 @@ const LAST_ABILITY: usize = 164;
 /// Abilities that do nothing on another species: Forecast, Multitype,
 /// Flower Gift and Zen Mode.
 const NO_ABILITIES: [u8; 4] = [59, 121, 122, 161];
+/// Shadow Tag, Magnet Pull and Arena Trap keep the other side in.
+const TRAPPING: [u8; 3] = [23, 42, 71];
+/// Defeatist, Slow Start, Truant, Klutz and Stall hurt their owner.
+const NEGATIVE: [u8; 5] = [129, 112, 54, 103, 100];
+/// Minus, Plus, Anticipation, Forewarn, Frisk and Honey Gather do
+/// next to nothing.
+const BAD: [u8; 6] = [58, 57, 107, 108, 119, 118];
+/// Friend Guard, Healer and Telepathy only help a partner.
+const FOR_DOUBLES: [u8; 3] = [132, 131, 140];
+/// Abilities that do the same, the one that stands for them first; 0
+/// fills the shorter rows.
+const ALIKE: [[u8; 3]; 8] = [
+    [15, 72, 0],
+    [29, 73, 0],
+    [37, 74, 0],
+    [4, 75, 0],
+    [13, 76, 0],
+    [111, 116, 0],
+    [24, 160, 0],
+    [104, 163, 164],
+];
+
+/// Which random abilities are allowed.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct AbilityRules {
+    /// Wonder Guard may come up.
+    pub wonder_guard: bool,
+    /// None that keep the other side from switching.
+    pub no_trapping: bool,
+    /// None that hurt their owner.
+    pub no_negative: bool,
+    /// None that do next to nothing.
+    pub no_bad: bool,
+    /// Always a second ability.
+    pub always_two: bool,
+    /// Abilities that do the same are as likely together as one other.
+    pub alike_together: bool,
+}
 
 /// One step of going through every family from its first stage up.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -317,14 +355,32 @@ impl Game<'_> {
         self.copy_species_to_looks_only(&[FIRST_TYPE, FIRST_TYPE + 1]);
     }
 
-    /// An ability that is allowed and not one of `taken`.
-    fn new_ability(&mut self, wonder_guard: bool, taken: &[u8]) -> u8 {
+    /// An ability that `rules` allow and that is not one of `taken`.
+    fn new_ability(&mut self, rules: &AbilityRules, doubles: bool, taken: &[u8]) -> u8 {
         loop {
             let ability = self.random.index(LAST_ABILITY) as u8 + 1;
-            let banned =
-                NO_ABILITIES.contains(&ability) || (ability == WONDER_GUARD && !wonder_guard);
-            if !banned && !taken.contains(&ability) {
+            let banned = NO_ABILITIES.contains(&ability)
+                || (ability == WONDER_GUARD && !rules.wonder_guard)
+                || (rules.no_trapping && TRAPPING.contains(&ability))
+                || (rules.no_negative && NEGATIVE.contains(&ability))
+                || (rules.no_bad && BAD.contains(&ability))
+                || (rules.no_bad && !doubles && FOR_DOUBLES.contains(&ability))
+                || (rules.alike_together && ALIKE.iter().any(|a| a[1..].contains(&ability)));
+            if banned || taken.contains(&ability) {
+                continue;
+            }
+            // Abilities that do the same count as one: which of them it
+            // is, is drawn until it is not taken.
+            let alike = ALIKE.iter().find(|a| a[0] == ability);
+            let Some(alike) = alike.filter(|_| rules.alike_together) else {
                 return ability;
+            };
+            let alike = &alike[..alike.iter().position(|&a| a == 0).unwrap_or(alike.len())];
+            loop {
+                let ability = alike[self.random.index(alike.len())];
+                if !taken.contains(&ability) {
+                    return ability;
+                }
             }
         }
     }
@@ -334,9 +390,10 @@ impl Game<'_> {
         self.species[number].abilities = abilities;
     }
 
-    /// Every species gets random abilities. One that has Wonder Guard
-    /// keeps what it has; others can get it with `wonder_guard`.
-    pub fn randomize_abilities(&mut self, how: Change, wonder_guard: bool) {
+    /// Every species gets random abilities as `rules` allow, with
+    /// `doubles` for a game of double battles. One that has Wonder Guard
+    /// keeps what it has.
+    pub fn randomize_abilities(&mut self, how: Change, rules: &AbilityRules, doubles: bool) {
         let steps = match how {
             Change::Unchanged => return,
             Change::Random => (1..=SPECIES + FORMS).map(Step::First).collect(),
@@ -354,13 +411,13 @@ impl Game<'_> {
             let abilities = match from {
                 Some(from) => self.species[from].abilities,
                 None => {
-                    let first = self.new_ability(wonder_guard, &[]);
-                    let second = if self.random.double() < 0.5 {
-                        self.new_ability(wonder_guard, &[first])
+                    let first = self.new_ability(rules, doubles, &[]);
+                    let second = if rules.always_two || self.random.double() < 0.5 {
+                        self.new_ability(rules, doubles, &[first])
                     } else {
                         0
                     };
-                    let third = self.new_ability(wonder_guard, &[first, second]);
+                    let third = self.new_ability(rules, doubles, &[first, second]);
                     [first, second, third]
                 }
             };
@@ -373,6 +430,24 @@ impl Game<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn abilities_that_do_the_same_are_real_and_told_apart() {
+        let mut all: Vec<u8> = ALIKE
+            .iter()
+            .flatten()
+            .copied()
+            .filter(|&a| a != 0)
+            .collect();
+        assert!(all.iter().all(|&a| usize::from(a) <= LAST_ABILITY));
+        let count = all.len();
+        all.sort_unstable();
+        all.dedup();
+        assert_eq!(all.len(), count);
+        for banned in [&TRAPPING[..], &NEGATIVE, &BAD, &FOR_DOUBLES] {
+            assert!(banned.iter().all(|a| !all.contains(a)));
+        }
+    }
 
     #[test]
     fn rounds_as_java_does() {
