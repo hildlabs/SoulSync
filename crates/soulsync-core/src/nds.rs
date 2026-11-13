@@ -6,6 +6,7 @@
 //! anew. The layout it writes is the one Universal Pokémon Randomizer ZX
 //! writes, so the two can be compared byte for byte.
 
+use crate::blz;
 use crate::rom::{file_id, u32_at, RomError};
 use std::borrow::Cow;
 
@@ -17,14 +18,19 @@ const HEADER_CRC_AT: usize = 0x15E;
 /// The bytes after the ARM9 program that are kept with it: a footer where
 /// the game has one.
 const ARM9_TAIL: usize = 12;
+/// The first word of an ARM9 footer.
+const NITROCODE: u32 = 0xDEC0_0621;
 const OVERLAY_ENTRY: usize = 32;
 
 /// A ROM in parts, borrowed from the bytes it was read from.
 pub struct Nds<'a> {
     header: &'a [u8],
-    arm9: &'a [u8],
+    /// The ARM9 program as stored, with what follows it.
+    arm9: Cow<'a, [u8]>,
+    /// The length of the program in `arm9`.
+    arm9_len: usize,
     /// The ARM9 overlay table.
-    y9: &'a [u8],
+    y9: Cow<'a, [u8]>,
     arm7: &'a [u8],
     y7: &'a [u8],
     banner: &'a [u8],
@@ -32,6 +38,10 @@ pub struct Nds<'a> {
     /// Every file by its id, overlays included.
     files: Vec<Cow<'a, [u8]>>,
 }
+
+/// The code of a stored ARM9 program, the footers after it, and where in
+/// the code its own packed length is written, if it is packed.
+type Arm9Parts<'a> = (&'a [u8], Vec<u8>, Option<usize>);
 
 fn part<'a>(rom: &'a [u8], at: u32, len: usize, what: &'static str) -> Result<&'a [u8], RomError> {
     let at = at as usize;
@@ -78,7 +88,8 @@ impl<'a> Nds<'a> {
         if header.len() < HEADER_CRC_AT + 2 {
             return Err(RomError::Layout("header"));
         }
-        let arm9 = part(rom, field(0x20)?, field(0x2C)? as usize + ARM9_TAIL, "arm9")?;
+        let arm9_len = field(0x2C)? as usize;
+        let arm9 = part(rom, field(0x20)?, arm9_len + ARM9_TAIL, "arm9")?;
         let y9 = part(rom, field(0x50)?, field(0x54)? as usize, "overlay table")?;
         let arm7 = part(rom, field(0x30)?, field(0x3C)? as usize, "arm7")?;
         let y7 = part(rom, field(0x58)?, field(0x5C)? as usize, "overlay table")?;
@@ -98,8 +109,9 @@ impl<'a> Nds<'a> {
             .collect::<Result<_, _>>()?;
         Ok(Nds {
             header,
-            arm9,
-            y9,
+            arm9: Cow::Borrowed(arm9),
+            arm9_len,
+            y9: Cow::Borrowed(y9),
             arm7,
             y7,
             banner,
@@ -144,6 +156,119 @@ impl<'a> Nds<'a> {
         }
     }
 
+    /// The stored ARM9 program in its parts.
+    fn arm9_parts(&self) -> Result<Arm9Parts<'_>, RomError> {
+        let bad = RomError::Layout("arm9");
+        let (mut code, tail) = self.arm9.split_at(self.arm9_len);
+        let word =
+            |code: &[u8], back: usize| code.len().checked_sub(back).and_then(|at| u32_at(code, at));
+        let mut footer = if u32_at(tail, 0) == Some(NITROCODE) {
+            tail.to_vec()
+        } else {
+            Vec::new()
+        };
+        // Footers counted into the program's length.
+        while word(code, 12) == Some(NITROCODE)
+            || (word(code, 12) == Some(0) && word(code, 8) == Some(0) && word(code, 4) == Some(0))
+        {
+            let (rest, extra) = code.split_at(code.len() - 12);
+            footer.splice(0..0, extra.iter().copied());
+            code = rest;
+        }
+        if code.len() < 8 {
+            return Err(bad);
+        }
+        let mut len_at = None;
+        if (8..=0xB).contains(&code[code.len() - 5]) {
+            let packed = (word(code, 8).unwrap_or(0) & 0x00FF_FFFF) as usize;
+            if packed > code.len() * 9 / 10 && packed < code.len() * 11 / 10 {
+                let ram = u32_at(self.header, 0x28).ok_or(RomError::Layout("header"))?;
+                let end = (code.len() as u32).wrapping_add(ram).to_le_bytes();
+                let mut found = code.windows(4).enumerate().filter(|(_, w)| *w == end);
+                len_at = found.next().map(|(at, _)| at);
+                if len_at.is_none() || found.next().is_some() {
+                    return Err(bad);
+                }
+            }
+        }
+        Ok((code, footer, len_at))
+    }
+
+    /// The ARM9 program, unpacked.
+    pub fn arm9(&self) -> Result<Vec<u8>, RomError> {
+        let (code, _, len_at) = self.arm9_parts()?;
+        match len_at {
+            Some(_) => blz::decode(code).ok_or(RomError::Layout("arm9")),
+            None => Ok(code.to_vec()),
+        }
+    }
+
+    /// Replaces the ARM9 program with `code`, packed if it was before.
+    pub fn set_arm9(&mut self, code: &[u8]) -> Result<(), RomError> {
+        let (_, footer, len_at) = self.arm9_parts()?;
+        let mut stored = match len_at {
+            Some(at) => {
+                let mut packed = blz::encode(code, true);
+                let ram = u32_at(self.header, 0x28).unwrap_or(0);
+                let end = (packed.len() as u32).wrapping_add(ram);
+                packed
+                    .get_mut(at..at + 4)
+                    .ok_or(RomError::Layout("arm9"))?
+                    .copy_from_slice(&end.to_le_bytes());
+                packed
+            }
+            None => code.to_vec(),
+        };
+        self.arm9_len = stored.len();
+        stored.extend_from_slice(&footer);
+        self.arm9 = Cow::Owned(stored);
+        Ok(())
+    }
+
+    /// The table entry of ARM9 overlay `overlay`, and whether its file is
+    /// packed.
+    fn overlay_entry(&self, overlay: usize) -> Option<(usize, bool)> {
+        let at = overlay.checked_mul(OVERLAY_ENTRY)?;
+        let entry = self.y9.get(at..at + OVERLAY_ENTRY)?;
+        let file = self.files.get(u32_at(entry, 24)? as usize)?;
+        let packed_len = (u32_at(entry, 28)? & 0x00FF_FFFF) as usize;
+        Some((
+            at,
+            entry[31] != 0 && packed_len != 0 && packed_len == file.len(),
+        ))
+    }
+
+    /// ARM9 overlay `overlay`, unpacked.
+    pub fn overlay(&self, overlay: usize) -> Option<Vec<u8>> {
+        let (_, packed) = self.overlay_entry(overlay)?;
+        let file = self.file(self.overlay_id(overlay)?)?;
+        if packed {
+            blz::decode(file)
+        } else {
+            Some(file.to_vec())
+        }
+    }
+
+    /// Replaces ARM9 overlay `overlay` with `code`, packed if it was before;
+    /// false if the ROM has no such overlay.
+    pub fn set_overlay(&mut self, overlay: usize, code: &[u8]) -> bool {
+        let Some((at, packed)) = self.overlay_entry(overlay) else {
+            return false;
+        };
+        let Some(id) = self.overlay_id(overlay) else {
+            return false;
+        };
+        let stored = if packed {
+            let stored = blz::encode(code, false);
+            let len = (stored.len() as u32).to_le_bytes();
+            self.y9.to_mut()[at + 28..at + 31].copy_from_slice(&len[..3]);
+            stored
+        } else {
+            code.to_vec()
+        };
+        self.set_file(id, stored)
+    }
+
     /// The ROM with its files as they are now.
     pub fn build(&self) -> Vec<u8> {
         let len: usize = self.files.iter().map(|f| align(f.len())).sum();
@@ -151,9 +276,9 @@ impl<'a> Nds<'a> {
         out.extend_from_slice(self.header);
 
         let arm9_at = align(out.len());
-        put(&mut out, arm9_at, self.arm9);
+        put(&mut out, arm9_at, &self.arm9);
         let y9_at = out.len();
-        put(&mut out, y9_at, self.y9);
+        put(&mut out, y9_at, &self.y9);
         let arm7_at = align(out.len());
         put(&mut out, arm7_at, self.arm7);
         let y7_at = out.len();
@@ -175,7 +300,7 @@ impl<'a> Nds<'a> {
         out.resize(end.next_multiple_of(4), 0);
 
         put_u32(&mut out, 0x20, arm9_at);
-        put_u32(&mut out, 0x2C, self.arm9.len() - ARM9_TAIL);
+        put_u32(&mut out, 0x2C, self.arm9_len);
         put_u32(&mut out, 0x30, arm7_at);
         put_u32(&mut out, 0x3C, self.arm7.len());
         put_u32(&mut out, 0x40, fnt_at);
@@ -379,6 +504,38 @@ mod tests {
         let rom = rom();
         assert!(Nds::parse(&rom[..rom.len() - 40]).is_err());
         assert!(Nds::parse(&rom[..0x100]).is_err());
+    }
+
+    #[test]
+    fn program_code_is_unpacked_and_packed_again() {
+        let code: Vec<u8> = (0..3000u32).map(|i| (i % 7) as u8).collect();
+        let packed = blz::encode(&code, false);
+        let mut rom = sample(&[("one", b"file")], &[&packed, b"plain overlay"]);
+        // Mark overlay 0 as packed in its table entry.
+        let y9 = u32_at(&rom, 0x50).unwrap() as usize;
+        rom[y9 + 28..y9 + 31].copy_from_slice(&(packed.len() as u32).to_le_bytes()[..3]);
+        rom[y9 + 31] = 1;
+
+        let mut nds = Nds::parse(&rom).unwrap();
+        assert_eq!(nds.overlay(0), Some(code));
+        assert_eq!(nds.overlay(1), Some(b"plain overlay".to_vec()));
+        assert_eq!(nds.overlay(2), None);
+        let longer: Vec<u8> = (0..5000u32).map(|i| (i % 11) as u8).collect();
+        assert!(nds.set_overlay(0, &longer));
+        assert!(nds.set_overlay(1, b"new plain overlay"));
+        assert!(!nds.set_overlay(2, b""));
+        assert_eq!(nds.arm9().unwrap(), vec![9u8; 0x123]);
+        nds.set_arm9(&[8u8; 0x200]).unwrap();
+
+        let built = nds.build();
+        let again = Nds::parse(&built).unwrap();
+        assert_eq!(again.overlay(0), Some(longer));
+        assert_ne!(again.file(0).unwrap().len(), 5000, "stored packed");
+        assert_eq!(again.overlay(1), Some(b"new plain overlay".to_vec()));
+        assert_eq!(again.arm9().unwrap(), vec![8u8; 0x200]);
+        // The footer follows the new program.
+        assert_eq!(&again.arm9[0x200..], &nds.arm9[0x200..]);
+        assert_eq!(u32_at(&again.arm9, 0x200), Some(NITROCODE));
     }
 
     #[test]

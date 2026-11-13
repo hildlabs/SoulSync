@@ -6,6 +6,7 @@
 
 pub mod art;
 pub mod bag;
+pub mod blz;
 pub mod crypto;
 pub mod dex;
 pub mod events;
