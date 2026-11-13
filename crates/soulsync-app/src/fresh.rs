@@ -458,9 +458,12 @@ echo "$3|$6|$8" > "${10}"; echo log > "${10}.log""#,
         assert_eq!(std::fs::read_to_string(&plan.save).unwrap(), "old save");
 
         // Settings with something that is not built go to the original.
-        let mut tm = Overrides::default();
-        tm.set("tm", soulsync_core::rnqs::Value::Choice("full".into()));
-        plan.overrides = tm;
+        let mut other = Overrides::default();
+        other.set(
+            "abilities",
+            soulsync_core::rnqs::Value::Choice("random".into()),
+        );
+        plan.overrides = other;
         assert_eq!(own(&plan), None);
         plan.overrides = Overrides::default();
         plan.own = false;

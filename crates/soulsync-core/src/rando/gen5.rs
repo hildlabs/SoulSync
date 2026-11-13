@@ -7,6 +7,7 @@
 //! and the code it looked at is packed anew.
 
 mod items;
+mod machines;
 mod statics;
 mod tables;
 mod trades;
@@ -17,6 +18,7 @@ use super::random::JavaRandom;
 use super::text::{chars, Text};
 use super::{lz, names};
 use crate::nds::{narc_pack, narc_unpack, Nds};
+use crate::rnqs::Compat;
 use crate::rom::RomError;
 
 const SPECIES: usize = 649;
@@ -303,6 +305,12 @@ pub struct Options {
     pub random_statics: bool,
     /// Every Pokémon can learn every HM.
     pub full_hm: bool,
+    /// The TMs hold random moves.
+    pub random_tm_moves: bool,
+    /// Which Pokémon learn the moves of the TMs and HMs, and which those
+    /// of the move tutors.
+    pub machines: Compat,
+    pub tutors: Compat,
 }
 
 fn word(d: &[u8], at: usize) -> u16 {
@@ -982,22 +990,7 @@ impl<'a> Game<'a> {
         for number in 1..=SPECIES + FORMS {
             full_hms(&mut self.stats[Self::stats_file(number)]);
         }
-        // A form that only looks different learns what its species learns.
-        let file = Self::stats_file(LOOKS_ONLY_FORM);
-        let form = &self.stats[file];
-        if form[FORM_COUNT] > 1 && word(form, FIRST_FORM) == 0 {
-            let base = (1..=SPECIES).find(|&number| {
-                let stats = &self.stats[number];
-                let first = usize::from(word(stats, FIRST_FORM));
-                let forms = usize::from(stats[FORM_COUNT]);
-                first != 0 && (first..first + forms.saturating_sub(1)).contains(&file)
-            });
-            if let Some(base) = base {
-                let machines = MACHINES..MACHINES + MACHINES_LEN;
-                let learns = self.stats[base][machines.clone()].to_vec();
-                self.stats[file][machines].copy_from_slice(&learns);
-            }
-        }
+        self.copy_to_looks_only(MACHINES..MACHINES + MACHINES_LEN);
     }
 
     /// The file with the stats of a species or form.
@@ -1116,11 +1109,20 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
     if options.random_starters {
         game.randomize_starters()?;
     }
+    if options.random_tm_moves {
+        game.randomize_tm_moves()?;
+    }
+    if options.machines != Compat::Unchanged {
+        game.change_machine_compatibility(options.machines)?;
+    }
     if options.full_hm {
         game.full_hm_compatibility();
     }
     if options.random_tutor_moves {
         game.randomize_tutor_moves()?;
+    }
+    if options.tutors != Compat::Unchanged {
+        game.change_tutor_compatibility(options.tutors)?;
     }
     if options.random_trainers {
         game.randomize_trainers(options.trainer_forms)?;
