@@ -427,10 +427,10 @@ impl Preset {
             && d[22] == 0
             && d[25] & 0xF0 == 0
             && d[27] & !(1 | 1 << 1 | 1 << 2 | 1 << 3 | 1 << 4) == 0
-            && d[40] == 0
-            && d[41] & 0xC7 == 0
+            && d[40] & 0x81 == 0
+            && d[41] & 0xC0 == 0
             && d[48] & 7 == 0
-            && d[0] & !(1 | 1 << 3 | 1 << 5 | 1 << 6) == 0
+            && d[0] & !(1 | 1 << 3 | 1 << 4 | 1 << 5 | 1 << 6) == 0
             && d[16] & !(1 << 3 | 1 << 4) == 0
             && d[39] & (1 << 4 | 1 << 5) == 0
             && tweaks & !TWEAKS == 0
@@ -573,11 +573,13 @@ impl Preset {
             machines,
             tutors,
             random_trainers,
+            more_trainer_pokemon: [d[41] & 7, d[40] >> 4 & 7, d[40] >> 1 & 7],
             trainer_rules,
             trainer_forms: bit(39, 6),
             rival_carries_starter: bit(27, 1),
             trainers_fully_evolved_from: fully_evolved,
             random_trainer_names: bit(0, 3),
+            random_trainer_class_names: bit(0, 4),
             random_trades,
             trades_want_random: random_trades && bit(23, 0),
             random_trade_nicknames: random_trades && bit(23, 4),
@@ -819,6 +821,11 @@ mod tests {
         );
         themed.data[27] |= 1 << 2;
         assert!(themed.native().unwrap().trainer_rules.type_weights);
+        // One more Pokémon for regular trainers, two for important
+        // ones, three for bosses.
+        themed.data[41] |= 1;
+        themed.data[40] |= 2 << 4 | 3 << 1;
+        assert_eq!(themed.native().unwrap().more_trainer_pokemon, [1, 2, 3]);
         themed.data[50] |= 3;
         assert_eq!(themed.native().unwrap().trainer_rules.elite_unique, 3);
 
@@ -863,7 +870,6 @@ mod tests {
             ("shops", Value::Choice("shuffle".into())),
             ("update_moves", Value::Flag(true)),
             ("wild_no_legendaries", Value::Flag(true)),
-            ("random_trainer_classes", Value::Flag(true)),
         ] {
             let mut change = Overrides::default();
             change.set(id, value);

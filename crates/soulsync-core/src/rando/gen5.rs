@@ -288,6 +288,9 @@ pub struct Options {
     /// forms of them.
     pub random_trainers: bool,
     pub trainer_forms: bool,
+    /// So many more Pokémon for the regular trainers, the important
+    /// ones and the bosses.
+    pub more_trainer_pokemon: [u8; 3],
     /// What the random ones have to be like; the levels in it change
     /// without random trainers too.
     pub trainer_rules: TrainerRules,
@@ -297,6 +300,8 @@ pub struct Options {
     pub trainers_fully_evolved_from: u16,
     /// Trainers get random names.
     pub random_trainer_names: bool,
+    /// The kinds of trainers get random names.
+    pub random_trainer_class_names: bool,
     /// Trades give random Pokémon; with `trades_want_random` they ask
     /// for random ones too. Nicknames, IVs and held items as chosen.
     pub random_trades: bool,
@@ -1233,6 +1238,10 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
     if options.tutors != Compat::Unchanged {
         game.change_tutor_compatibility(options.tutors)?;
     }
+    let [regular, important, boss] = options.more_trainer_pokemon;
+    if regular > 0 || important > 0 || boss > 0 {
+        game.add_trainer_pokemon(regular, important, boss)?;
+    }
     if options.random_trainers {
         game.randomize_trainers(
             options.trainer_forms,
@@ -1248,6 +1257,9 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
     }
     if options.trainers_fully_evolved_from > 0 {
         game.force_fully_evolved(options.trainers_fully_evolved_from)?;
+    }
+    if options.random_trainer_class_names {
+        game.randomize_trainer_class_names()?;
     }
     if options.random_trainer_names {
         game.randomize_trainer_names()?;

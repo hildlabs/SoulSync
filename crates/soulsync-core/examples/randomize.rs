@@ -14,7 +14,7 @@
 //! (40 percent), `nobroken` and `moveorder` for what the species learn;
 //! `evolutions` with `evostrength`, `evotype`, `evothree` and `evochange`
 //! for what they evolve into; `trainerseven`, `trainersstory`,
-//! `trainerthemes`, `trainergyms`, `trainerweights`, `eliteunique` (two),
+//! `trainerthemes`, `trainergyms`, `trainerweights`, `eliteunique` (two), `trainermore` (one, two or three more),
 //! `trainerstrength`, `trainernolegends`, `trainernoguard` and
 //! `trainerlevels` (20 percent up) for the trainers.
 use soulsync_core::rando::gen5;
@@ -111,6 +111,8 @@ fn main() {
         full_hm: on("hm"),
         random_tutor_moves: on("tutors"),
         random_trainers: on("trainers"),
+        random_trainer_class_names: on("classnames"),
+        more_trainer_pokemon: if on("trainermore") { [1, 2, 3] } else { [0; 3] },
         trainer_rules: gen5::TrainerRules {
             spread: if on("trainerseven") {
                 gen5::Spread::Even
