@@ -4,7 +4,9 @@
 //! `time`, `wild`, `starters`, `hm`, `tutors`, `trainers`, `forms`,
 //! `rival`, `evolved` (from level 40), `names`, `statics`, `wildforms`, `trades` and `tradeall` (wanted
 //! Pokémon, nicknames, IVs and items of the trades), `field`,
-//! `goodfield`, `shops`, `goodshops`, `pickup` and `goodpickup`.
+//! `goodfield`, `shops`, `goodshops`, `pickup`, `goodpickup`, `tms`, and
+//! `tmrandom`, `tmtype`, `tmfull`, `tutorrandom`, `tutortype`, `tutorfull`
+//! for who learns the moves of TMs and tutors.
 use soulsync_core::rando::gen5;
 
 fn main() {
@@ -14,7 +16,22 @@ fn main() {
         std::process::exit(2);
     };
     let on = |name: &str| flags.iter().any(|f| f == name);
+    let compat = |name: &str| {
+        use soulsync_core::rnqs::Compat;
+        if on(&format!("{name}full")) {
+            Compat::Full
+        } else if on(&format!("{name}type")) {
+            Compat::RandomPreferType
+        } else if on(&format!("{name}random")) {
+            Compat::Random
+        } else {
+            Compat::Unchanged
+        }
+    };
     let options = gen5::Options {
+        random_tm_moves: on("tms"),
+        machines: compat("tm"),
+        tutors: compat("tutor"),
         national_dex: on("dex"),
         update_type_effectiveness: on("types"),
         ban_lucky_egg: on("egg"),

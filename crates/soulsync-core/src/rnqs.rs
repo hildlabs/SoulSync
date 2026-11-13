@@ -44,10 +44,11 @@ impl fmt::Display for PresetError {
 impl std::error::Error for PresetError {}
 
 /// Which Pokémon can learn which TM, or which move tutor's move.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Compat {
     /// As in the original game.
+    #[default]
     Unchanged,
     /// At random, more likely for moves of the Pokémon's own type.
     RandomPreferType,
@@ -424,7 +425,6 @@ impl Preset {
             && d[3] == 1
             && d[11] == 1 << 2
             && d[12] == 0
-            && d[18] == (1 << 2 | 1 << 4)
             && d[19] & !1 == 0
             && d[20] == 0
             && d[22] == 0
@@ -444,6 +444,24 @@ impl Preset {
         if !untouched {
             return None;
         }
+        // Who learns what: one way of four; then the moves themselves,
+        // random or not. Nothing else of these bytes is built.
+        let learning = |byte: usize| {
+            let how = match d[byte] & 0b1000_0111 {
+                0b100 => Compat::Unchanged,
+                0b010 => Compat::RandomPreferType,
+                0b001 => Compat::Random,
+                0x80 => Compat::Full,
+                _ => return None,
+            };
+            match d[byte] & 0b0111_1000 {
+                0b1_0000 => Some((how, false)),
+                0b0_1000 => Some((how, true)),
+                _ => None,
+            }
+        };
+        let (machines, random_tm_moves) = learning(TMS)?;
+        let (tutors, random_tutor_moves) = learning(TUTORS)?;
         let random_trades = match d[23] & (1 | 1 << 1 | 1 << 6) {
             0x40 => false,
             // Random trainer names of the traded Pokémon are not built.
@@ -473,11 +491,10 @@ impl Preset {
             },
             wild_forms: bit(39, 7),
             random_starters: either(4, 0xFF, 2, 1)?,
-            random_tutor_moves: match d[21] {
-                0b0001_0100 => false,
-                0b0000_1100 => true,
-                _ => return None,
-            },
+            random_tutor_moves,
+            random_tm_moves,
+            machines,
+            tutors,
             random_trainers: either(13, 0xFF, 0, 1)?,
             trainer_forms: bit(39, 6),
             rival_carries_starter: bit(27, 1),
@@ -660,6 +677,21 @@ mod tests {
         off.set("random_trainer_names", Value::Flag(false));
         let o = preset.with(&off).native().unwrap();
         assert!(!o.random_wild && !o.random_trainer_names && o.random_trainers);
+        assert_eq!(
+            (o.machines, o.tutors),
+            (Compat::Unchanged, Compat::Unchanged)
+        );
+
+        let mut tms = Overrides::default();
+        tms.set("tm", Value::Choice("full".into()));
+        tms.set("tm_moves", Value::Choice("random".into()));
+        tms.set("tutor", Value::Choice("random_prefer_type".into()));
+        let o = preset.with(&tms).native().unwrap();
+        assert!(o.random_tm_moves && o.random_tutor_moves);
+        assert_eq!(
+            (o.machines, o.tutors),
+            (Compat::Full, Compat::RandomPreferType)
+        );
     }
 
     #[test]
@@ -669,7 +701,6 @@ mod tests {
         for (id, value) in [
             ("abilities", Value::Choice("random".into())),
             ("movesets", Value::Choice("random".into())),
-            ("tm", Value::Choice("full".into())),
             ("wild", Value::Choice("global_mapping".into())),
             ("wild_rule", Value::Choice("catch_em_all".into())),
             ("statics", Value::Choice("random".into())),
@@ -685,8 +716,9 @@ mod tests {
             change.set(id, value);
             assert_eq!(preset.with(&change).native(), None, "{id}");
         }
-        // The file of the other tests randomizes TM moves.
-        assert_eq!(Preset::read(&super::tests::file()).unwrap().native(), None);
+        // The file of the other tests differs in its random TM moves only.
+        let other = Preset::read(&super::tests::file()).unwrap().native();
+        assert!(other.is_some_and(|o| o.random_tm_moves && o.random_wild));
     }
 
     #[test]
