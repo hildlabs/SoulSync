@@ -2,7 +2,7 @@
 //! built: `randomize in.nds out.nds <seed> [option ...]`, with options
 //! `dex`, `types`, `egg`, `held`, `goodheld`, `impossible`, `easier`,
 //! `time`, `wild`, `starters`, `hm`, `tutors`, `trainers`, `forms`,
-//! `rival`, `evolved` (from level 40), `names` and `statics`.
+//! `rival`, `evolved` (from level 40), `names`, `statics` and `wildforms`.
 use soulsync_core::rando::gen5;
 
 fn main() {
@@ -22,6 +22,7 @@ fn main() {
         easier_evolutions: on("easier"),
         no_time_evolutions: on("time"),
         random_wild: on("wild"),
+        wild_forms: on("wildforms"),
         random_starters: on("starters"),
         full_hm: on("hm"),
         random_tutor_moves: on("tutors"),

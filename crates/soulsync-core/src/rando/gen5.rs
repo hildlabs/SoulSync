@@ -9,6 +9,7 @@
 mod statics;
 mod tables;
 mod trainers;
+mod wild;
 
 use super::random::JavaRandom;
 use super::text::{chars, Text};
@@ -260,8 +261,10 @@ pub struct Options {
     pub easier_evolutions: bool,
     /// Evolutions bound to day or night work at any time.
     pub no_time_evolutions: bool,
-    /// Wild Pokémon are randomized in some way.
+    /// Wild Pokémon are random: each species of an area becomes one
+    /// other, with `wild_forms` also other forms.
     pub random_wild: bool,
+    pub wild_forms: bool,
     /// Three random Pokémon to choose the first one from.
     pub random_starters: bool,
     /// The move tutors teach random moves.
@@ -1104,6 +1107,9 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
     }
     if options.random_statics {
         game.randomize_statics()?;
+    }
+    if options.random_wild {
+        game.randomize_wild(options.wild_forms)?;
     }
     game.randomize_intro()?;
     game.save()
