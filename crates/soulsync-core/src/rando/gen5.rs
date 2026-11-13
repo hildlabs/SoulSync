@@ -6,8 +6,16 @@
 //! held items and evolutions the randomizer has no use for are dropped,
 //! and the code it looked at is packed anew.
 
+mod items;
+mod statics;
+mod tables;
+mod trades;
+mod trainers;
+mod wild;
+
 use super::random::JavaRandom;
-use super::text::Text;
+use super::text::{chars, Text};
+use super::{lz, names};
 use crate::nds::{narc_pack, narc_unpack, Nds};
 use crate::rom::RomError;
 
@@ -44,11 +52,258 @@ const COMMON_ITEM: usize = 12;
 const RARE_ITEM: usize = 14;
 const DARK_GRASS_ITEM: usize = 16;
 
+/// The moves a species learns from TMs and HMs: a bit each for 95 TMs,
+/// then 6 HMs.
+const MACHINES: usize = 40;
+const MACHINES_LEN: usize = 13;
+const TMS: usize = 95;
+const HMS: usize = 6;
+/// Where a species' other forms start, and how many forms it has.
+const FIRST_FORM: usize = 28;
+const FORM_COUNT: usize = 32;
+/// The one form the original randomizer treats as differing in looks
+/// only: Keldeo's Resolute form.
+const LOOKS_ONLY_FORM: usize = 670;
+/// Where the three abilities of a species stand in its stats.
+const ABILITIES: usize = 24;
+/// Species whose forms the original randomizer leaves alone although
+/// they only look different, and the one that has such a form with stats
+/// of its own.
+const NO_LOOKS: [usize; 4] = [421, 493, 585, 586];
+const KELDEO: usize = 647;
+
 const EVOLUTION_LEN: usize = 6;
 const EVOLUTION_SLOTS: usize = 7;
 const EVOLUTION_METHODS: u16 = 27;
-/// Feebas' evolution by beauty, which generation 5 has no way to reach.
-const METHOD_BEAUTY: u16 = 16;
+
+/// The ways to evolve, as the game numbers them.
+mod method {
+    pub const HAPPINESS_DAY: u16 = 2;
+    pub const HAPPINESS_NIGHT: u16 = 3;
+    pub const LEVEL: u16 = 4;
+    pub const TRADE: u16 = 5;
+    pub const TRADE_ITEM: u16 = 6;
+    /// Karrablast and Shelmet, traded for each other.
+    pub const TRADE_SPECIAL: u16 = 7;
+    pub const STONE: u16 = 8;
+    /// Feebas' evolution by beauty, which generation 5 has no way to reach.
+    pub const BEAUTY: u16 = 16;
+    pub const LEVEL_ITEM_DAY: u16 = 19;
+    pub const LEVEL_ITEM_NIGHT: u16 = 20;
+    pub const LEVEL_WITH_OTHER: u16 = 22;
+    /// Those that happen at a level.
+    pub const AT_LEVEL: [u16; 10] = [LEVEL, 9, 10, 11, 12, 13, 14, 15, 23, 24];
+
+    /// The place of a method in the original randomizer's list of them,
+    /// which decides the order of evolutions it adds.
+    pub fn rank(method: u16) -> u32 {
+        const RANKS: [u32; 28] = [
+            0, 4, 5, 6, 0, 2, 3, 26, 1, 7, 9, 8, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+            22, 23, 24, 25,
+        ];
+        RANKS.get(usize::from(method)).copied().unwrap_or(0)
+    }
+}
+
+const SLOWPOKE: usize = 79;
+const EEVEE: usize = 133;
+const KARRABLAST: u16 = 588;
+const SHELMET: u16 = 616;
+const SUN_STONE: u16 = 80;
+const MOON_STONE: u16 = 81;
+const WATER_STONE: u16 = 84;
+/// Before the happiness an evolution needs, three times in the ARM9.
+/// Where the three starters stand in the script of the first town.
+const STARTER_SCRIPT: usize = 854;
+const STARTER_PLACES: [[usize; 3]; 3] = [
+    [0x58B, 0x590, 0x595],
+    [0x5C0, 0x5C5, 0x5CA],
+    [0x5E2, 0x5E7, 0x5EC],
+];
+/// The place in that script that hands out the Pokédex, and the piece put
+/// behind the script so the Pokédex still comes with any starter.
+const POKEDEX_MARK: [u8; 6] = [0x28, 0x00, 0xA1, 0x40, 0x04, 0x00];
+const POKEDEX_SCRIPT: [u8; 14] = [
+    0x28, 0x00, 0xA1, 0x40, 0x04, 0x00, 0xDE, 0x00, 0x00, 0x00, 0xFD, 0x01, 0x05, 0x00,
+];
+const STARTER_PICTURES: &str = "a/2/0/2";
+const PICTURES: &str = "a/0/0/4";
+/// Files per species among the pictures; the front picture comes first.
+const PICTURES_EACH: usize = 20;
+const PICTURE_PALETTE: usize = 18;
+/// The overlay with the cries of the three starters, behind this mark.
+const STARTER_CRY_OVERLAY: usize = 316;
+const STARTER_CRIES: [u8; 8] = [0x08, 0x0A, 0x07, 0x00, 0x00, 0x08, 0x00, 0x00];
+/// The story text of the first town: the line of the first starter (the
+/// others stand before it) and what the rival says before the fight.
+const STARTER_TEXT: usize = 169;
+const STARTER_LINE: usize = 37;
+const RIVAL_LINE: usize = 60;
+/// Where a species' first type stands in its stats.
+const FIRST_TYPE: usize = 6;
+/// The types as the game numbers them, as the original randomizer names
+/// them in the starter text of every language.
+const TYPES: [&str; 17] = [
+    "Normal", "Fighting", "Flying", "Poison", "Ground", "Rock", "Bug", "Ghost", "Steel", "Fire",
+    "Water", "Grass", "Electric", "Psychic", "Ice", "Dragon", "Dark",
+];
+
+/// The script that gets the national Pokédex switched on, its length in
+/// the games this is built for, and the two instructions put into it.
+const DEX_SCRIPT: usize = 854;
+const DEX_SCRIPT_LEN: usize = 7996;
+const DEX_INSERTS: [(usize, [u8; 2]); 2] = [(1654, [0xC6, 0x01]), (3695, [0, 0])];
+/// The jumps in that script that cross one of the two new instructions.
+const DEX_JUMPS: [usize; 80] = [
+    4, 8, 12, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 68, 72, 76, 80, 88, 92, 96, 100, 104, 108,
+    112, 116, 120, 124, 128, 449, 459, 467, 591, 717, 1052, 1085, 1118, 1148, 1179, 1602, 2106,
+    2116, 2128, 2155, 2165, 2183, 2193, 2205, 2232, 2242, 2305, 2332, 2342, 2489, 2499, 2529, 2564,
+    2597, 2630, 2663, 2704, 2714, 2728, 2752, 2776, 2812, 2824, 2939, 2947, 3190, 3356, 3368, 3401,
+    3413, 3446, 3458, 3488, 3500, 3610, 3646, 3660,
+];
+/// The overlay with the table of what each type does to each other, and
+/// how that table starts.
+const BATTLE_OVERLAY: usize = 167;
+const TYPE_TABLE: [u8; 8] = [4, 4, 4, 4, 4, 2, 4, 0];
+const TYPE_COUNT: usize = 17;
+const GHOST: usize = 7;
+const STEEL: usize = 8;
+const DARK: usize = 16;
+const NORMAL_DAMAGE: u8 = 4;
+/// The highest item number, and the items no random choice may give: key
+/// items, items of other games, TMs and HMs, items of the Wonder Launcher.
+const LAST_ITEM: usize = 638;
+const NO_ITEMS: [(usize, usize); 10] = [
+    (428, 76),
+    (505, 32),
+    (621, 18),
+    (574, 1),
+    (578, 2),
+    (616, 5),
+    (113, 3),
+    (120, 14),
+    (328, 100),
+    (592, 24),
+];
+/// Items of little use, left out where only good ones are wanted.
+const BAD_ITEMS: [(usize, usize); 12] = [
+    (111, 2),
+    (225, 1),
+    (236, 1),
+    (155, 1),
+    (274, 1),
+    (575, 1),
+    (95, 4),
+    (135, 2),
+    (137, 12),
+    (159, 25),
+    (256, 4),
+    (260, 5),
+];
+const LUCKY_EGG: usize = 231;
+
+/// The moves of the TMs and HMs stand in the ARM9 behind this mark: 92
+/// TMs, the 6 HMs, then the last 3 TMs.
+const MACHINE_MOVES: [u8; 4] = [0x87, 0x03, 0x88, 0x03];
+const FIRST_TMS: usize = 92;
+const MOVES_COUNT: usize = 559;
+const STRUGGLE: u16 = 165;
+/// The overlay with the move tutors, how many moves they teach, the size
+/// of a tutor's entry and where the entries start in each game.
+const TUTOR_OVERLAY: usize = 36;
+const TUTORS: usize = 60;
+const TUTOR_LEN: usize = 12;
+const TUTOR_PLACES: [(&[u8; 4], usize); 14] = [
+    (b"IREO", 0x51538),
+    (b"IRDO", 0x5152C),
+    (b"IREF", 0x5152C),
+    (b"IRDF", 0x51520),
+    (b"IRED", 0x5155C),
+    (b"IRDD", 0x51550),
+    (b"IREI", 0x51554),
+    (b"IRDI", 0x51548),
+    (b"IRES", 0x5153C),
+    (b"IRDS", 0x51530),
+    (b"IREJ", 0x512DC),
+    (b"IRDJ", 0x512D0),
+    (b"IREK", 0x5160C),
+    (b"IRDK", 0x51600),
+];
+
+const HAPPINESS_MARK: [u8; 4] = [0xDC, 0x28, 0x2F, 0xD3];
+
+/// Where `mark` stands in `data`, if it does exactly once and not at the
+/// very start.
+fn find(data: &[u8], mark: &[u8]) -> Option<usize> {
+    let mut places = data.windows(mark.len()).enumerate();
+    let mut found = places
+        .by_ref()
+        .filter(|(_, w)| *w == mark)
+        .map(|(at, _)| at);
+    let first = found.next()?;
+    (found.next().is_none() && first > 0).then_some(first)
+}
+
+/// What a randomization changes; everything is off by default.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Options {
+    /// The national Pokédex from the start.
+    pub national_dex: bool,
+    /// Ghost and Dark hit Steel normally, as in later games.
+    pub update_type_effectiveness: bool,
+    /// No random choice gives a Lucky Egg.
+    pub ban_lucky_egg: bool,
+    /// Wild Pokémon hold random items, with `good_wild_held_items` only
+    /// useful ones.
+    pub random_wild_held_items: bool,
+    pub good_wild_held_items: bool,
+    /// Evolutions by trade become ones a single player can reach.
+    pub change_impossible_evolutions: bool,
+    /// Lower levels and less happiness for evolutions.
+    pub easier_evolutions: bool,
+    /// Evolutions bound to day or night work at any time.
+    pub no_time_evolutions: bool,
+    /// Wild Pokémon are random: each species of an area becomes one
+    /// other, with `wild_forms` also other forms.
+    pub random_wild: bool,
+    pub wild_forms: bool,
+    /// Three random Pokémon to choose the first one from.
+    pub random_starters: bool,
+    /// The move tutors teach random moves.
+    pub random_tutor_moves: bool,
+    /// Trainers have random Pokémon, with `trainer_forms` also other
+    /// forms of them.
+    pub random_trainers: bool,
+    pub trainer_forms: bool,
+    /// The rival fights with the starter the player left for them.
+    pub rival_carries_starter: bool,
+    /// Trainers' Pokémon from this level on are fully evolved; 0 for off.
+    pub trainers_fully_evolved_from: u16,
+    /// Trainers get random names.
+    pub random_trainer_names: bool,
+    /// Trades give random Pokémon; with `trades_want_random` they ask
+    /// for random ones too. Nicknames, IVs and held items as chosen.
+    pub random_trades: bool,
+    pub trades_want_random: bool,
+    pub random_trade_nicknames: bool,
+    pub random_trade_ivs: bool,
+    pub random_trade_items: bool,
+    /// Random items lie around, with `good_field_items` only useful ones.
+    pub random_field_items: bool,
+    pub good_field_items: bool,
+    /// The special shops sell random goods, with `good_shop_items` only
+    /// useful ones.
+    pub random_shops: bool,
+    pub good_shop_items: bool,
+    /// Pickup finds random items, with `good_pickup_items` only useful
+    /// ones.
+    pub random_pickup: bool,
+    pub good_pickup_items: bool,
+    /// Pokémon at fixed spots are swapped, legendary for legendary.
+    pub random_statics: bool,
+    /// Every Pokémon can learn every HM.
+    pub full_hm: bool,
+}
 
 fn word(d: &[u8], at: usize) -> u16 {
     u16::from_le_bytes([d[at], d[at + 1]])
@@ -56,6 +311,82 @@ fn word(d: &[u8], at: usize) -> u16 {
 
 fn set_word(d: &mut [u8], at: usize, value: u16) {
     d[at..at + 2].copy_from_slice(&value.to_le_bytes());
+}
+
+/// The items a random choice may give.
+#[derive(Debug, Clone)]
+struct Items {
+    allowed: Vec<bool>,
+}
+
+impl Items {
+    fn new(good: bool) -> Self {
+        let mut allowed = vec![true; LAST_ITEM + 1];
+        allowed[0] = false;
+        let bad = if good { &BAD_ITEMS[..] } else { &[] };
+        for &(first, count) in NO_ITEMS.iter().chain(bad) {
+            allowed[first..first + count].fill(false);
+        }
+        Items { allowed }
+    }
+
+    fn ban(&mut self, item: usize) {
+        self.allowed[item] = false;
+    }
+
+    fn random(&self, random: &mut JavaRandom) -> u16 {
+        let mut chosen = 0;
+        while !self.allowed[chosen] {
+            chosen = random.index(self.allowed.len());
+        }
+        chosen as u16
+    }
+}
+
+/// Gives every species new items for its wild Pokémon to hold.
+fn random_held_items(all: &mut [Species], items: &Items, random: &mut JavaRandom) {
+    for species in all.iter_mut().skip(1) {
+        let held = &mut species.items;
+        let decision = random.double();
+        let mut dark_grass = true;
+        let pair = |held: &mut HeldItems, random: &mut JavaRandom| {
+            held.common = items.random(random);
+            held.rare = items.random(random);
+            while held.rare == held.common {
+                held.rare = items.random(random);
+            }
+        };
+        if held.always > 0 {
+            if decision < 0.9 {
+                dark_grass = false;
+                held.always = items.random(random);
+            } else {
+                held.always = 0;
+                pair(held, random);
+            }
+        } else if decision < 0.5 {
+            held.common = 0;
+            held.rare = 0;
+        } else if decision < 0.65 {
+            held.common = 0;
+            held.rare = items.random(random);
+        } else if decision < 0.8 {
+            held.common = items.random(random);
+            held.rare = 0;
+        } else if decision < 0.95 {
+            pair(held, random);
+        } else {
+            dark_grass = false;
+            held.always = items.random(random);
+            held.common = 0;
+            held.rare = 0;
+        }
+        held.dark_grass = if dark_grass && random.double() < 0.5 {
+            items.random(random)
+        } else {
+            0
+        };
+    }
 }
 
 /// The items a wild Pokémon of a species may hold.
@@ -109,6 +440,22 @@ impl HeldItems {
     }
 }
 
+/// Adds `extra` to `list` in the order the original randomizer's hash set
+/// hands them out.
+fn add_evolutions(from: usize, list: &mut Vec<Evolution>, mut extra: Vec<Evolution>) {
+    let mut unique: Vec<Evolution> = Vec::new();
+    for e in extra.drain(..) {
+        if !unique.iter().any(|u| u.method == e.method && u.to == e.to) {
+            unique.push(e);
+        }
+    }
+    unique.sort_by_key(|e| {
+        let hash = 31 * (31 * (31 + from as u32) + u32::from(e.to)) + method::rank(e.method);
+        (hash ^ (hash >> 16)) & 15
+    });
+    list.extend(unique);
+}
+
 impl Evolution {
     /// The evolutions of a species the randomizer works with: those with
     /// a method it knows, each target once per method.
@@ -122,7 +469,7 @@ impl Evolution {
                 to: word(data, at + 4),
             };
             let known = (1..=EVOLUTION_METHODS).contains(&evolution.method)
-                && evolution.method != METHOD_BEAUTY
+                && evolution.method != method::BEAUTY
                 && evolution.to >= 1;
             let twice = list
                 .iter()
@@ -155,6 +502,130 @@ impl Evolution {
 pub struct Species {
     pub items: HeldItems,
     pub evolutions: Vec<Evolution>,
+    pub abilities: [u8; 3],
+    /// For a form with stats of its own: its species and which of the
+    /// species' forms it is. Both are 0 for a species.
+    pub base: usize,
+    pub form: u16,
+    /// How many forms a species has that only look different.
+    pub looks: u8,
+    /// A form with stats of its own that still only looks different.
+    pub looks_only: bool,
+}
+
+/// Evolutions that need a trade become possible alone.
+fn remove_impossible(all: &mut [Species]) {
+    for (number, species) in all.iter_mut().enumerate() {
+        let mut extra = Vec::new();
+        for evolution in &mut species.evolutions {
+            match evolution.method {
+                method::TRADE => {
+                    evolution.method = method::LEVEL;
+                    evolution.extra = 37;
+                }
+                method::TRADE_ITEM if number == SLOWPOKE => {
+                    evolution.method = method::STONE;
+                    evolution.extra = WATER_STONE;
+                }
+                method::TRADE_ITEM => {
+                    evolution.method = method::LEVEL_ITEM_DAY;
+                    extra.push(Evolution {
+                        method: method::LEVEL_ITEM_NIGHT,
+                        ..*evolution
+                    });
+                }
+                method::TRADE_SPECIAL => {
+                    evolution.method = method::LEVEL_WITH_OTHER;
+                    evolution.extra = if number == usize::from(KARRABLAST) {
+                        SHELMET
+                    } else {
+                        KARRABLAST
+                    };
+                }
+                _ => {}
+            }
+        }
+        add_evolutions(number, &mut species.evolutions, extra);
+    }
+}
+
+/// Evolutions at a high level happen earlier, and with wild Pokémon
+/// randomized none needs a certain other Pokémon in the party.
+fn condense_levels(all: &mut [Species], random_wild: bool) {
+    let later: Vec<bool> = (all.iter()).map(|s| !s.evolutions.is_empty()).collect();
+    for species in all.iter_mut().take(SPECIES + 1) {
+        for evolution in &mut species.evolutions {
+            if method::AT_LEVEL.contains(&evolution.method) {
+                let again = later.get(usize::from(evolution.to)) == Some(&true);
+                if evolution.extra > 30 && again {
+                    evolution.extra = 30;
+                } else if evolution.extra > 40 {
+                    evolution.extra = 40;
+                }
+            }
+        }
+    }
+    if random_wild {
+        // The partner may not be found in the wild any more.
+        for evolution in all.iter_mut().flat_map(|s| &mut s.evolutions) {
+            if evolution.method == method::LEVEL_WITH_OTHER {
+                evolution.method = method::LEVEL;
+                evolution.extra = 35;
+            }
+        }
+    }
+}
+
+/// Evolutions bound to day or night get a twin for the other half.
+fn remove_time_based(all: &mut [Species]) {
+    for (number, species) in all.iter_mut().enumerate() {
+        let mut extra = Vec::new();
+        let has = |list: &[Evolution], method: u16, item: u16| {
+            list.iter().any(|e| e.method == method && e.extra == item)
+        };
+        for i in 0..species.evolutions.len() {
+            let evolution = species.evolutions[i];
+            let (other, stone) = match evolution.method {
+                method::HAPPINESS_DAY => (method::HAPPINESS_NIGHT, SUN_STONE),
+                method::HAPPINESS_NIGHT => (method::HAPPINESS_DAY, MOON_STONE),
+                method::LEVEL_ITEM_DAY => (method::LEVEL_ITEM_NIGHT, 0),
+                method::LEVEL_ITEM_NIGHT => (method::LEVEL_ITEM_DAY, 0),
+                _ => continue,
+            };
+            if stone == 0 {
+                if !has(&species.evolutions, other, evolution.extra) {
+                    extra.push(Evolution {
+                        method: other,
+                        ..evolution
+                    });
+                }
+            } else if number == EEVEE {
+                species.evolutions[i].method = method::STONE;
+                species.evolutions[i].extra = stone;
+            } else {
+                extra.push(Evolution {
+                    method: other,
+                    extra: 0,
+                    to: evolution.to,
+                });
+            }
+        }
+        add_evolutions(number, &mut species.evolutions, extra);
+    }
+}
+
+/// Lets a species learn every HM. Bits past the last HM are cleared, as
+/// the original randomizer's list of machines ends there.
+fn full_hms(stats: &mut [u8]) {
+    let machines = &mut stats[MACHINES..MACHINES + MACHINES_LEN];
+    for bit in 0..MACHINES_LEN * 8 {
+        let mask = 1 << (bit % 8);
+        if bit >= TMS + HMS {
+            machines[bit / 8] &= !mask;
+        } else if bit >= TMS {
+            machines[bit / 8] |= mask;
+        }
+    }
 }
 
 /// A ROM opened for randomizing.
@@ -168,7 +639,20 @@ pub struct Game<'a> {
     moves: Vec<Vec<u8>>,
     /// By number, from 1; the forms follow the species. Entry 0 is unused.
     pub species: Vec<Species>,
+    /// The three starters, once they are chosen anew.
+    pub starters: Option<[u16; 3]>,
+    /// The items random choices may give: all of them, and the good ones.
+    items: Items,
+    good_items: Items,
+    /// Decides between the ways a trainer's Pokémon may evolve; drawn
+    /// once when first needed.
+    evolution_turn: Option<usize>,
+    /// The game code, which tells version and language.
+    code: [u8; 4],
     pub random: JavaRandom,
+    /// The random numbers for what changes nothing about the game but
+    /// looks and names; the original keeps these apart.
+    pub looks_random: JavaRandom,
 }
 
 fn layout(what: &'static str) -> RomError {
@@ -208,14 +692,46 @@ impl<'a> Game<'a> {
                 number
             };
             let data = &stats[file];
-            if data.len() < DARK_GRASS_ITEM + 2 {
+            if data.len() < MACHINES + MACHINES_LEN || data.len() <= FORM_COUNT {
                 return Err(layout("species data"));
             }
             let items = HeldItems::read(data);
+            let mut looks = 0;
+            let mut looks_only = false;
+            if data[FORM_COUNT] > 1 {
+                if word(data, FIRST_FORM) != 0 {
+                    if number == KELDEO {
+                        looks = data[FORM_COUNT];
+                    }
+                } else {
+                    if number < SPECIES && !NO_LOOKS.contains(&number) {
+                        looks = data[FORM_COUNT];
+                    }
+                    looks_only = number == LOOKS_ONLY_FORM;
+                }
+            }
             species.push(Species {
                 items,
                 evolutions: Vec::new(),
+                abilities: [data[ABILITIES], data[ABILITIES + 1], data[ABILITIES + 2]],
+                base: 0,
+                form: 0,
+                looks,
+                looks_only,
             });
+        }
+        for (number, data) in stats.iter().enumerate().take(SPECIES + 1).skip(1) {
+            let first = usize::from(word(data, FIRST_FORM));
+            if data[FORM_COUNT] > 1 && first != 0 {
+                for form in 1..data[FORM_COUNT] {
+                    let file = first + usize::from(form) - 1;
+                    let entry = file.checked_sub(FORM_OFFSET).filter(|n| *n > SPECIES);
+                    let entry = entry.and_then(|n| species.get_mut(n));
+                    let entry = entry.ok_or(layout("forms"))?;
+                    entry.base = number;
+                    entry.form = u16::from(form);
+                }
+            }
         }
         for number in 1..=SPECIES {
             let data = &evolutions[number];
@@ -232,9 +748,265 @@ impl<'a> Game<'a> {
             moves: Self::narc(&nds, MOVES)?,
             stats,
             species,
+            starters: None,
+            items: Items::new(false),
+            good_items: Items::new(true),
+            evolution_turn: None,
+            code: [rom[12], rom[13], rom[14], rom[15]],
             random: JavaRandom::new(seed),
+            looks_random: JavaRandom::new(seed),
             nds,
         })
+    }
+
+    /// Keeps the Lucky Egg out of every random choice of items.
+    pub fn ban_lucky_egg(&mut self) {
+        self.items.ban(LUCKY_EGG);
+        self.good_items.ban(LUCKY_EGG);
+    }
+
+    /// Switches the national Pokédex on together with the Pokédex. The
+    /// original randomizer does this with a patch that replaces most of
+    /// the script; this puts the same two instructions in and moves the
+    /// jumps across them, which gives the same script.
+    pub fn national_dex_at_start(&mut self) -> Result<(), RomError> {
+        let script = self.scripts.get_mut(DEX_SCRIPT).ok_or(layout("script"))?;
+        if script.len() != DEX_SCRIPT_LEN {
+            return Err(layout("script of the Pokédex"));
+        }
+        let moved =
+            |at: usize| at + DEX_INSERTS.iter().filter(|(place, _)| *place < at).count() * 2;
+        for at in DEX_JUMPS {
+            let jump =
+                i32::from_le_bytes([script[at], script[at + 1], script[at + 2], script[at + 3]]);
+            let target = (at as i32 + 4 + jump) as usize;
+            let jump = moved(target) as i32 - moved(at) as i32 - 4;
+            script[at..at + 4].copy_from_slice(&jump.to_le_bytes());
+        }
+        for (place, bytes) in DEX_INSERTS.iter().rev() {
+            script.splice(place..place, *bytes);
+        }
+        Ok(())
+    }
+
+    /// Ghost and Dark hit Steel normally, as in later games.
+    pub fn update_type_effectiveness(&mut self) -> Result<(), RomError> {
+        let mut code = self.nds.overlay(BATTLE_OVERLAY).ok_or(layout("overlay"))?;
+        let table =
+            find(&code, &TYPE_TABLE).filter(|at| at + TYPE_COUNT * TYPE_COUNT <= code.len());
+        if let Some(table) = table {
+            code[table + GHOST * TYPE_COUNT + STEEL] = NORMAL_DAMAGE;
+            code[table + DARK * TYPE_COUNT + STEEL] = NORMAL_DAMAGE;
+            self.nds.set_overlay(BATTLE_OVERLAY, &code);
+        }
+        Ok(())
+    }
+
+    /// Wild Pokémon hold random items, with `good` only useful ones.
+    pub fn randomize_wild_held_items(&mut self, good: bool) {
+        let items = if good { &self.good_items } else { &self.items };
+        random_held_items(&mut self.species, items, &mut self.random);
+    }
+
+    /// Evolutions that need a trade become possible alone.
+    pub fn remove_impossible_evolutions(&mut self) {
+        remove_impossible(&mut self.species);
+    }
+
+    /// Lower levels and less happiness for evolutions.
+    pub fn make_evolutions_easier(&mut self, random_wild: bool) {
+        condense_levels(&mut self.species, random_wild);
+        if let Some(at) = find(&self.arm9, &HAPPINESS_MARK) {
+            for place in [at, at + 20, at + 38] {
+                if self.arm9.get(place) == Some(&220) {
+                    self.arm9[place] = 160;
+                }
+            }
+        }
+    }
+
+    /// Evolutions bound to day or night get a twin for the other half.
+    pub fn remove_time_based_evolutions(&mut self) {
+        remove_time_based(&mut self.species);
+    }
+
+    /// Chooses three different random Pokémon as starters.
+    pub fn randomize_starters(&mut self) -> Result<(), RomError> {
+        let mut picked: Vec<u16> = Vec::with_capacity(3);
+        while picked.len() < 3 {
+            let species = 1 + self.random.index(SPECIES) as u16;
+            if !picked.contains(&species) {
+                picked.push(species);
+            }
+        }
+        self.set_starters([picked[0], picked[1], picked[2]])
+    }
+
+    /// Puts `starters` where the game hands out the first Pokémon: into
+    /// the script, the pictures, the cries and the text of the choice.
+    pub fn set_starters(&mut self, starters: [u16; 3]) -> Result<(), RomError> {
+        let japanese = self.code[3] == b'J';
+        let script = self
+            .scripts
+            .get_mut(STARTER_SCRIPT)
+            .ok_or(layout("script"))?;
+        if script.len() < STARTER_PLACES[2][2] + 2 {
+            return Err(layout("script"));
+        }
+        for (places, starter) in STARTER_PLACES.iter().zip(starters) {
+            for &place in places {
+                set_word(script, place, starter);
+            }
+        }
+        // Without the first starter the game would not hand out the
+        // Pokédex, so that part moves behind the script.
+        if let Some(at) = find(script, &POKEDEX_MARK) {
+            let end = script.len();
+            script.extend_from_slice(&POKEDEX_SCRIPT);
+            if japanese {
+                script[end + 6] -= 4;
+            }
+            script[at] = 0x1E;
+            script[at + 1] = 0;
+            let jump = (end as u32).wrapping_sub(at as u32 + 6);
+            script[at + 2..at + 6].copy_from_slice(&jump.to_le_bytes());
+        }
+
+        let mut shown = Self::narc(&self.nds, STARTER_PICTURES)?;
+        let pictures = Self::narc(&self.nds, PICTURES)?;
+        if shown.len() < 15 {
+            return Err(layout(STARTER_PICTURES));
+        }
+        for (i, &starter) in starters.iter().enumerate() {
+            let first = usize::from(starter) * PICTURES_EACH;
+            let palette = pictures.get(first + PICTURE_PALETTE);
+            let picture = pictures.get(first).and_then(|packed| lz::decode(packed));
+            let (Some(palette), Some(picture)) = (palette, picture) else {
+                return Err(layout(PICTURES));
+            };
+            shown[i * 2] = palette.clone();
+            shown[12 + i] = picture;
+        }
+        self.put_narc(STARTER_PICTURES, &shown)?;
+
+        let mut code = self
+            .nds
+            .overlay(STARTER_CRY_OVERLAY)
+            .ok_or(layout("overlay"))?;
+        let cries = find(&code, &STARTER_CRIES).map(|at| at + STARTER_CRIES.len());
+        if let Some(at) = cries.filter(|&at| at + 6 <= code.len()) {
+            for (i, &starter) in starters.iter().enumerate() {
+                set_word(&mut code, at + i * 2, starter);
+            }
+            self.nds.set_overlay(STARTER_CRY_OVERLAY, &code);
+        }
+
+        let names = self
+            .strings
+            .get(SPECIES_NAMES)
+            .and_then(|file| Text::read(file));
+        let names = names.ok_or(layout("text"))?;
+        let file = self.story.get(STARTER_TEXT).ok_or(layout("text"))?;
+        let mut text = Text::read(file).ok_or(layout("text"))?;
+        if text.lines.len() <= RIVAL_LINE {
+            return Err(layout("text"));
+        }
+        const NAME: [u16; 3] = [0xF000, 0xBD02, 0];
+        const WAIT: [u16; 3] = [0xF000, 0xBE01, 0];
+        const BREAK: u16 = 0xFFFE;
+        for (i, &starter) in starters.iter().enumerate() {
+            let kind = self.stats[usize::from(starter)][FIRST_TYPE];
+            let kind = TYPES.get(usize::from(kind)).ok_or(layout("type"))?;
+            let name = names
+                .lines
+                .get(usize::from(starter))
+                .ok_or(layout("text"))?;
+            let mut line = NAME.to_vec();
+            line.extend(chars(&format!("The {kind}-type Pok\u{e9}mon")));
+            line.push(BREAK);
+            line.extend(NAME);
+            line.extend(name);
+            text.lines[STARTER_LINE - i] = line;
+        }
+        let mut line = vec![0xF000, 0x0100, 1, 1];
+        line.extend(chars(": Let's see how good"));
+        line.push(BREAK);
+        line.extend(chars("a Trainer you are!"));
+        line.extend(WAIT);
+        line.push(BREAK);
+        line.extend(chars("I'll use my Pok\u{e9}mon"));
+        line.push(BREAK);
+        line.extend(chars("that I raised from an Egg!"));
+        line.extend(WAIT);
+        text.lines[RIVAL_LINE] = line;
+        self.story[STARTER_TEXT] = text.write(file).ok_or(layout("text"))?;
+        self.starters = Some(starters);
+        Ok(())
+    }
+
+    /// The moves of the TMs and of the HMs.
+    fn machine_moves(&self) -> Option<(Vec<u16>, Vec<u16>)> {
+        let at = find(&self.arm9, &MACHINE_MOVES)? + MACHINE_MOVES.len();
+        let words = self.arm9.get(at..at + (TMS + HMS) * 2)?;
+        let mut moves: Vec<u16> = words.chunks(2).map(|w| word(w, 0)).collect();
+        let hms = moves.drain(FIRST_TMS..FIRST_TMS + HMS).collect();
+        Some((moves, hms))
+    }
+
+    /// The move tutors teach random moves no TM or HM teaches.
+    pub fn randomize_tutor_moves(&mut self) -> Result<(), RomError> {
+        let place = TUTOR_PLACES.iter().find(|(code, _)| **code == self.code);
+        let &(_, place) = place.ok_or(layout("move tutors"))?;
+        let mut code = self.nds.overlay(TUTOR_OVERLAY).ok_or(layout("overlay"))?;
+        if code.len() < place + TUTORS * TUTOR_LEN {
+            return Err(layout("move tutors"));
+        }
+        let (tms, hms) = self.machine_moves().unwrap_or_default();
+        let mut usable: Vec<u16> = (1..=MOVES_COUNT as u16)
+            .filter(|m| *m != STRUGGLE && !tms.contains(m) && !hms.contains(m))
+            .collect();
+        let mut picked = Vec::with_capacity(TUTORS);
+        for _ in 0..TUTORS {
+            picked.push(usable.remove(self.random.index(usable.len())));
+        }
+        self.random.shuffle(&mut picked);
+        for (i, &chosen) in picked.iter().enumerate() {
+            set_word(&mut code, place + i * TUTOR_LEN, chosen);
+        }
+        self.nds.set_overlay(TUTOR_OVERLAY, &code);
+        Ok(())
+    }
+
+    /// Every Pokémon can learn every HM.
+    pub fn full_hm_compatibility(&mut self) {
+        for number in 1..=SPECIES + FORMS {
+            full_hms(&mut self.stats[Self::stats_file(number)]);
+        }
+        // A form that only looks different learns what its species learns.
+        let file = Self::stats_file(LOOKS_ONLY_FORM);
+        let form = &self.stats[file];
+        if form[FORM_COUNT] > 1 && word(form, FIRST_FORM) == 0 {
+            let base = (1..=SPECIES).find(|&number| {
+                let stats = &self.stats[number];
+                let first = usize::from(word(stats, FIRST_FORM));
+                let forms = usize::from(stats[FORM_COUNT]);
+                first != 0 && (first..first + forms.saturating_sub(1)).contains(&file)
+            });
+            if let Some(base) = base {
+                let machines = MACHINES..MACHINES + MACHINES_LEN;
+                let learns = self.stats[base][machines.clone()].to_vec();
+                self.stats[file][machines].copy_from_slice(&learns);
+            }
+        }
+    }
+
+    /// The file with the stats of a species or form.
+    fn stats_file(number: usize) -> usize {
+        if number > SPECIES {
+            number + FORM_OFFSET
+        } else {
+            number
+        }
     }
 
     /// Writes `value` into overlay `overlay`, `skip` bytes after the first
@@ -247,10 +1019,7 @@ impl<'a> Game<'a> {
         value: u16,
     ) -> Result<(), RomError> {
         let mut code = self.nds.overlay(overlay).ok_or(layout("overlay"))?;
-        let found = code
-            .windows(mark.len())
-            .position(|w| w == mark)
-            .filter(|&at| at > 0 && at + skip + 2 <= code.len());
+        let found = find(&code, mark).filter(|&at| at + skip + 2 <= code.len());
         if let Some(at) = found {
             set_word(&mut code, at + skip, value);
             self.nds.set_overlay(overlay, &code);
@@ -310,10 +1079,84 @@ impl<'a> Game<'a> {
     }
 }
 
-/// Randomizes `rom` with `seed`. So far nothing but the Pokémon of the
-/// introduction is random.
-pub fn randomize(rom: &[u8], seed: i64) -> Result<Vec<u8>, RomError> {
+/// Whether `rom`, or just its first bytes, is a game whose randomization
+/// was compared with the original randomizer's, byte for byte. So far that
+/// is the German Black 2; the others are built from the same tables but
+/// nobody has checked them.
+pub fn verified(rom: &[u8]) -> bool {
+    const VERIFIED: [&[u8]; 1] = [b"IRED"];
+    rom.get(12..16).is_some_and(|code| VERIFIED.contains(&code))
+}
+
+/// Randomizes `rom` with `seed`, in the original randomizer's order of
+/// steps. Only the steps of [`Options`] are built so far.
+pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, RomError> {
     let mut game = Game::load(rom, seed)?;
+    if options.ban_lucky_egg {
+        game.ban_lucky_egg();
+    }
+    if options.national_dex {
+        game.national_dex_at_start()?;
+    }
+    if options.update_type_effectiveness {
+        game.update_type_effectiveness()?;
+    }
+    if options.random_wild_held_items {
+        game.randomize_wild_held_items(options.good_wild_held_items);
+    }
+    if options.change_impossible_evolutions {
+        game.remove_impossible_evolutions();
+    }
+    if options.easier_evolutions {
+        game.make_evolutions_easier(options.random_wild);
+    }
+    if options.no_time_evolutions {
+        game.remove_time_based_evolutions();
+    }
+    if options.random_starters {
+        game.randomize_starters()?;
+    }
+    if options.full_hm {
+        game.full_hm_compatibility();
+    }
+    if options.random_tutor_moves {
+        game.randomize_tutor_moves()?;
+    }
+    if options.random_trainers {
+        game.randomize_trainers(options.trainer_forms)?;
+    }
+    if options.rival_carries_starter && (options.random_trainers || options.random_starters) {
+        game.rival_carries_starter()?;
+    }
+    if options.trainers_fully_evolved_from > 0 {
+        game.force_fully_evolved(options.trainers_fully_evolved_from)?;
+    }
+    if options.random_trainer_names {
+        game.randomize_trainer_names()?;
+    }
+    if options.random_statics {
+        game.randomize_statics()?;
+    }
+    if options.random_wild {
+        game.randomize_wild(options.wild_forms)?;
+    }
+    if options.random_trades {
+        game.randomize_trades(
+            options.trades_want_random,
+            options.random_trade_nicknames,
+            options.random_trade_ivs,
+            options.random_trade_items,
+        )?;
+    }
+    if options.random_field_items {
+        game.randomize_field_items(options.good_field_items)?;
+    }
+    if options.random_shops {
+        game.randomize_shops(options.good_shop_items)?;
+    }
+    if options.random_pickup {
+        game.randomize_pickup(options.good_pickup_items)?;
+    }
     game.randomize_intro()?;
     game.save()
 }
@@ -355,7 +1198,7 @@ mod tests {
     fn unknown_and_doubled_evolutions_are_dropped() {
         let mut data = vec![0u8; EVOLUTION_LEN * EVOLUTION_SLOTS];
         let slots = [
-            (METHOD_BEAUTY, 170, 350),
+            (method::BEAUTY, 170, 350),
             (6, 537, 350),
             (6, 99, 350),
             (28, 1, 2),
@@ -378,6 +1221,188 @@ mod tests {
         Evolution::write(&list, &mut data);
         assert_eq!(&data[..6], &[6, 0, 0x19, 2, 0x5E, 1]);
         assert!(data[6..].iter().all(|&b| b == 0));
+    }
+
+    /// Method, extra and target of an evolution.
+    type Evo = (u16, u16, u16);
+
+    fn species(list: &[(usize, &[Evo])]) -> Vec<Species> {
+        let none = Species {
+            items: HeldItems::read(&[0; 20]),
+            evolutions: Vec::new(),
+            abilities: [1, 0, 0],
+            base: 0,
+            form: 0,
+            looks: 0,
+            looks_only: false,
+        };
+        let mut all = vec![none; SPECIES + FORMS + 1];
+        for (number, evolutions) in list {
+            all[*number].evolutions = (evolutions.iter())
+                .map(|&(method, extra, to)| Evolution { method, extra, to })
+                .collect();
+        }
+        all
+    }
+
+    fn of(all: &[Species], number: usize) -> Vec<Evo> {
+        (all[number].evolutions.iter())
+            .map(|e| (e.method, e.extra, e.to))
+            .collect()
+    }
+
+    #[test]
+    fn trades_become_evolutions_for_one_player() {
+        let mut all = species(&[
+            (64, &[(method::TRADE, 0, 65)]),
+            (
+                SLOWPOKE,
+                &[(method::LEVEL, 37, 80), (method::TRADE_ITEM, 221, 199)],
+            ),
+            (
+                366,
+                &[
+                    (method::TRADE_ITEM, 226, 367),
+                    (method::TRADE_ITEM, 227, 368),
+                ],
+            ),
+            (588, &[(method::TRADE_SPECIAL, 0, 589)]),
+            (616, &[(method::TRADE_SPECIAL, 0, 617)]),
+        ]);
+        remove_impossible(&mut all);
+        assert_eq!(of(&all, 64), [(method::LEVEL, 37, 65)]);
+        assert_eq!(of(&all, SLOWPOKE)[1], (method::STONE, WATER_STONE, 199));
+        // Holding the item by day, and a twin for the night.
+        assert_eq!(
+            of(&all, 366),
+            [
+                (method::LEVEL_ITEM_DAY, 226, 367),
+                (method::LEVEL_ITEM_DAY, 227, 368),
+                (method::LEVEL_ITEM_NIGHT, 226, 367),
+                (method::LEVEL_ITEM_NIGHT, 227, 368),
+            ]
+        );
+        assert_eq!(of(&all, 588), [(method::LEVEL_WITH_OTHER, SHELMET, 589)]);
+        assert_eq!(of(&all, 616), [(method::LEVEL_WITH_OTHER, KARRABLAST, 617)]);
+    }
+
+    #[test]
+    fn high_levels_come_down() {
+        let mut all = species(&[
+            (633, &[(method::LEVEL, 50, 634)]),
+            (634, &[(method::LEVEL, 64, 635)]),
+            (147, &[(method::LEVEL, 30, 148)]),
+            (588, &[(method::LEVEL_WITH_OTHER, SHELMET, 589)]),
+        ]);
+        condense_levels(&mut all, false);
+        // 30 at most on the way to a further evolution, 40 for the last.
+        assert_eq!(of(&all, 633), [(method::LEVEL, 30, 634)]);
+        assert_eq!(of(&all, 634), [(method::LEVEL, 40, 635)]);
+        assert_eq!(of(&all, 147), [(method::LEVEL, 30, 148)]);
+        assert_eq!(of(&all, 588), [(method::LEVEL_WITH_OTHER, SHELMET, 589)]);
+        condense_levels(&mut all, true);
+        assert_eq!(of(&all, 588), [(method::LEVEL, 35, 589)]);
+    }
+
+    #[test]
+    fn day_and_night_evolutions_get_a_twin() {
+        let mut all = species(&[
+            (
+                EEVEE,
+                &[
+                    (method::HAPPINESS_DAY, 0, 196),
+                    (method::HAPPINESS_NIGHT, 0, 197),
+                ],
+            ),
+            (447, &[(method::HAPPINESS_DAY, 0, 448)]),
+            (207, &[(method::LEVEL_ITEM_NIGHT, 327, 472)]),
+            (
+                366,
+                &[
+                    (method::LEVEL_ITEM_DAY, 226, 367),
+                    (method::LEVEL_ITEM_NIGHT, 226, 367),
+                ],
+            ),
+        ]);
+        remove_time_based(&mut all);
+        assert_eq!(
+            of(&all, EEVEE),
+            [
+                (method::STONE, SUN_STONE, 196),
+                (method::STONE, MOON_STONE, 197)
+            ]
+        );
+        assert_eq!(
+            of(&all, 447),
+            [
+                (method::HAPPINESS_DAY, 0, 448),
+                (method::HAPPINESS_NIGHT, 0, 448)
+            ]
+        );
+        assert_eq!(
+            of(&all, 207),
+            [
+                (method::LEVEL_ITEM_NIGHT, 327, 472),
+                (method::LEVEL_ITEM_DAY, 327, 472)
+            ]
+        );
+        // Both halves were there already.
+        assert_eq!(of(&all, 366).len(), 2);
+    }
+
+    #[test]
+    fn every_hm_is_learnable_and_nothing_past_them() {
+        let mut stats = vec![0u8; 76];
+        stats[MACHINES] = 0b101;
+        stats[MACHINES + 12] = 0b1110_0000;
+        full_hms(&mut stats);
+        // TMs stay, HMs 1 to 6 are bits 95 to 100.
+        assert_eq!(stats[MACHINES], 0b101);
+        assert_eq!(stats[MACHINES + 11], 0b1000_0000);
+        assert_eq!(stats[MACHINES + 12], 0b0001_1111);
+    }
+
+    #[test]
+    fn random_items_leave_out_what_nobody_may_get() {
+        let (all, mut good) = (Items::new(false), Items::new(true));
+        // No "none", no TM, no key item; the Lucky Egg until it is banned.
+        for item in [0, 328, 427, 428, 620, LAST_ITEM] {
+            assert!(!all.allowed[item], "{item}");
+        }
+        assert!(all.allowed[1] && all.allowed[580] && all.allowed[155]);
+        assert!(!good.allowed[155] && good.allowed[LUCKY_EGG]);
+        good.ban(LUCKY_EGG);
+        let mut random = JavaRandom::new(1);
+        for _ in 0..2000 {
+            let item = usize::from(good.random(&mut random));
+            assert!(good.allowed[item] && item != LUCKY_EGG);
+        }
+    }
+
+    #[test]
+    fn held_items_stay_sound() {
+        let mut all = species(&[(1, &[]), (2, &[]), (3, &[])]);
+        all[2].items.always = 5;
+        let mut random = JavaRandom::new(3);
+        for _ in 0..200 {
+            random_held_items(&mut all, &Items::new(true), &mut random);
+            for species in &all[1..] {
+                let held = species.items;
+                if held.always > 0 {
+                    assert_eq!((held.common, held.rare, held.dark_grass), (0, 0, 0));
+                } else if held.common > 0 {
+                    assert_ne!(held.common, held.rare);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_mark_is_found_only_if_it_stands_once() {
+        assert_eq!(find(&[9, 1, 2, 9], &[1, 2]), Some(1));
+        assert_eq!(find(&[9, 1, 2, 1, 2], &[1, 2]), None);
+        assert_eq!(find(&[1, 2, 9], &[1, 2]), None);
+        assert_eq!(find(&[9, 9], &[1, 2]), None);
     }
 
     #[test]
