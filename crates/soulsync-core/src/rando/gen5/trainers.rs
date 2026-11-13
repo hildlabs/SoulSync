@@ -38,6 +38,15 @@ const DARMANITAN: usize = 555;
 /// decides between them.
 const MOST_SPLIT_EVOLUTIONS: usize = 8;
 
+/// The texts with the names of the trainers, of the trainers of the
+/// tournaments and of the faces shown before big battles.
+const NAMES: usize = 382;
+const TOURNAMENT_NAMES: usize = 409;
+const FACE_NAMES: usize = 368;
+const LONGEST_NAME: usize = 10;
+/// Names many trainers share, who then still get a name each.
+const SHARED_NAMES: [&str; 6] = ["GRUNT", "EXECUTIVE", "SHADOW", "ADMIN", "GOON", "EMPLOYEE"];
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrainerPokemon {
     pub ivs: u32,
@@ -472,6 +481,78 @@ impl<'a> Game<'a> {
     }
 }
 
+/// New names for `current`: the same new name for the same old one, a
+/// pair's name for a name with an "&".
+fn new_names(current: &[Vec<u16>], random: &mut JavaRandom) -> Vec<Vec<u16>> {
+    let fitting = |list: &[&str]| -> Vec<Vec<u16>> {
+        let short = list.iter().filter(|n| n.chars().count() <= LONGEST_NAME);
+        short.map(|n| chars(n)).collect()
+    };
+    let lists = [fitting(&names::TRAINERS), fitting(&names::PAIRS)];
+    let shared = |name: &[u16]| {
+        let upper = String::from_utf16_lossy(name).to_uppercase();
+        SHARED_NAMES.contains(&upper.as_str())
+    };
+    let mut given: Vec<(&[u16], Vec<u16>)> = Vec::new();
+    let mut all = Vec::with_capacity(current.len());
+    for name in current {
+        let known = given.iter().position(|(old, _)| *old == name.as_slice());
+        if let Some(known) = known.filter(|_| !shared(name)) {
+            all.push(given[known].1.clone());
+            continue;
+        }
+        let list = &lists[usize::from(name.contains(&u16::from(b'&')))];
+        let chosen = if list.is_empty() || name.is_empty() {
+            name.clone()
+        } else {
+            list[random.index(list.len())].clone()
+        };
+        match known {
+            Some(known) => given[known].1 = chosen.clone(),
+            None => given.push((name, chosen.clone())),
+        }
+        all.push(chosen);
+    }
+    all
+}
+
+impl<'a> Game<'a> {
+    /// Trainers get random names from the lists of the original.
+    pub fn randomize_trainer_names(&mut self) -> Result<(), RomError> {
+        let read = |game: &Self, file: usize| {
+            let text = game.strings.get(file).and_then(|data| Text::read(data));
+            text.ok_or(layout("names of the trainers"))
+        };
+        let mut trainers = read(self, NAMES)?;
+        let mut tournament = read(self, TOURNAMENT_NAMES)?;
+        let mut faces = read(self, FACE_NAMES)?;
+        let named = |line: &Vec<u16>| line.first().is_some_and(|c| (65..=90).contains(c));
+        let mut current: Vec<Vec<u16>> = trainers.lines.iter().skip(1).cloned().collect();
+        current.extend(tournament.lines.iter().cloned());
+        current.extend(faces.lines.iter().filter(|l| named(l)).cloned());
+
+        let mut fresh = new_names(&current, &mut self.looks_random).into_iter();
+        for line in trainers.lines.iter_mut().skip(1) {
+            *line = fresh.next().ok_or(layout("names of the trainers"))?;
+        }
+        for line in tournament.lines.iter_mut() {
+            *line = fresh.next().ok_or(layout("names of the trainers"))?;
+        }
+        for line in faces.lines.iter_mut().filter(|l| named(l)) {
+            *line = fresh.next().ok_or(layout("names of the trainers"))?;
+        }
+        for (file, text) in [
+            (NAMES, trainers),
+            (TOURNAMENT_NAMES, tournament),
+            (FACE_NAMES, faces),
+        ] {
+            let written = text.write(&self.strings[file]);
+            self.strings[file] = written.ok_or(layout("names of the trainers"))?;
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -515,6 +596,25 @@ mod tests {
         assert_eq!(Game::starter_place(&trainer(1, &[10, 11, 12])), 2);
         assert_eq!(Game::starter_place(&trainer(1, &[12, 11, 11])), 2);
         assert_eq!(Game::starter_place(&trainer(1, &[14])), 0);
+    }
+
+    #[test]
+    fn the_same_trainer_keeps_one_new_name() {
+        let old: Vec<Vec<u16>> = ["Anna", "Tim&Tom", "Anna", "", "GRUNT", "GRUNT"]
+            .iter()
+            .map(|n| chars(n))
+            .collect();
+        let new = new_names(&old, &mut JavaRandom::new(4));
+        let text = |name: &Vec<u16>| String::from_utf16_lossy(name);
+        assert_eq!(new[0], new[2]);
+        assert!(names::TRAINERS.contains(&text(&new[0]).as_str()));
+        assert!(names::PAIRS.contains(&text(&new[1]).as_str()));
+        assert!(new[3].is_empty());
+        // Shared names are drawn anew each time.
+        let mut random = JavaRandom::new(4);
+        let grunts = new_names(&vec![chars("Grunt"); 40], &mut random);
+        assert!(grunts.iter().any(|g| *g != grunts[0]));
+        assert!(new.iter().all(|n| n.len() <= LONGEST_NAME));
     }
 
     #[test]

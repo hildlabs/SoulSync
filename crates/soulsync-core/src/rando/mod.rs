@@ -7,5 +7,6 @@
 
 pub mod gen5;
 pub mod lz;
+pub mod names;
 pub mod random;
 pub mod text;

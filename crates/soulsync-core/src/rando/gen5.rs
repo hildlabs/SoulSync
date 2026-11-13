@@ -8,9 +8,9 @@
 
 mod trainers;
 
-use super::lz;
 use super::random::JavaRandom;
 use super::text::{chars, Text};
+use super::{lz, names};
 use crate::nds::{narc_pack, narc_unpack, Nds};
 use crate::rom::RomError;
 
@@ -272,6 +272,8 @@ pub struct Options {
     pub rival_carries_starter: bool,
     /// Trainers' Pokémon from this level on are fully evolved; 0 for off.
     pub trainers_fully_evolved_from: u16,
+    /// Trainers get random names.
+    pub random_trainer_names: bool,
     /// Every Pokémon can learn every HM.
     pub full_hm: bool,
 }
@@ -621,6 +623,9 @@ pub struct Game<'a> {
     /// The game code, which tells version and language.
     code: [u8; 4],
     pub random: JavaRandom,
+    /// The random numbers for what changes nothing about the game but
+    /// looks and names; the original keeps these apart.
+    pub looks_random: JavaRandom,
 }
 
 fn layout(what: &'static str) -> RomError {
@@ -722,6 +727,7 @@ impl<'a> Game<'a> {
             evolution_turn: None,
             code: [rom[12], rom[13], rom[14], rom[15]],
             random: JavaRandom::new(seed),
+            looks_random: JavaRandom::new(seed),
             nds,
         })
     }
@@ -1088,6 +1094,9 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
     }
     if options.trainers_fully_evolved_from > 0 {
         game.force_fully_evolved(options.trainers_fully_evolved_from)?;
+    }
+    if options.random_trainer_names {
+        game.randomize_trainer_names()?;
     }
     game.randomize_intro()?;
     game.save()
