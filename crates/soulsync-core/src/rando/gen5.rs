@@ -6,6 +6,7 @@
 //! held items and evolutions the randomizer has no use for are dropped,
 //! and the code it looked at is packed anew.
 
+mod items;
 mod statics;
 mod tables;
 mod trades;
@@ -287,6 +288,9 @@ pub struct Options {
     pub random_trade_nicknames: bool,
     pub random_trade_ivs: bool,
     pub random_trade_items: bool,
+    /// Random items lie around, with `good_field_items` only useful ones.
+    pub random_field_items: bool,
+    pub good_field_items: bool,
     /// Pokémon at fixed spots are swapped, legendary for legendary.
     pub random_statics: bool,
     /// Every Pokémon can learn every HM.
@@ -1126,6 +1130,9 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
             options.random_trade_ivs,
             options.random_trade_items,
         )?;
+    }
+    if options.random_field_items {
+        game.randomize_field_items(options.good_field_items)?;
     }
     game.randomize_intro()?;
     game.save()
