@@ -47,6 +47,11 @@ const NAMES: usize = 382;
 const TOURNAMENT_NAMES: usize = 409;
 const FACE_NAMES: usize = 368;
 const LONGEST_NAME: usize = 10;
+const CLASS_NAMES: usize = 383;
+const TOURNAMENT_CLASS_NAMES: usize = 410;
+const LONGEST_CLASS_NAME: usize = 12;
+/// The kinds that are two trainers.
+const PAIR_CLASSES: [usize; 4] = [16, 63, 68, 69];
 /// Names many trainers share, who then still get a name each.
 const SHARED_NAMES: [&str; 6] = ["GRUNT", "EXECUTIVE", "SHADOW", "ADMIN", "GOON", "EMPLOYEE"];
 
@@ -77,6 +82,14 @@ pub enum Spread {
     EvenInStory,
 }
 
+/// Trainers who fight, or may fight, together with another one, by
+/// their place among all trainers: in both versions, and in each.
+const PAIRS: [usize; 30] = [
+    342, 347, 356, 374, 375, 376, 377, 494, 495, 496, 614, 615, 643, 644, 704, 705, 797, 798, 799,
+    807, 809, 513, 522, 602, 603, 788, 790, 791, 792, 793,
+];
+const PAIRS_BLACK: [usize; 4] = [521, 789, 520, 786];
+const PAIRS_WHITE: [usize; 4] = [514, 521, 519, 787];
 /// Forms that turn back by themselves.
 const NOT_KEPT: [usize; 2] = [655, 656];
 /// The four of the elite and the champion.
@@ -128,6 +141,48 @@ fn tagged(battles: &[(u8, usize)], trainer: &Trainer) -> Option<Tag> {
     let own = |&&(_, first): &&(u8, usize)| (first..first + 3).contains(&trainer.index);
     let &(battle, first) = battles.iter().find(own)?;
     Some((battle, trainer.index - first))
+}
+
+/// What kind of trainer each one is, by its place among all `count`
+/// trainers: a gym's, the elite, a group with a theme and so on. The
+/// rival's battles are told by `tagged`.
+fn tags(count: usize) -> Vec<Option<&'static str>> {
+    let mut tags = vec![None; count];
+    for (tag, members) in THEME_GROUPS {
+        for &member in members.iter().filter(|&&m| m <= count) {
+            tags[member - 1] = Some(tag).filter(|tag| !tag.is_empty());
+        }
+    }
+    tags
+}
+
+/// How much a trainer matters: the strongest get the most.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Rank {
+    Regular,
+    /// The rival, the other hero and the heads of Team Plasma.
+    Important,
+    Boss,
+}
+
+/// The rank of the trainer at `place` among all, counted from 0; none
+/// for the first battles with the rival, which stay as easy as they are.
+fn rank(tags: &[Option<&str>], place: usize, trainer: &Trainer) -> Option<Rank> {
+    let rival = tagged(&RIVAL_BATTLES, trainer).or(tagged(&FRIEND_BATTLES, trainer));
+    if let Some((battle, _)) = rival {
+        return (battle != 1).then_some(Rank::Important);
+    }
+    let tag = tags.get(place).copied().flatten().unwrap_or("");
+    let boss = ["ELITE", "CHAMPION", "UBER"]
+        .iter()
+        .any(|p| tag.starts_with(p));
+    Some(if boss || tag.ends_with("LEADER") {
+        Rank::Boss
+    } else if tag.ends_with("STRONG") {
+        Rank::Important
+    } else {
+        Rank::Regular
+    })
 }
 
 impl<'a> Game<'a> {
@@ -289,9 +344,11 @@ impl<'a> Game<'a> {
 
         let mut tournament = Self::narc(&self.nds, TOURNAMENT)?;
         let mut files = tournament.iter_mut().skip(1);
-        for _ in 0..TOURNAMENT_TRAINERS {
+        for number in 0..TOURNAMENT_TRAINERS {
             let trainer = list.next().ok_or(layout(TOURNAMENT))?;
-            for pokemon in &trainer.team {
+            // The tournament has room for a fixed number only.
+            let room = if number < 2 { 3 } else { 6 };
+            for pokemon in trainer.team.iter().take(room) {
                 let data = files.next().ok_or(layout(TOURNAMENT))?;
                 set_word(data, 0, pokemon.species as u16);
                 set_word(data, 12, pokemon.item);
@@ -330,6 +387,47 @@ impl<'a> Game<'a> {
                 return slot as u8 + 1;
             }
         }
+    }
+
+    /// Trainers get more Pokémon: copies of their weakest, put before
+    /// their last one. How many depends on the trainer's rank; nobody
+    /// has more than six, or three where two trainers fight together.
+    pub fn add_trainer_pokemon(
+        &mut self,
+        regular: u8,
+        important: u8,
+        boss: u8,
+    ) -> Result<(), RomError> {
+        let mut all = self.trainers()?;
+        let tags = tags(all.len());
+        let black = self.code[..3] == *b"IRE";
+        let pairs = if black { PAIRS_BLACK } else { PAIRS_WHITE };
+        for (place, trainer) in all.iter_mut().enumerate() {
+            let more = match rank(&tags, place, trainer) {
+                Some(Rank::Boss) => boss,
+                Some(Rank::Important) => important,
+                Some(Rank::Regular) => regular,
+                None => 0,
+            };
+            let Some(lowest) = trainer.team.iter().map(|p| p.level).min() else {
+                continue;
+            };
+            let weakest: Vec<TrainerPokemon> = (trainer.team.iter())
+                .filter(|p| p.level == lowest)
+                .cloned()
+                .collect();
+            let together = PAIRS.contains(&(place + 1)) || pairs.contains(&(place + 1));
+            let most = if together { 3 } else { 6 };
+            for i in 0..usize::from(more) {
+                if trainer.team.len() >= most {
+                    break;
+                }
+                let mut copy = weakest[i % weakest.len()].clone();
+                copy.item = 0;
+                trainer.team.insert(trainer.team.len() - 1, copy);
+            }
+        }
+        self.set_trainers(&all)
     }
 
     /// The levels of a trainer's Pokémon rise or fall by `percent`.
@@ -489,12 +587,7 @@ impl<'a> Game<'a> {
         // Themed trainers: the groups first, one type each; no two gyms
         // and no two of the elite share one.
         let mut groups: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
-        let mut tags: Vec<&str> = vec![""; all.len()];
-        for (tag, members) in THEME_GROUPS {
-            for &member in members.iter().filter(|&&m| m <= all.len()) {
-                tags[member - 1] = tag;
-            }
-        }
+        let tags = tags(all.len());
         let weights: Vec<(u8, usize)> = (TYPES_IN_ORDER.iter())
             .map(|&kind| (kind, of_type(self, kind).len()))
             .collect();
@@ -503,7 +596,7 @@ impl<'a> Game<'a> {
         let mut strongest: Vec<u8> = Vec::new();
         if how.themes != Themes::None {
             for (place, tag) in tags.iter().enumerate() {
-                let group = tag.split('-').next().unwrap_or("");
+                let group = tag.unwrap_or("").split('-').next().unwrap_or("");
                 let whole = how.themes == Themes::All
                     && (group.starts_with("CHAMPION") || group.starts_with("THEMED"));
                 if group.starts_with("GYM") || group.starts_with("ELITE") || whole {
@@ -602,7 +695,7 @@ impl<'a> Game<'a> {
             let mut kind = types.get(&index).copied();
             if kind.is_none() && how.themes == Themes::All {
                 let mut own = self.theme(weights);
-                if tags[trainer] == "UBER" {
+                if tags[trainer] == Some("UBER") {
                     while strongest.contains(&own) {
                         own = self.theme(weights);
                     }
@@ -891,6 +984,42 @@ fn new_names(current: &[Vec<u16>], random: &mut JavaRandom) -> Vec<Vec<u16>> {
 }
 
 impl<'a> Game<'a> {
+    /// The kinds of trainers get random names from the list of the
+    /// original, the same new name for the same old one.
+    pub fn randomize_trainer_class_names(&mut self) -> Result<(), RomError> {
+        let singles: Vec<Vec<u16>> = names::CLASSES.iter().map(|n| chars(n)).collect();
+        let pairs: Vec<Vec<u16>> = names::CLASS_PAIRS.iter().map(|n| chars(n)).collect();
+        let mut given: Vec<(Vec<u16>, Vec<u16>)> = Vec::new();
+        let mut number = 0;
+        for file in [CLASS_NAMES, TOURNAMENT_CLASS_NAMES] {
+            let text = self.strings.get(file).and_then(|data| Text::read(data));
+            let mut text = text.ok_or(layout("names of the trainers"))?;
+            for line in &mut text.lines {
+                let list = if PAIR_CLASSES.contains(&number) {
+                    &pairs
+                } else {
+                    &singles
+                };
+                number += 1;
+                let known = given.iter().find(|(old, _)| old == line);
+                let new = match known {
+                    Some((_, new)) => new.clone(),
+                    None => loop {
+                        let chosen = &list[self.looks_random.index(list.len())];
+                        if chosen.len() <= LONGEST_CLASS_NAME {
+                            given.push((line.clone(), chosen.clone()));
+                            break chosen.clone();
+                        }
+                    },
+                };
+                *line = new;
+            }
+            let written = text.write(&self.strings[file]);
+            self.strings[file] = written.ok_or(layout("names of the trainers"))?;
+        }
+        Ok(())
+    }
+
     /// Trainers get random names from the lists of the original.
     pub fn randomize_trainer_names(&mut self) -> Result<(), RomError> {
         let read = |game: &Self, file: usize| {
