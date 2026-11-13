@@ -98,6 +98,8 @@ fn main() {
             ..Default::default()
         },
         random_tm_moves: on("tms"),
+        tm_rules: Default::default(),
+        tutor_rules: Default::default(),
         machines: compat("tm"),
         tutors: compat("tutor"),
         national_dex: on("dex"),

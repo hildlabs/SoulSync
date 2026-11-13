@@ -403,7 +403,7 @@ impl Preset {
     pub fn native(&self) -> Option<crate::rando::gen5::Options> {
         use crate::rando::gen5::{
             AbilityRules, Change, Evolving, Movesets, Options, Spread, StaticRules, Statics, Stats,
-            Themes, TrainerItems, TrainerRules, Wild, WildRule, WildRules,
+            Taught, Themes, TrainerItems, TrainerRules, Wild, WildRule, WildRules,
         };
         // Files of 4.6.0 and 4.6.1 have the same layout; older ones the
         // randomizer rewrites first.
@@ -422,15 +422,12 @@ impl Preset {
         const TWEAKS: u32 = 1 << 7 | 1 << 8 | 1 << 12;
         let tweaks = u32::from_be_bytes([d[32], d[33], d[34], d[35]]);
         // Evolutions and moves as they are; nothing added to trainers.
-        let untouched = d[19] & !1 == 0
-            && d[20] == 0
-            && d[22] == 0
+        let untouched = d[19] & !7 == 0
             && d[25] & 0xF0 == 0
             && d[27] & (1 << 5 | 1 << 6) == 0
             && d[41] & 0xC0 == 0
             && d[0] & !(1 | 1 << 3 | 1 << 4 | 1 << 5 | 1 << 6) == 0
             && d[16] & (1 << 5 | 1 << 6) == 0
-            && d[39] & (1 << 4 | 1 << 5) == 0
             && tweaks & !TWEAKS == 0;
         if !untouched {
             return None;
@@ -510,7 +507,7 @@ impl Preset {
                 0x80 => Compat::Full,
                 _ => return None,
             };
-            match d[byte] & 0b0111_1000 {
+            match d[byte] & 0b0001_1000 {
                 0b1_0000 => Some((how, false)),
                 0b0_1000 => Some((how, true)),
                 _ => None,
@@ -518,6 +515,18 @@ impl Preset {
         };
         let (machines, random_tm_moves) = learning(TMS)?;
         let (tutors, random_tutor_moves) = learning(TUTORS)?;
+        // The rules for both: the bytes of the two are laid out alike.
+        let taught = |byte: usize, attacks: usize, broken: u8, follow: u8| Taught {
+            no_broken: bit(39, broken),
+            keep_field: bit(byte, 6),
+            good_attacks: if bit(attacks, 7) {
+                d[attacks] & 0x7F
+            } else {
+                0
+            },
+            keep_learnt: bit(byte, 5),
+            follow_evolutions: bit(19, follow),
+        };
         // Wild Pokémon: as they are, or new ones for each area, each
         // slot or the whole game; then the one rule they follow.
         let wild = match d[15] & 0b0111_0010 {
@@ -600,6 +609,8 @@ impl Preset {
             },
             random_tutor_moves,
             random_tm_moves,
+            tm_rules: taught(TMS, 20, 4, 1),
+            tutor_rules: taught(TUTORS, 22, 5, 2),
             machines,
             tutors,
             random_trainers,
@@ -759,7 +770,9 @@ fn base64_decode(text: &[u8]) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rando::gen5::{AbilityRules, StaticRules, Statics, Wild, WildRule, WildRules};
+    use crate::rando::gen5::{
+        AbilityRules, StaticRules, Statics, Taught, Wild, WildRule, WildRules,
+    };
 
     /// A real settings file for Black 2 (German), saved by randomizer 4.6.0:
     /// TM moves random, TM compatibility unchanged, full HM compatibility.
@@ -969,6 +982,31 @@ mod tests {
         let rules = able.native().unwrap().ability_rules;
         assert!(rules.wonder_guard && rules.no_trapping && rules.no_negative && rules.no_bad);
         assert!(rules.always_two && rules.alike_together);
+
+        // TMs and move tutors with every rule of their own.
+        let mut taught = preset.clone();
+        let native = taught.native().unwrap();
+        assert_eq!(native.tm_rules, Taught::default());
+        assert_eq!(native.tutor_rules, Taught::default());
+        taught.data[TMS] |= 1 << 5 | 1 << 6;
+        taught.data[19] |= 1 << 1;
+        taught.data[20] = 0x80 | 40;
+        taught.data[39] |= 1 << 4;
+        let native = taught.native().unwrap();
+        let all = Taught {
+            no_broken: true,
+            keep_field: true,
+            good_attacks: 40,
+            keep_learnt: true,
+            follow_evolutions: true,
+        };
+        assert_eq!(native.tm_rules, all);
+        assert_eq!(native.tutor_rules, Taught::default());
+        taught.data[TUTORS] |= 1 << 5 | 1 << 6;
+        taught.data[19] |= 1 << 2;
+        taught.data[22] = 0x80 | 40;
+        taught.data[39] |= 1 << 5;
+        assert_eq!(taught.native().unwrap().tutor_rules, all);
 
         let mut evolving = Overrides::default();
         evolving.set("evolutions", Value::Choice("random".into()));

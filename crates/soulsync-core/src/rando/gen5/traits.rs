@@ -80,7 +80,7 @@ pub struct AbilityRules {
 
 /// One step of going through every family from its first stage up.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Step {
+pub(super) enum Step {
     /// A species nothing evolves into, or one treated as such.
     First(usize),
     Evolved {
@@ -124,7 +124,7 @@ impl Game<'_> {
     /// The order in which the original randomizer goes through the
     /// families. Without `whole`, a species that is one of several
     /// evolutions counts as the start of a family of its own.
-    fn family_steps(&self, whole: bool) -> Vec<Step> {
+    pub(super) fn family_steps(&self, whole: bool) -> Vec<Step> {
         let count = SPECIES + FORMS;
         // What each species evolves from, and whether it takes after it.
         let mut before: Vec<Vec<(usize, bool)>> = vec![Vec::new(); count + 1];

@@ -23,7 +23,7 @@ const NO_ATTACKS: [u16; 25] = [
 /// The power a good attack has at least, all hits together.
 const GOOD_POWER: f64 = 50.0;
 /// Moves that always do the same damage, which is far too much early on.
-const BROKEN: [u16; 2] = [49, 82];
+pub(super) const BROKEN: [u16; 2] = [49, 82];
 
 /// How the moves a species learns are chosen.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -61,6 +61,16 @@ struct Taste {
 }
 
 impl Game<'_> {
+    /// Whether a move is an attack worth having: strong, or fairly
+    /// strong and accurate.
+    pub(super) fn good_attack(&self, number: u16) -> bool {
+        let data = &self.moves[usize::from(number)];
+        let power = f64::from(data[POWER]) * moves::hits(usize::from(number));
+        let accurate = data[ACCURACY] >= 90;
+        let good = power >= 2.0 * GOOD_POWER || (power >= GOOD_POWER && accurate);
+        good && !NO_ATTACKS.contains(&number)
+    }
+
     fn move_pool(&mut self, no_broken: bool) -> Result<Pool, RomError> {
         let (_, hms) = self.machine_moves().ok_or(layout("moves of the TMs"))?;
         let strength = |game: &Self, m: u16| {
@@ -80,10 +90,7 @@ impl Game<'_> {
             let place = TYPE_PLACES.get(usize::from(data[0])).copied().unwrap_or(0);
             pool.all.push(number);
             pool.of_type.entry(place).or_default().push(number);
-            let power = strength(self, number);
-            let accurate = data[ACCURACY] >= 90;
-            let good = power >= 2.0 * GOOD_POWER || (power >= GOOD_POWER && accurate);
-            if good && !NO_ATTACKS.contains(&number) {
+            if self.good_attack(number) {
                 pool.attacks.push(number);
                 pool.attacks_of_type.entry(place).or_default().push(number);
             }

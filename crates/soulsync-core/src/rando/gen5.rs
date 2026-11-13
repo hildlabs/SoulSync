@@ -21,6 +21,7 @@ mod traits;
 mod wild;
 
 pub use evolutions::Evolving;
+pub use machines::Taught;
 pub use movesets::Movesets;
 pub use statics::{StaticRules, Statics};
 pub use trainer_items::TrainerItems;
@@ -377,6 +378,10 @@ pub struct Options {
     /// of the move tutors.
     pub machines: Compat,
     pub tutors: Compat,
+    /// How the moves of the TMs and the tutors are chosen, and what
+    /// follows for who learns them.
+    pub tm_rules: Taught,
+    pub tutor_rules: Taught,
 }
 
 fn word(d: &[u8], at: usize) -> u16 {
@@ -1060,22 +1065,8 @@ impl<'a> Game<'a> {
         Some((moves, hms))
     }
 
-    /// The move tutors teach random moves no TM or HM teaches.
-    pub fn randomize_tutor_moves(&mut self) -> Result<(), RomError> {
-        let (tms, hms) = self.machine_moves().unwrap_or_default();
-        let mut usable: Vec<u16> = (1..=MOVES_COUNT as u16)
-            .filter(|m| *m != STRUGGLE && !tms.contains(m) && !hms.contains(m))
-            .collect();
-        let mut picked = Vec::with_capacity(TUTORS);
-        for _ in 0..TUTORS {
-            picked.push(usable.remove(self.random.index(usable.len())));
-        }
-        self.random.shuffle(&mut picked);
-        self.set_tutor_moves(&picked)
-    }
-
     /// Puts `picked` where the move tutors have their moves.
-    fn set_tutor_moves(&mut self, picked: &[u16]) -> Result<(), RomError> {
+    pub(super) fn set_tutor_moves(&mut self, picked: &[u16]) -> Result<(), RomError> {
         let place = TUTOR_PLACES.iter().find(|(code, _)| **code == self.code);
         let &(_, place) = place.ok_or(layout("move tutors"))?;
         let mut code = self.nds.overlay(TUTOR_OVERLAY).ok_or(layout("overlay"))?;
@@ -1254,19 +1245,25 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
         game.order_moves_by_damage()?;
     }
     if options.random_tm_moves && options.movesets != Movesets::Metronome {
-        game.randomize_tm_moves()?;
+        game.randomize_tm_moves(&options.tm_rules)?;
     }
     if options.machines != Compat::Unchanged {
-        game.change_machine_compatibility(options.machines)?;
+        game.change_machine_compatibility(options.machines, options.tm_rules.follow_evolutions)?;
+    }
+    if options.tm_rules.keep_learnt {
+        game.keep_learnt_machines(options.tm_rules.follow_evolutions)?;
     }
     if options.full_hm {
         game.full_hm_compatibility();
     }
     if options.random_tutor_moves && options.movesets != Movesets::Metronome {
-        game.randomize_tutor_moves()?;
+        game.randomize_tutor_moves(&options.tutor_rules)?;
     }
     if options.tutors != Compat::Unchanged {
-        game.change_tutor_compatibility(options.tutors)?;
+        game.change_tutor_compatibility(options.tutors, options.tutor_rules.follow_evolutions)?;
+    }
+    if options.tutor_rules.keep_learnt {
+        game.keep_learnt_tutors(options.tutor_rules.follow_evolutions)?;
     }
     let [regular, important, boss] = options.more_trainer_pokemon;
     if regular > 0 || important > 0 || boss > 0 {
