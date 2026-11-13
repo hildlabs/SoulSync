@@ -1,6 +1,6 @@
 //! Randomizes a ROM with SoulSync's own randomizer, as far as it is
 //! built: `randomize in.nds out.nds <seed> [option ...]`, with options
-//! `impossible`, `easier`, `time`, `wild` and `hm`.
+//! `impossible`, `easier`, `time`, `wild`, `starters` and `hm`.
 use soulsync_core::rando::gen5;
 
 fn main() {
@@ -15,6 +15,7 @@ fn main() {
         easier_evolutions: on("easier"),
         no_time_evolutions: on("time"),
         random_wild: on("wild"),
+        random_starters: on("starters"),
         full_hm: on("hm"),
     };
     let rom = std::fs::read(from).expect("the ROM is readable");

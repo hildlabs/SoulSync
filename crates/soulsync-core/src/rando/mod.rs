@@ -6,5 +6,6 @@
 //! same game; that is how each ported step is checked.
 
 pub mod gen5;
+pub mod lz;
 pub mod random;
 pub mod text;

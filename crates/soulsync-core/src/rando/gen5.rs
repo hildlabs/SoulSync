@@ -6,8 +6,9 @@
 //! held items and evolutions the randomizer has no use for are dropped,
 //! and the code it looked at is packed anew.
 
+use super::lz;
 use super::random::JavaRandom;
-use super::text::Text;
+use super::text::{chars, Text};
 use crate::nds::{narc_pack, narc_unpack, Nds};
 use crate::rom::RomError;
 
@@ -98,6 +99,41 @@ const SUN_STONE: u16 = 80;
 const MOON_STONE: u16 = 81;
 const WATER_STONE: u16 = 84;
 /// Before the happiness an evolution needs, three times in the ARM9.
+/// Where the three starters stand in the script of the first town.
+const STARTER_SCRIPT: usize = 854;
+const STARTER_PLACES: [[usize; 3]; 3] = [
+    [0x58B, 0x590, 0x595],
+    [0x5C0, 0x5C5, 0x5CA],
+    [0x5E2, 0x5E7, 0x5EC],
+];
+/// The place in that script that hands out the Pokédex, and the piece put
+/// behind the script so the Pokédex still comes with any starter.
+const POKEDEX_MARK: [u8; 6] = [0x28, 0x00, 0xA1, 0x40, 0x04, 0x00];
+const POKEDEX_SCRIPT: [u8; 14] = [
+    0x28, 0x00, 0xA1, 0x40, 0x04, 0x00, 0xDE, 0x00, 0x00, 0x00, 0xFD, 0x01, 0x05, 0x00,
+];
+const STARTER_PICTURES: &str = "a/2/0/2";
+const PICTURES: &str = "a/0/0/4";
+/// Files per species among the pictures; the front picture comes first.
+const PICTURES_EACH: usize = 20;
+const PICTURE_PALETTE: usize = 18;
+/// The overlay with the cries of the three starters, behind this mark.
+const STARTER_CRY_OVERLAY: usize = 316;
+const STARTER_CRIES: [u8; 8] = [0x08, 0x0A, 0x07, 0x00, 0x00, 0x08, 0x00, 0x00];
+/// The story text of the first town: the line of the first starter (the
+/// others stand before it) and what the rival says before the fight.
+const STARTER_TEXT: usize = 169;
+const STARTER_LINE: usize = 37;
+const RIVAL_LINE: usize = 60;
+/// Where a species' first type stands in its stats.
+const FIRST_TYPE: usize = 6;
+/// The types as the game numbers them, as the original randomizer names
+/// them in the starter text of every language.
+const TYPES: [&str; 17] = [
+    "Normal", "Fighting", "Flying", "Poison", "Ground", "Rock", "Bug", "Ghost", "Steel", "Fire",
+    "Water", "Grass", "Electric", "Psychic", "Ice", "Dragon", "Dark",
+];
+
 const HAPPINESS_MARK: [u8; 4] = [0xDC, 0x28, 0x2F, 0xD3];
 
 /// Where `mark` stands in `data`, if it does exactly once and not at the
@@ -123,6 +159,8 @@ pub struct Options {
     pub no_time_evolutions: bool,
     /// Wild Pokémon are randomized in some way.
     pub random_wild: bool,
+    /// Three random Pokémon to choose the first one from.
+    pub random_starters: bool,
     /// Every Pokémon can learn every HM.
     pub full_hm: bool,
 }
@@ -376,6 +414,9 @@ pub struct Game<'a> {
     moves: Vec<Vec<u8>>,
     /// By number, from 1; the forms follow the species. Entry 0 is unused.
     pub species: Vec<Species>,
+    /// The three starters, once they are chosen anew.
+    pub starters: Option<[u16; 3]>,
+    japanese: bool,
     pub random: JavaRandom,
 }
 
@@ -440,6 +481,8 @@ impl<'a> Game<'a> {
             moves: Self::narc(&nds, MOVES)?,
             stats,
             species,
+            starters: None,
+            japanese: rom.get(15) == Some(&b'J'),
             random: JavaRandom::new(seed),
             nds,
         })
@@ -465,6 +508,120 @@ impl<'a> Game<'a> {
     /// Evolutions bound to day or night get a twin for the other half.
     pub fn remove_time_based_evolutions(&mut self) {
         remove_time_based(&mut self.species);
+    }
+
+    /// Chooses three different random Pokémon as starters.
+    pub fn randomize_starters(&mut self) -> Result<(), RomError> {
+        let mut picked: Vec<u16> = Vec::with_capacity(3);
+        while picked.len() < 3 {
+            let species = 1 + self.random.index(SPECIES) as u16;
+            if !picked.contains(&species) {
+                picked.push(species);
+            }
+        }
+        self.set_starters([picked[0], picked[1], picked[2]])
+    }
+
+    /// Puts `starters` where the game hands out the first Pokémon: into
+    /// the script, the pictures, the cries and the text of the choice.
+    pub fn set_starters(&mut self, starters: [u16; 3]) -> Result<(), RomError> {
+        let japanese = self.japanese;
+        let script = self
+            .scripts
+            .get_mut(STARTER_SCRIPT)
+            .ok_or(layout("script"))?;
+        if script.len() < STARTER_PLACES[2][2] + 2 {
+            return Err(layout("script"));
+        }
+        for (places, starter) in STARTER_PLACES.iter().zip(starters) {
+            for &place in places {
+                set_word(script, place, starter);
+            }
+        }
+        // Without the first starter the game would not hand out the
+        // Pokédex, so that part moves behind the script.
+        if let Some(at) = find(script, &POKEDEX_MARK) {
+            let end = script.len();
+            script.extend_from_slice(&POKEDEX_SCRIPT);
+            if japanese {
+                script[end + 6] -= 4;
+            }
+            script[at] = 0x1E;
+            script[at + 1] = 0;
+            let jump = (end as u32).wrapping_sub(at as u32 + 6);
+            script[at + 2..at + 6].copy_from_slice(&jump.to_le_bytes());
+        }
+
+        let mut shown = Self::narc(&self.nds, STARTER_PICTURES)?;
+        let pictures = Self::narc(&self.nds, PICTURES)?;
+        if shown.len() < 15 {
+            return Err(layout(STARTER_PICTURES));
+        }
+        for (i, &starter) in starters.iter().enumerate() {
+            let first = usize::from(starter) * PICTURES_EACH;
+            let palette = pictures.get(first + PICTURE_PALETTE);
+            let picture = pictures.get(first).and_then(|packed| lz::decode(packed));
+            let (Some(palette), Some(picture)) = (palette, picture) else {
+                return Err(layout(PICTURES));
+            };
+            shown[i * 2] = palette.clone();
+            shown[12 + i] = picture;
+        }
+        self.put_narc(STARTER_PICTURES, &shown)?;
+
+        let mut code = self
+            .nds
+            .overlay(STARTER_CRY_OVERLAY)
+            .ok_or(layout("overlay"))?;
+        let cries = find(&code, &STARTER_CRIES).map(|at| at + STARTER_CRIES.len());
+        if let Some(at) = cries.filter(|&at| at + 6 <= code.len()) {
+            for (i, &starter) in starters.iter().enumerate() {
+                set_word(&mut code, at + i * 2, starter);
+            }
+            self.nds.set_overlay(STARTER_CRY_OVERLAY, &code);
+        }
+
+        let names = self
+            .strings
+            .get(SPECIES_NAMES)
+            .and_then(|file| Text::read(file));
+        let names = names.ok_or(layout("text"))?;
+        let file = self.story.get(STARTER_TEXT).ok_or(layout("text"))?;
+        let mut text = Text::read(file).ok_or(layout("text"))?;
+        if text.lines.len() <= RIVAL_LINE {
+            return Err(layout("text"));
+        }
+        const NAME: [u16; 3] = [0xF000, 0xBD02, 0];
+        const WAIT: [u16; 3] = [0xF000, 0xBE01, 0];
+        const BREAK: u16 = 0xFFFE;
+        for (i, &starter) in starters.iter().enumerate() {
+            let kind = self.stats[usize::from(starter)][FIRST_TYPE];
+            let kind = TYPES.get(usize::from(kind)).ok_or(layout("type"))?;
+            let name = names
+                .lines
+                .get(usize::from(starter))
+                .ok_or(layout("text"))?;
+            let mut line = NAME.to_vec();
+            line.extend(chars(&format!("The {kind}-type Pok\u{e9}mon")));
+            line.push(BREAK);
+            line.extend(NAME);
+            line.extend(name);
+            text.lines[STARTER_LINE - i] = line;
+        }
+        let mut line = vec![0xF000, 0x0100, 1, 1];
+        line.extend(chars(": Let's see how good"));
+        line.push(BREAK);
+        line.extend(chars("a Trainer you are!"));
+        line.extend(WAIT);
+        line.push(BREAK);
+        line.extend(chars("I'll use my Pok\u{e9}mon"));
+        line.push(BREAK);
+        line.extend(chars("that I raised from an Egg!"));
+        line.extend(WAIT);
+        text.lines[RIVAL_LINE] = line;
+        self.story[STARTER_TEXT] = text.write(file).ok_or(layout("text"))?;
+        self.starters = Some(starters);
+        Ok(())
     }
 
     /// Every Pokémon can learn every HM.
@@ -581,6 +738,9 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
     }
     if options.no_time_evolutions {
         game.remove_time_based_evolutions();
+    }
+    if options.random_starters {
+        game.randomize_starters()?;
     }
     if options.full_hm {
         game.full_hm_compatibility();
