@@ -14,7 +14,7 @@
 //! (40 percent), `nobroken` and `moveorder` for what the species learn;
 //! `evolutions` with `evostrength`, `evotype`, `evothree` and `evochange`
 //! for what they evolve into; `trainerseven`, `trainersstory`,
-//! `trainerthemes`, `trainergyms`, `trainerweights`,
+//! `trainerthemes`, `trainergyms`, `trainerweights`, `eliteunique` (two),
 //! `trainerstrength`, `trainernolegends`, `trainernoguard` and
 //! `trainerlevels` (20 percent up) for the trainers.
 use soulsync_core::rando::gen5;
@@ -131,6 +131,7 @@ fn main() {
             no_legendaries: on("trainernolegends"),
             no_early_wonder_guard: on("trainernoguard"),
             levels: if on("trainerlevels") { 20 } else { 0 },
+            elite_unique: if on("eliteunique") { 2 } else { 0 },
         },
         trainer_forms: on("forms"),
         rival_carries_starter: on("rival"),
