@@ -80,6 +80,7 @@ fn main() {
             same_type: on("evotype"),
             three_stages: on("evothree"),
             force_change: on("evochange"),
+            every_level: false,
         }),
         stats: if on("statsshuffle") {
             gen5::Stats::Shuffle

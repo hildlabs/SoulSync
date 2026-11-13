@@ -1342,7 +1342,8 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
         game.force_fully_evolved(options.trainers_fully_evolved_from)?;
     }
     if options.better_trainer_moves {
-        game.pick_trainer_moves(false, options.double_battles)?;
+        let cyclic = options.random_evolutions.is_some_and(|e| e.every_level);
+        game.pick_trainer_moves(cyclic, options.double_battles)?;
     }
     if options.trainer_items.any() {
         game.randomize_trainer_items(&options.trainer_items)?;

@@ -459,10 +459,7 @@ echo "$3|$6|$8" > "${10}"; echo log > "${10}.log""#,
 
         // Settings with something that is not built go to the original.
         let mut other = Overrides::default();
-        other.set(
-            "evolutions",
-            soulsync_core::rnqs::Value::Choice("random_every_level".into()),
-        );
+        other.set("update_moves", soulsync_core::rnqs::Value::Flag(true));
         plan.overrides = other;
         assert_eq!(own(&plan), None);
         plan.overrides = Overrides::default();

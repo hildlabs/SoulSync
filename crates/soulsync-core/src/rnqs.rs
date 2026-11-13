@@ -466,6 +466,13 @@ impl Preset {
                 same_type: bit(26, 3),
                 three_stages: bit(26, 4),
                 force_change: bit(26, 5),
+                every_level: false,
+            }),
+            0x80 => Some(Evolving {
+                same_type: bit(26, 3),
+                force_change: bit(26, 5),
+                every_level: true,
+                ..Evolving::default()
             }),
             _ => return None,
         };
@@ -554,6 +561,13 @@ impl Preset {
             (true, 0) => return None,
             (true, level) => level as u16,
         };
+        // With evolutions at every level the families go in circles, and
+        // what follows evolutions never ends, in the original neither.
+        let circles = random_evolutions.is_some_and(|e| e.every_level);
+        let follows = bit(1, 0) || abilities == Change::FollowEvolutions || d[19] & 6 != 0;
+        if circles && follows {
+            return None;
+        }
         Some(Options {
             random_evolutions,
             movesets,
@@ -1052,6 +1066,13 @@ mod tests {
         // Other forms are nothing the game can evolve into.
         evolving.data[26] |= 1 << 6;
         assert_eq!(evolving.native(), None);
+        // At every level: only the type and the change count.
+        evolving.data[26] = 0x80 | 1 << 3 | 1 << 4;
+        let how = evolving.native().unwrap().random_evolutions.unwrap();
+        assert!(how.every_level && how.same_type && !how.three_stages);
+        // What follows evolutions would go in circles then.
+        evolving.data[19] |= 1 << 1;
+        assert_eq!(evolving.native(), None);
 
         let mut tms = Overrides::default();
         tms.set("tm", Value::Choice("full".into()));
@@ -1070,7 +1091,6 @@ mod tests {
         let file = include_bytes!("../../soulsync-server/presets/soul-link.rnqs");
         let preset = Preset::read(file).unwrap();
         for (id, value) in [
-            ("evolutions", Value::Choice("random_every_level".into())),
             ("update_base_stats", Value::Flag(true)),
             ("shops", Value::Choice("shuffle".into())),
             ("update_moves", Value::Flag(true)),
