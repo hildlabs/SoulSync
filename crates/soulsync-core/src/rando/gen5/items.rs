@@ -1,4 +1,5 @@
-//! Items lying around: the ones in item balls and the hidden ones.
+//! Items lying around (in item balls and hidden), the goods of the
+//! shops and what the ability Pickup finds.
 
 use super::*;
 
@@ -19,6 +20,17 @@ const NEEDED_TMS: [u16; 39] = [
     1, 2, 3, 5, 6, 12, 13, 19, 22, 26, 28, 29, 30, 36, 39, 41, 46, 47, 50, 52, 53, 56, 58, 61, 63,
     65, 66, 67, 69, 71, 80, 81, 84, 85, 86, 90, 91, 92, 93,
 ];
+
+/// The goods of each shop, one file per shop. The shops that sell the
+/// usual goods and those for TMs keep theirs.
+const SHOPS: &str = "a/2/8/2";
+const SHOP_COUNT: usize = 32;
+const KEPT_SHOPS: [usize; 11] = [0, 1, 2, 3, 4, 5, 7, 10, 12, 17, 24];
+/// The overlay with the items Pickup finds, where they start and how
+/// many there are.
+const PICKUP_OVERLAY: usize = 166;
+const PICKUP_MARK: [u8; 6] = [0x19, 0x00, 0x5C, 0x00, 0xDD, 0x00];
+const PICKUP_ITEMS: usize = 29;
 
 fn is_tm(item: u16) -> bool {
     (FIRST_TM..FIRST_TM + TMS_BEFORE_93).contains(&item) || (TM93..TM93 + 3).contains(&item)
@@ -102,6 +114,59 @@ impl<'a> Game<'a> {
         }
         Ok(())
     }
+
+    /// The special shops sell random goods, none of them twice, with
+    /// `good` only useful ones.
+    pub fn randomize_shops(&mut self, good: bool) -> Result<(), RomError> {
+        let mut shops = Self::narc(&self.nds, SHOPS)?;
+        if shops.len() < SHOP_COUNT {
+            return Err(layout(SHOPS));
+        }
+        let items = if good { &self.good_items } else { &self.items };
+        let mut sold: Vec<u16> = Vec::new();
+        for (number, shop) in shops.iter_mut().enumerate().take(SHOP_COUNT) {
+            if KEPT_SHOPS.contains(&number) {
+                continue;
+            }
+            for _ in 0..shop.len().div_ceil(2) {
+                let item = loop {
+                    let item = items.random(&mut self.random);
+                    if !sold.contains(&item) {
+                        break item;
+                    }
+                };
+                sold.push(item);
+            }
+        }
+        let mut sold = sold.into_iter();
+        for (number, shop) in shops.iter_mut().enumerate().take(SHOP_COUNT) {
+            if KEPT_SHOPS.contains(&number) {
+                continue;
+            }
+            for place in shop.chunks_exact_mut(2) {
+                let item = sold.next().ok_or(layout(SHOPS))?;
+                place.copy_from_slice(&item.to_le_bytes());
+            }
+        }
+        self.put_narc(SHOPS, &shops)
+    }
+
+    /// Pickup finds random items, with `good` only useful ones.
+    pub fn randomize_pickup(&mut self, good: bool) -> Result<(), RomError> {
+        let mut code = self.nds.overlay(PICKUP_OVERLAY).ok_or(layout("overlay"))?;
+        let table = find(&code, &PICKUP_MARK).filter(|at| at + PICKUP_ITEMS * 2 <= code.len());
+        let items = if good { &self.good_items } else { &self.items };
+        let new: Vec<u16> = (0..PICKUP_ITEMS)
+            .map(|_| items.random(&mut self.random))
+            .collect();
+        if let Some(table) = table {
+            for (i, item) in new.iter().enumerate() {
+                set_word(&mut code, table + i * 2, *item);
+            }
+            self.nds.set_overlay(PICKUP_OVERLAY, &code);
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -133,6 +198,6 @@ mod tests {
             }
         }
         assert_eq!(places(&script, BALL_COMMAND), [18]);
-        assert_eq!(places(&script, HIDDEN_COMMAND), []);
+        assert!(places(&script, HIDDEN_COMMAND).is_empty());
     }
 }

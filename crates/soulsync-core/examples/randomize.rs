@@ -3,8 +3,8 @@
 //! `dex`, `types`, `egg`, `held`, `goodheld`, `impossible`, `easier`,
 //! `time`, `wild`, `starters`, `hm`, `tutors`, `trainers`, `forms`,
 //! `rival`, `evolved` (from level 40), `names`, `statics`, `wildforms`, `trades` and `tradeall` (wanted
-//! Pokémon, nicknames, IVs and items of the trades), `field` and
-//! `goodfield`.
+//! Pokémon, nicknames, IVs and items of the trades), `field`,
+//! `goodfield`, `shops`, `goodshops`, `pickup` and `goodpickup`.
 use soulsync_core::rando::gen5;
 
 fn main() {
@@ -34,6 +34,10 @@ fn main() {
         trainers_fully_evolved_from: if on("evolved") { 40 } else { 0 },
         random_trainer_names: on("names"),
         random_statics: on("statics"),
+        random_shops: on("shops") || on("goodshops"),
+        good_shop_items: on("goodshops"),
+        random_pickup: on("pickup") || on("goodpickup"),
+        good_pickup_items: on("goodpickup"),
         random_field_items: on("field") || on("goodfield"),
         good_field_items: on("goodfield"),
         random_trades: on("trades") || on("tradeall"),

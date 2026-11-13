@@ -291,6 +291,14 @@ pub struct Options {
     /// Random items lie around, with `good_field_items` only useful ones.
     pub random_field_items: bool,
     pub good_field_items: bool,
+    /// The special shops sell random goods, with `good_shop_items` only
+    /// useful ones.
+    pub random_shops: bool,
+    pub good_shop_items: bool,
+    /// Pickup finds random items, with `good_pickup_items` only useful
+    /// ones.
+    pub random_pickup: bool,
+    pub good_pickup_items: bool,
     /// Pokémon at fixed spots are swapped, legendary for legendary.
     pub random_statics: bool,
     /// Every Pokémon can learn every HM.
@@ -1133,6 +1141,12 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
     }
     if options.random_field_items {
         game.randomize_field_items(options.good_field_items)?;
+    }
+    if options.random_shops {
+        game.randomize_shops(options.good_shop_items)?;
+    }
+    if options.random_pickup {
+        game.randomize_pickup(options.good_pickup_items)?;
     }
     game.randomize_intro()?;
     game.save()
