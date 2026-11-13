@@ -93,7 +93,10 @@ fn main() {
         types: change("ptypes"),
         two_types: on("twotypes"),
         abilities: change("abilities"),
-        wonder_guard: on("wonderguard"),
+        ability_rules: soulsync_core::rando::gen5::AbilityRules {
+            wonder_guard: on("wonderguard"),
+            ..Default::default()
+        },
         random_tm_moves: on("tms"),
         machines: compat("tm"),
         tutors: compat("tutor"),
@@ -108,6 +111,7 @@ fn main() {
         random_wild: on("wild"),
         wild_forms: on("wildforms"),
         wild_rules: Default::default(),
+        min_catch_rate: 0,
         random_starters: on("starters"),
         full_hm: on("hm"),
         random_tutor_moves: on("tutors"),

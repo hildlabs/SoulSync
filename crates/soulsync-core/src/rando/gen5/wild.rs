@@ -104,6 +104,10 @@ pub struct WildRules {
 }
 
 const SHAKING_GRASS: usize = 2;
+const CATCH_RATE: usize = 8;
+const BATTLE_OVERLAY: usize = 167;
+/// Stands right behind the branch the game takes when a throw can fail.
+const SURE_CATCH_MARK: [u8; 10] = [0x08, 0xDB, 0x00, 0x28, 0x01, 0xD0, 0x01, 0x20, 0x00, 0xE0];
 
 /// The levels of all wild Pokémon rise or fall by `percent`.
 fn change_wild_levels(areas: &mut [Area], percent: i8) {
@@ -526,6 +530,41 @@ impl<'a> Game<'a> {
         }
         change_wild_levels(&mut areas, how.levels);
         self.set_wild_areas(files, &areas, how.seasons)
+    }
+
+    /// Pokémon get easier to catch, in five steps: no catch rate under
+    /// 75, 128, 200 or 255, for legendary ones half of that until the
+    /// fourth step, and with the fifth every throw catches.
+    pub fn raise_catch_rates(&mut self, step: u8) -> Result<(), RomError> {
+        if step >= 5 {
+            let mut code = (self.nds.overlay(BATTLE_OVERLAY)).ok_or(layout("overlay"))?;
+            // As in the original, a game without the mark stays as it is.
+            if let Some(at) = find(&code, &SURE_CATCH_MARK) {
+                code[at..at + 2].fill(0);
+                self.nds.set_overlay(BATTLE_OVERLAY, &code);
+            }
+            return Ok(());
+        }
+        let (ordinary, legendary) = match step {
+            2 => (128, 64),
+            3 => (200, 100),
+            4 => (255, 255),
+            _ => (75, 37),
+        };
+        for number in 1..=SPECIES + FORMS {
+            let species = match self.species[number].base {
+                0 => number,
+                base => base,
+            };
+            let least = if LEGENDARIES.contains(&(species as u16)) {
+                legendary
+            } else {
+                ordinary
+            };
+            let rate = &mut self.stats[Self::stats_file(number)][CATCH_RATE];
+            *rate = (*rate).max(least);
+        }
+        Ok(())
     }
 
     /// Only the levels of the wild Pokémon change.
