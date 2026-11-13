@@ -21,6 +21,7 @@ mod traits;
 mod wild;
 
 pub use evolutions::Evolving;
+pub use items::ShopRules;
 pub use machines::Taught;
 pub use movesets::Movesets;
 pub use statics::{StaticRules, Statics};
@@ -343,10 +344,17 @@ pub struct Options {
     /// Random items lie around, with `good_field_items` only useful ones.
     pub random_field_items: bool,
     pub good_field_items: bool,
+    /// With random ones: none much more often than the others.
+    pub even_field_items: bool,
+    /// The items lying around only change places.
+    pub shuffle_field_items: bool,
     /// The special shops sell random goods, with `good_shop_items` only
     /// useful ones.
     pub random_shops: bool,
     pub good_shop_items: bool,
+    pub shop_rules: ShopRules,
+    /// The goods of the special shops only change places.
+    pub shuffle_shops: bool,
     /// Pickup finds random items, with `good_pickup_items` only useful
     /// ones.
     pub random_pickup: bool,
@@ -1379,10 +1387,14 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
         )?;
     }
     if options.random_field_items {
-        game.randomize_field_items(options.good_field_items)?;
+        game.randomize_field_items(options.good_field_items, options.even_field_items)?;
+    } else if options.shuffle_field_items {
+        game.shuffle_field_items()?;
     }
     if options.random_shops {
-        game.randomize_shops(options.good_shop_items)?;
+        game.randomize_shops(options.good_shop_items, &options.shop_rules)?;
+    } else if options.shuffle_shops {
+        game.shuffle_shops()?;
     }
     if options.random_pickup {
         game.randomize_pickup(options.good_pickup_items)?;

@@ -402,8 +402,9 @@ impl Preset {
     /// switch, is `None`: such settings go to the original randomizer.
     pub fn native(&self) -> Option<crate::rando::gen5::Options> {
         use crate::rando::gen5::{
-            AbilityRules, Change, Evolving, Movesets, Options, Spread, Starters, StaticRules,
-            Statics, Stats, Taught, Themes, TrainerItems, TrainerRules, Wild, WildRule, WildRules,
+            AbilityRules, Change, Evolving, Movesets, Options, ShopRules, Spread, Starters,
+            StaticRules, Statics, Stats, Taught, Themes, TrainerItems, TrainerRules, Wild,
+            WildRule, WildRules,
         };
         // Files of 4.6.0 and 4.6.1 have the same layout; older ones the
         // randomizer rewrites first.
@@ -425,7 +426,7 @@ impl Preset {
         let untouched = d[19] & !7 == 0
             && d[25] & 0xF0 == 0
             && d[27] & (1 << 5 | 1 << 6) == 0
-            && d[41] & 0xC0 == 0
+            && d[41] & 0x40 == 0
             && d[0] & !(1 | 1 << 3 | 1 << 4 | 1 << 5 | 1 << 6) == 0
             && d[16] & (1 << 5 | 1 << 6) == 0
             && tweaks & !TWEAKS == 0;
@@ -666,10 +667,30 @@ impl Preset {
             random_trade_nicknames: random_trades && bit(23, 4),
             random_trade_ivs: random_trades && bit(23, 3),
             random_trade_items: random_trades && bit(23, 2),
-            random_field_items: either(24, !(1 << 3), 2, 0)?,
-            good_field_items: bit(24, 0) && bit(24, 3),
-            random_shops: either(37, !(1 << 3), 2, 0)?,
+            // Items lying around: as they are, in other places, random,
+            // or random and evenly spread.
+            random_field_items: match d[24] & 0b1_0111 {
+                0b0_0100 | 0b0_0010 => false,
+                0b0_0001 | 0b1_0000 => true,
+                _ => return None,
+            },
+            good_field_items: d[24] & 0b1_0001 != 0 && bit(24, 3),
+            even_field_items: bit(24, 4),
+            shuffle_field_items: bit(24, 1),
+            random_shops: match d[37] & 0b111 {
+                0b100 | 0b010 => false,
+                0b001 => true,
+                _ => return None,
+            },
             good_shop_items: bit(37, 0) && bit(37, 3),
+            shop_rules: ShopRules {
+                no_usual_goods: bit(37, 4),
+                no_overpowered: bit(37, 5),
+                fair_prices: bit(37, 6),
+                evolution_items: bit(37, 7),
+                battle_items: bit(41, 7),
+            },
+            shuffle_shops: bit(37, 1),
             random_pickup: either(49, !(1 << 2), 1, 0)?,
             good_pickup_items: bit(49, 0) && bit(49, 2),
             random_statics: !bit(17, 0),
@@ -801,7 +822,7 @@ fn base64_decode(text: &[u8]) -> Option<Vec<u8>> {
 mod tests {
     use super::*;
     use crate::rando::gen5::{
-        AbilityRules, Starters, StaticRules, Statics, Taught, Wild, WildRule, WildRules,
+        AbilityRules, ShopRules, Starters, StaticRules, Statics, Taught, Wild, WildRule, WildRules,
     };
 
     /// A real settings file for Black 2 (German), saved by randomizer 4.6.0:
@@ -1027,6 +1048,29 @@ mod tests {
         first.data[4] = 1 << 1 | 1 << 6;
         assert!(first.native().is_none());
 
+        // Items: lying around evenly spread or in other places, and the
+        // shops with every rule there is.
+        let mut items = preset.clone();
+        let native = items.native().unwrap();
+        assert!(native.random_field_items && !native.even_field_items);
+        assert_eq!(native.shop_rules, ShopRules::default());
+        items.data[24] = 1 << 4 | 1 << 3;
+        let native = items.native().unwrap();
+        assert!(native.random_field_items && native.even_field_items && native.good_field_items);
+        items.data[24] = 1 << 1;
+        let native = items.native().unwrap();
+        assert!(native.shuffle_field_items && !native.random_field_items);
+        items.data[37] |= 0xF0;
+        items.data[41] |= 0x80;
+        let rules = items.native().unwrap().shop_rules;
+        assert!(rules.no_usual_goods && rules.no_overpowered && rules.fair_prices);
+        assert!(rules.evolution_items && rules.battle_items);
+        items.data[37] = 1 << 1;
+        let native = items.native().unwrap();
+        assert!(native.shuffle_shops && !native.random_shops);
+        items.data[37] = 1 | 1 << 1;
+        assert!(items.native().is_none());
+
         // TMs and move tutors with every rule of their own.
         let mut taught = preset.clone();
         let native = taught.native().unwrap();
@@ -1092,7 +1136,6 @@ mod tests {
         let preset = Preset::read(file).unwrap();
         for (id, value) in [
             ("update_base_stats", Value::Flag(true)),
-            ("shops", Value::Choice("shuffle".into())),
             ("update_moves", Value::Flag(true)),
         ] {
             let mut change = Overrides::default();
