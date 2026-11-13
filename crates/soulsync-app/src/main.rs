@@ -13,6 +13,7 @@
 
 mod fresh;
 mod local;
+mod tools;
 mod update;
 mod window;
 

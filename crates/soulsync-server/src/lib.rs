@@ -208,9 +208,11 @@ const PRESETS: &[Preset] = &[(
     "Soul Link",
     "Soul Link",
     "Random starters and wild Pokémon by area, random trainers, items and shops, \
-     easier evolutions; types, stats and abilities as in the game.",
+     easier evolutions; types, stats, abilities and which Pokémon learn which \
+     TM and HM as in the game.",
     "Zufällige Starter und wilde Pokémon pro Gebiet, zufällige Trainer, Items und \
-     Läden, leichtere Entwicklungen; Typen, Werte und Fähigkeiten wie im Spiel.",
+     Läden, leichtere Entwicklungen; Typen, Werte, Fähigkeiten und wer welche TM \
+     und VM lernt wie im Spiel.",
     include_bytes!("../presets/soul-link.rnqs"),
 )];
 
@@ -773,7 +775,16 @@ mod preset_tests {
     #[test]
     fn shipped_presets_are_valid() {
         for p in super::PRESETS {
-            assert!(soulsync_core::rnqs::Preset::read(p.5).is_ok(), "{}", p.0);
+            let preset = soulsync_core::rnqs::Preset::read(p.5).unwrap();
+            // TMs and HMs as in the original game: every Pokémon learning
+            // every one is too strong for a Soul Link.
+            assert_eq!(
+                preset.tm(),
+                soulsync_core::rnqs::Compat::Unchanged,
+                "{}",
+                p.0
+            );
+            assert!(!preset.full_hm(), "{}", p.0);
         }
     }
 }

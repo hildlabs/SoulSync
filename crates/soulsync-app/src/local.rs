@@ -204,6 +204,8 @@ struct Inner {
     progress: Option<crate::update::Progress>,
     /// How far a fresh start of the game is, once asked for.
     fresh: Option<crate::fresh::Progress>,
+    /// The program being fetched for it, bytes done and total.
+    fetching: Option<(&'static str, u64, u64)>,
     /// A fresh start without a starting save is running: the first save
     /// of the new game becomes it.
     awaiting_template: bool,
@@ -701,6 +703,14 @@ impl Local {
                 "rolled": c.rolled,
                 "candies_due": c.candies_due.as_ref().map(|d| d.count),
                 "progress": inner.fresh,
+                // Used unless the player chose their own randomizer.
+                "builtin": {
+                    "name": crate::tools::RANDOMIZER.name,
+                    "ready": crate::tools::RANDOMIZER.installed().is_some(),
+                },
+                "fetching": inner.fetching.map(|(name, done, total)| serde_json::json!({
+                    "name": name, "done": done, "total": total,
+                })),
             }),
             "dialogs": cfg!(any(windows, target_os = "macos")),
             "version": env!("CARGO_PKG_VERSION"),
@@ -1114,8 +1124,9 @@ fn begin_fresh(
             None => (need(&c.preset, "preset")?, c.rando, c.candies.0),
         };
         let plan = Plan {
+            // Both found or fetched when it runs.
             java: "java".into(),
-            randomizer: need(&c.randomizer, "randomizer")?,
+            randomizer: c.randomizer.clone().unwrap_or_default(),
             preset,
             overrides,
             original: need(&c.original, "original")?,
@@ -1141,8 +1152,23 @@ fn begin_fresh(
     local.stop();
     let worker = local.clone();
     tokio::spawn(async move {
-        let work = plan.clone();
-        let done = tokio::task::spawn_blocking(move || crate::fresh::run(&work)).await;
+        let mut work = plan.clone();
+        let fetcher = worker.clone();
+        let done = tokio::task::spawn_blocking(move || {
+            let progress = |name, done, total| {
+                fetcher.inner.lock().unwrap().fetching = Some((name, done, total));
+            };
+            let tools = (|| {
+                let own = Some(work.randomizer.as_path()).filter(|p| !p.as_os_str().is_empty());
+                work.randomizer = crate::tools::randomizer(own, &progress)?;
+                work.java = crate::tools::java(&progress)?;
+                Ok::<_, String>(())
+            })();
+            fetcher.inner.lock().unwrap().fetching = None;
+            tools.map_err(|e| (crate::fresh::Why::Download, Some(e)))?;
+            crate::fresh::run(&work)
+        })
+        .await;
         let progress = match done {
             Ok(Ok(())) => {
                 if let Some(emulator) = &plan.emulator {
@@ -1298,8 +1324,8 @@ async fn start(State(local): State<Local>, Json(req): Json<Start>) -> Reply {
         return Err(bad("name"));
     }
     if req.roll {
-        let ready = config.original.as_deref().is_some_and(Path::is_file)
-            && config.randomizer.as_deref().is_some_and(Path::is_file);
+        // The randomizer and Java are fetched when the game is made.
+        let ready = config.original.as_deref().is_some_and(Path::is_file);
         if !ready {
             return Err(bad("roll"));
         }
