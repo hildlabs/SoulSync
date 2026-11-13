@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 /// What each species and form learns at which level, and the moves a
 /// species can hatch with.
 pub(super) const LEARNSETS: &str = "a/0/1/8";
-const EGG_MOVES: &str = "a/1/2/4";
+pub(super) const EGG_MOVES: &str = "a/1/2/4";
 const CATEGORY: usize = 2;
 const POWER: usize = 3;
 const PP: usize = 5;

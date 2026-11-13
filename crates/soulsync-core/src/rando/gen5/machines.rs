@@ -22,8 +22,8 @@ const TM_COLOURS: [u16; 17] = [
 /// with four bytes each. The tutors stand in another order there than
 /// their moves do in the overlay: how many moves each has in the stats'
 /// order, and where its moves start in the overlay's.
-const TUTOR_FLAGS: usize = 60;
-const TUTOR_BLOCKS: [(usize, usize); 4] = [(15, 13), (17, 43), (13, 0), (15, 28)];
+pub(super) const TUTOR_FLAGS: usize = 60;
+pub(super) const TUTOR_BLOCKS: [(usize, usize); 4] = [(15, 13), (17, 43), (13, 0), (15, 28)];
 /// The type a move's data starts with.
 const NORMAL: u8 = 0;
 
@@ -147,17 +147,22 @@ impl Game<'_> {
         Ok(())
     }
 
-    /// Which Pokémon learn which move of the move tutors is decided anew.
-    pub fn change_tutor_compatibility(&mut self, how: Compat) -> Result<(), RomError> {
+    /// The moves the move tutors teach, in the order of the game's list.
+    pub(super) fn tutor_moves(&self) -> Result<Vec<u16>, RomError> {
         let place = TUTOR_PLACES.iter().find(|(code, _)| **code == self.code);
         let &(_, place) = place.ok_or(layout("move tutors"))?;
         let code = self.nds.overlay(TUTOR_OVERLAY).ok_or(layout("overlay"))?;
         if code.len() < place + TUTORS * TUTOR_LEN {
             return Err(layout("move tutors"));
         }
-        let moves: Vec<u16> = (0..TUTORS)
+        Ok((0..TUTORS)
             .map(|i| word(&code, place + i * TUTOR_LEN))
-            .collect();
+            .collect())
+    }
+
+    /// Which Pokémon learn which move of the move tutors is decided anew.
+    pub fn change_tutor_compatibility(&mut self, how: Compat) -> Result<(), RomError> {
+        let moves = self.tutor_moves()?;
         for number in 1..=SPECIES + FORMS {
             let learns = self.learns(number, &moves, how);
             let stats = &mut self.stats[Self::stats_file(number)];

@@ -142,6 +142,11 @@ impl Trainer {
     pub(super) fn hold_items(&mut self) {
         self.kind |= OWN_ITEMS;
     }
+
+    /// From now on the trainer's Pokémon know moves of their own.
+    pub(super) fn own_moves(&mut self) {
+        self.kind |= OWN_MOVES;
+    }
 }
 
 fn tagged(battles: &[(u8, usize)], trainer: &Trainer) -> Option<Tag> {

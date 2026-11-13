@@ -15,6 +15,7 @@ mod statics;
 mod tables;
 mod trades;
 mod trainer_items;
+mod trainer_moves;
 mod trainers;
 mod traits;
 mod wild;
@@ -223,6 +224,8 @@ const MACHINE_MOVES: [u8; 4] = [0x87, 0x03, 0x88, 0x03];
 const FIRST_TMS: usize = 92;
 const MOVES_COUNT: usize = 559;
 const STRUGGLE: u16 = 165;
+/// Swift never misses.
+const SWIFT: usize = 129;
 /// The overlay with the move tutors, how many moves they teach, the size
 /// of a tutor's entry and where the entries start in each game.
 const TUTOR_OVERLAY: usize = 36;
@@ -300,6 +303,8 @@ pub struct Options {
     pub rival_carries_starter: bool,
     /// Trainers' Pokémon from this level on are fully evolved; 0 for off.
     pub trainers_fully_evolved_from: u16,
+    /// Trainers' Pokémon know four moves that suit them.
+    pub better_trainer_moves: bool,
     /// Trainers' Pokémon hold random items.
     pub trainer_items: TrainerItems,
     /// Trainers get random names.
@@ -720,6 +725,8 @@ pub struct Game<'a> {
     abilities_changed: bool,
     /// Ghost and Dark hit Steel normally by now.
     effectiveness_updated: bool,
+    /// The accuracy the game gives a move that never misses.
+    sure_accuracy: u8,
     /// The order random evolutions were made in, which is the order of
     /// what a species evolves from since.
     evolved_in: Option<Vec<usize>>,
@@ -813,12 +820,15 @@ impl<'a> Game<'a> {
             }
             species[number].evolutions = Evolution::read(data);
         }
+        let moves = Self::narc(&nds, MOVES)?;
+        let swift = moves.get(SWIFT).and_then(|m| m.get(4));
         Ok(Game {
             arm9: nds.arm9()?,
             strings: Self::narc(&nds, STRINGS)?,
             story: Self::narc(&nds, STORY)?,
             scripts: Self::narc(&nds, SCRIPTS)?,
-            moves: Self::narc(&nds, MOVES)?,
+            sure_accuracy: swift.copied().unwrap_or(101),
+            moves,
             stats,
             species,
             starters: None,
@@ -1265,6 +1275,9 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
     }
     if options.trainers_fully_evolved_from > 0 {
         game.force_fully_evolved(options.trainers_fully_evolved_from)?;
+    }
+    if options.better_trainer_moves {
+        game.pick_trainer_moves(false, false)?;
     }
     if options.trainer_items.any() {
         game.randomize_trainer_items(&options.trainer_items)?;
