@@ -539,8 +539,8 @@ impl<'a> Game<'a> {
         // them, nor what they evolve from or into where that matters.
         let elite = |place: usize| how.elite_unique > 0 && ELITE.contains(&(place + 1));
         let mut before: Vec<Vec<usize>> = vec![Vec::new(); SPECIES + FORMS + 1];
-        for from in 1..=SPECIES {
-            for evolution in &self.species[from].evolutions {
+        for (from, species) in self.species.iter().enumerate().take(SPECIES + 1).skip(1) {
+            for evolution in &species.evolutions {
                 before[usize::from(evolution.to)].push(from);
             }
         }
