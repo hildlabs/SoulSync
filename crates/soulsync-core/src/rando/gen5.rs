@@ -303,6 +303,8 @@ pub struct Options {
     pub rival_carries_starter: bool,
     /// Trainers' Pokémon from this level on are fully evolved; 0 for off.
     pub trainers_fully_evolved_from: u16,
+    /// Every trainer fights double battles.
+    pub double_battles: bool,
     /// Trainers' Pokémon know four moves that suit them.
     pub better_trainer_moves: bool,
     /// Trainers' Pokémon hold random items.
@@ -1260,6 +1262,9 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
     if regular > 0 || important > 0 || boss > 0 {
         game.add_trainer_pokemon(regular, important, boss)?;
     }
+    if options.double_battles {
+        game.double_battles()?;
+    }
     if options.random_trainers {
         game.randomize_trainers(
             options.trainer_forms,
@@ -1277,7 +1282,7 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
         game.force_fully_evolved(options.trainers_fully_evolved_from)?;
     }
     if options.better_trainer_moves {
-        game.pick_trainer_moves(false, false)?;
+        game.pick_trainer_moves(false, options.double_battles)?;
     }
     if options.trainer_items.any() {
         game.randomize_trainer_items(&options.trainer_items)?;
