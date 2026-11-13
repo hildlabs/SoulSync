@@ -137,6 +137,13 @@ pub struct Trainer {
 /// A battle with the rival: which one, and for which starter.
 type Tag = (u8, usize);
 
+impl Trainer {
+    /// From now on the trainer's Pokémon hold items of their own.
+    pub(super) fn hold_items(&mut self) {
+        self.kind |= OWN_ITEMS;
+    }
+}
+
 fn tagged(battles: &[(u8, usize)], trainer: &Trainer) -> Option<Tag> {
     let own = |&&(_, first): &&(u8, usize)| (first..first + 3).contains(&trainer.index);
     let &(battle, first) = battles.iter().find(own)?;
@@ -146,7 +153,7 @@ fn tagged(battles: &[(u8, usize)], trainer: &Trainer) -> Option<Tag> {
 /// What kind of trainer each one is, by its place among all `count`
 /// trainers: a gym's, the elite, a group with a theme and so on. The
 /// rival's battles are told by `tagged`.
-fn tags(count: usize) -> Vec<Option<&'static str>> {
+pub(super) fn tags(count: usize) -> Vec<Option<&'static str>> {
     let mut tags = vec![None; count];
     for (tag, members) in THEME_GROUPS {
         for &member in members.iter().filter(|&&m| m <= count) {
@@ -158,7 +165,7 @@ fn tags(count: usize) -> Vec<Option<&'static str>> {
 
 /// How much a trainer matters: the strongest get the most.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Rank {
+pub(super) enum Rank {
     Regular,
     /// The rival, the other hero and the heads of Team Plasma.
     Important,
@@ -167,7 +174,7 @@ enum Rank {
 
 /// The rank of the trainer at `place` among all, counted from 0; none
 /// for the first battles with the rival, which stay as easy as they are.
-fn rank(tags: &[Option<&str>], place: usize, trainer: &Trainer) -> Option<Rank> {
+pub(super) fn rank(tags: &[Option<&str>], place: usize, trainer: &Trainer) -> Option<Rank> {
     let rival = tagged(&RIVAL_BATTLES, trainer).or(tagged(&FRIEND_BATTLES, trainer));
     if let Some((battle, _)) = rival {
         return (battle != 1).then_some(Rank::Important);
@@ -187,7 +194,7 @@ fn rank(tags: &[Option<&str>], place: usize, trainer: &Trainer) -> Option<Rank> 
 
 impl<'a> Game<'a> {
     /// What each species and form learns at which level.
-    fn learnsets(&self) -> Result<Vec<Vec<(u16, u16)>>, RomError> {
+    pub(super) fn learnsets(&self) -> Result<Vec<Vec<(u16, u16)>>, RomError> {
         let files = Self::narc(&self.nds, LEARNSETS)?;
         let mut all = vec![Vec::new()];
         for number in 1..=SPECIES + FORMS {
@@ -290,7 +297,7 @@ impl<'a> Game<'a> {
     }
 
     /// The moves a Pokémon knows at `level` if it always took the newest.
-    fn moves_at(learnset: &[(u16, u16)], level: u16) -> [u16; 4] {
+    pub(super) fn moves_at(learnset: &[(u16, u16)], level: u16) -> [u16; 4] {
         let mut moves = [0; 4];
         let mut count = 0;
         for &(learnt, _) in learnset.iter().take_while(|&&(_, at)| at <= level) {

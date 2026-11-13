@@ -88,7 +88,7 @@ impl Families {
 
 impl Game<'_> {
     /// The two types of a species; the second is none if it has one only.
-    fn types_of(&self, number: usize) -> (u8, Option<u8>) {
+    pub(super) fn types_of(&self, number: usize) -> (u8, Option<u8>) {
         let stats = &self.stats[number];
         let (first, second) = (stats[FIRST_TYPE], stats[FIRST_TYPE + 1]);
         (first, (second != first).then_some(second))

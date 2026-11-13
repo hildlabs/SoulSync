@@ -112,6 +112,14 @@ fn main() {
         random_tutor_moves: on("tutors"),
         random_trainers: on("trainers"),
         random_trainer_class_names: on("classnames"),
+        trainer_items: gen5::TrainerItems {
+            boss: on("itemsboss"),
+            important: on("itemsimportant"),
+            regular: on("itemsregular"),
+            consumable: on("itemsconsumable"),
+            sensible: on("itemssensible"),
+            strongest_only: on("itemsstrongest"),
+        },
         more_trainer_pokemon: if on("trainermore") { [1, 2, 3] } else { [0; 3] },
         trainer_rules: gen5::TrainerRules {
             spread: if on("trainerseven") {

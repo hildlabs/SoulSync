@@ -14,12 +14,14 @@ mod movesets;
 mod statics;
 mod tables;
 mod trades;
+mod trainer_items;
 mod trainers;
 mod traits;
 mod wild;
 
 pub use evolutions::Evolving;
 pub use movesets::Movesets;
+pub use trainer_items::TrainerItems;
 pub use trainers::{Spread, Themes, TrainerRules};
 pub use traits::{Change, Stats};
 
@@ -298,6 +300,8 @@ pub struct Options {
     pub rival_carries_starter: bool,
     /// Trainers' Pokémon from this level on are fully evolved; 0 for off.
     pub trainers_fully_evolved_from: u16,
+    /// Trainers' Pokémon hold random items.
+    pub trainer_items: TrainerItems,
     /// Trainers get random names.
     pub random_trainer_names: bool,
     /// The kinds of trainers get random names.
@@ -714,6 +718,8 @@ pub struct Game<'a> {
     /// Whether abilities were changed: forms that exist through an ability
     /// are then Pokémon like any other.
     abilities_changed: bool,
+    /// Ghost and Dark hit Steel normally by now.
+    effectiveness_updated: bool,
     /// The order random evolutions were made in, which is the order of
     /// what a species evolves from since.
     evolved_in: Option<Vec<usize>>,
@@ -822,6 +828,7 @@ impl<'a> Game<'a> {
             code: [rom[12], rom[13], rom[14], rom[15]],
             random: JavaRandom::new(seed),
             abilities_changed: false,
+            effectiveness_updated: false,
             evolved_in: None,
             looks_random: JavaRandom::new(seed),
             nds,
@@ -867,6 +874,7 @@ impl<'a> Game<'a> {
             code[table + GHOST * TYPE_COUNT + STEEL] = NORMAL_DAMAGE;
             code[table + DARK * TYPE_COUNT + STEEL] = NORMAL_DAMAGE;
             self.nds.set_overlay(BATTLE_OVERLAY, &code);
+            self.effectiveness_updated = true;
         }
         Ok(())
     }
@@ -1257,6 +1265,9 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
     }
     if options.trainers_fully_evolved_from > 0 {
         game.force_fully_evolved(options.trainers_fully_evolved_from)?;
+    }
+    if options.trainer_items.any() {
+        game.randomize_trainer_items(&options.trainer_items)?;
     }
     if options.random_trainer_class_names {
         game.randomize_trainer_class_names()?;
