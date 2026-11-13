@@ -11,7 +11,9 @@
 //! `twotypes`, `abilities`, `abilitiesevo` and `wonderguard` for what the
 //! species are like; `movepower`, `moveaccuracy`, `movepp` and `movetypes`
 //! for the moves; `movesets`, `movesetstype`, `metronome`, `fourmoves`, `goodattacks`
-//! (40 percent), `nobroken` and `moveorder` for what the species learn.
+//! (40 percent), `nobroken` and `moveorder` for what the species learn;
+//! `evolutions` with `evostrength`, `evotype`, `evothree` and `evochange`
+//! for what they evolve into.
 use soulsync_core::rando::gen5;
 
 fn main() {
@@ -70,6 +72,12 @@ fn main() {
         good_attacks: if on("goodattacks") { 40 } else { 0 },
         no_broken_moves: on("nobroken"),
         order_moves_by_damage: on("moveorder"),
+        random_evolutions: on("evolutions").then_some(gen5::Evolving {
+            similar_strength: on("evostrength"),
+            same_type: on("evotype"),
+            three_stages: on("evothree"),
+            force_change: on("evochange"),
+        }),
         stats: if on("statsshuffle") {
             gen5::Stats::Shuffle
         } else if on("statsrandom") {

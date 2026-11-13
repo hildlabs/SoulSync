@@ -401,7 +401,7 @@ impl Preset {
     /// what they ask. Anything it has not built yet, down to a single
     /// switch, is `None`: such settings go to the original randomizer.
     pub fn native(&self) -> Option<crate::rando::gen5::Options> {
-        use crate::rando::gen5::{Change, Movesets, Options, Stats};
+        use crate::rando::gen5::{Change, Evolving, Movesets, Options, Stats};
         // Files of 4.6.0 and 4.6.1 have the same layout; older ones the
         // randomizer rewrites first.
         if !(321..=322).contains(&self.version) {
@@ -424,7 +424,6 @@ impl Preset {
             && d[20] == 0
             && d[22] == 0
             && d[25] & 0xF0 == 0
-            && d[26] == 1
             && d[27] & !(1 << 1) == 0
             && d[40] == 0
             && d[41] & 0xC7 == 0
@@ -439,6 +438,18 @@ impl Preset {
         if !untouched {
             return None;
         }
+        // What the species evolve into; a new one at every level is not
+        // built, and other forms the game cannot evolve into.
+        let random_evolutions = match d[26] & 0b1100_0011 {
+            0b01 => None,
+            0b10 => Some(Evolving {
+                similar_strength: bit(26, 2),
+                same_type: bit(26, 3),
+                three_stages: bit(26, 4),
+                force_change: bit(26, 5),
+            }),
+            _ => return None,
+        };
         // What the species learn: one way of four.
         let movesets = match d[11] & 0x0F {
             0b0001 => Movesets::Random,
@@ -497,6 +508,7 @@ impl Preset {
             (true, level) => level as u16,
         };
         Some(Options {
+            random_evolutions,
             movesets,
             moves_at_start: if bit(11, 4) { (d[11] >> 6) + 2 } else { 0 },
             good_attacks: if bit(12, 7) { d[12] & 0x7F } else { 0 },
@@ -673,7 +685,7 @@ mod tests {
 
     #[test]
     fn the_soul_link_preset_is_one_for_the_own_randomizer() {
-        use crate::rando::gen5::{Change, Movesets, Stats};
+        use crate::rando::gen5::{Change, Evolving, Movesets, Stats};
         let file = include_bytes!("../../soulsync-server/presets/soul-link.rnqs");
         let preset = Preset::read(file).unwrap();
         let o = preset.native().expect("every option of it is built");
@@ -755,6 +767,21 @@ mod tests {
         assert_eq!((o.moves_at_start, o.good_attacks), (4, 40));
         assert!(o.no_broken_moves && o.order_moves_by_damage);
 
+        let mut evolving = Overrides::default();
+        evolving.set("evolutions", Value::Choice("random".into()));
+        let mut evolving = preset.with(&evolving);
+        assert_eq!(
+            evolving.native().unwrap().random_evolutions,
+            Some(Evolving::default())
+        );
+        // About as strong as before and three stages at most.
+        evolving.data[26] |= 1 << 2 | 1 << 4;
+        let how = evolving.native().unwrap().random_evolutions.unwrap();
+        assert!(how.similar_strength && how.three_stages && !how.same_type && !how.force_change);
+        // Other forms are nothing the game can evolve into.
+        evolving.data[26] |= 1 << 6;
+        assert_eq!(evolving.native(), None);
+
         let mut tms = Overrides::default();
         tms.set("tm", Value::Choice("full".into()));
         tms.set("tm_moves", Value::Choice("random".into()));
@@ -772,7 +799,7 @@ mod tests {
         let file = include_bytes!("../../soulsync-server/presets/soul-link.rnqs");
         let preset = Preset::read(file).unwrap();
         for (id, value) in [
-            ("evolutions", Value::Choice("random".into())),
+            ("evolutions", Value::Choice("random_every_level".into())),
             ("update_base_stats", Value::Flag(true)),
             ("wild", Value::Choice("global_mapping".into())),
             ("wild_rule", Value::Choice("catch_em_all".into())),
