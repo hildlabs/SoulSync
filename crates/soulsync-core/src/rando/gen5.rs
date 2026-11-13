@@ -188,6 +188,34 @@ const BAD_ITEMS: [(usize, usize); 12] = [
 ];
 const LUCKY_EGG: usize = 231;
 
+/// The moves of the TMs and HMs stand in the ARM9 behind this mark: 92
+/// TMs, the 6 HMs, then the last 3 TMs.
+const MACHINE_MOVES: [u8; 4] = [0x87, 0x03, 0x88, 0x03];
+const FIRST_TMS: usize = 92;
+const MOVES_COUNT: usize = 559;
+const STRUGGLE: u16 = 165;
+/// The overlay with the move tutors, how many moves they teach, the size
+/// of a tutor's entry and where the entries start in each game.
+const TUTOR_OVERLAY: usize = 36;
+const TUTORS: usize = 60;
+const TUTOR_LEN: usize = 12;
+const TUTOR_PLACES: [(&[u8; 4], usize); 14] = [
+    (b"IREO", 0x51538),
+    (b"IRDO", 0x5152C),
+    (b"IREF", 0x5152C),
+    (b"IRDF", 0x51520),
+    (b"IRED", 0x5155C),
+    (b"IRDD", 0x51550),
+    (b"IREI", 0x51554),
+    (b"IRDI", 0x51548),
+    (b"IRES", 0x5153C),
+    (b"IRDS", 0x51530),
+    (b"IREJ", 0x512DC),
+    (b"IRDJ", 0x512D0),
+    (b"IREK", 0x5160C),
+    (b"IRDK", 0x51600),
+];
+
 const HAPPINESS_MARK: [u8; 4] = [0xDC, 0x28, 0x2F, 0xD3];
 
 /// Where `mark` stands in `data`, if it does exactly once and not at the
@@ -225,6 +253,8 @@ pub struct Options {
     pub random_wild: bool,
     /// Three random Pokémon to choose the first one from.
     pub random_starters: bool,
+    /// The move tutors teach random moves.
+    pub random_tutor_moves: bool,
     /// Every Pokémon can learn every HM.
     pub full_hm: bool,
 }
@@ -559,7 +589,8 @@ pub struct Game<'a> {
     /// The items random choices may give: all of them, and the good ones.
     items: Items,
     good_items: Items,
-    japanese: bool,
+    /// The game code, which tells version and language.
+    code: [u8; 4],
     pub random: JavaRandom,
 }
 
@@ -627,7 +658,7 @@ impl<'a> Game<'a> {
             starters: None,
             items: Items::new(false),
             good_items: Items::new(true),
-            japanese: rom.get(15) == Some(&b'J'),
+            code: [rom[12], rom[13], rom[14], rom[15]],
             random: JavaRandom::new(seed),
             nds,
         })
@@ -719,7 +750,7 @@ impl<'a> Game<'a> {
     /// Puts `starters` where the game hands out the first Pokémon: into
     /// the script, the pictures, the cries and the text of the choice.
     pub fn set_starters(&mut self, starters: [u16; 3]) -> Result<(), RomError> {
-        let japanese = self.japanese;
+        let japanese = self.code[3] == b'J';
         let script = self
             .scripts
             .get_mut(STARTER_SCRIPT)
@@ -815,6 +846,39 @@ impl<'a> Game<'a> {
         text.lines[RIVAL_LINE] = line;
         self.story[STARTER_TEXT] = text.write(file).ok_or(layout("text"))?;
         self.starters = Some(starters);
+        Ok(())
+    }
+
+    /// The moves of the TMs and of the HMs.
+    fn machine_moves(&self) -> Option<(Vec<u16>, Vec<u16>)> {
+        let at = find(&self.arm9, &MACHINE_MOVES)? + MACHINE_MOVES.len();
+        let words = self.arm9.get(at..at + (TMS + HMS) * 2)?;
+        let mut moves: Vec<u16> = words.chunks(2).map(|w| word(w, 0)).collect();
+        let hms = moves.drain(FIRST_TMS..FIRST_TMS + HMS).collect();
+        Some((moves, hms))
+    }
+
+    /// The move tutors teach random moves no TM or HM teaches.
+    pub fn randomize_tutor_moves(&mut self) -> Result<(), RomError> {
+        let place = TUTOR_PLACES.iter().find(|(code, _)| **code == self.code);
+        let &(_, place) = place.ok_or(layout("move tutors"))?;
+        let mut code = self.nds.overlay(TUTOR_OVERLAY).ok_or(layout("overlay"))?;
+        if code.len() < place + TUTORS * TUTOR_LEN {
+            return Err(layout("move tutors"));
+        }
+        let (tms, hms) = self.machine_moves().unwrap_or_default();
+        let mut usable: Vec<u16> = (1..=MOVES_COUNT as u16)
+            .filter(|m| *m != STRUGGLE && !tms.contains(m) && !hms.contains(m))
+            .collect();
+        let mut picked = Vec::with_capacity(TUTORS);
+        for _ in 0..TUTORS {
+            picked.push(usable.remove(self.random.index(usable.len())));
+        }
+        self.random.shuffle(&mut picked);
+        for (i, &chosen) in picked.iter().enumerate() {
+            set_word(&mut code, place + i * TUTOR_LEN, chosen);
+        }
+        self.nds.set_overlay(TUTOR_OVERLAY, &code);
         Ok(())
     }
 
@@ -950,6 +1014,9 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
     }
     if options.full_hm {
         game.full_hm_compatibility();
+    }
+    if options.random_tutor_moves {
+        game.randomize_tutor_moves()?;
     }
     game.randomize_intro()?;
     game.save()

@@ -1,7 +1,7 @@
 //! Randomizes a ROM with SoulSync's own randomizer, as far as it is
 //! built: `randomize in.nds out.nds <seed> [option ...]`, with options
 //! `dex`, `types`, `egg`, `held`, `goodheld`, `impossible`, `easier`,
-//! `time`, `wild`, `starters` and `hm`.
+//! `time`, `wild`, `starters`, `hm` and `tutors`.
 use soulsync_core::rando::gen5;
 
 fn main() {
@@ -23,6 +23,7 @@ fn main() {
         random_wild: on("wild"),
         random_starters: on("starters"),
         full_hm: on("hm"),
+        random_tutor_moves: on("tutors"),
     };
     let rom = std::fs::read(from).expect("the ROM is readable");
     let seed = seed.parse().expect("the seed is a number");
