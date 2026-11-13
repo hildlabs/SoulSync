@@ -402,8 +402,8 @@ impl Preset {
     /// switch, is `None`: such settings go to the original randomizer.
     pub fn native(&self) -> Option<crate::rando::gen5::Options> {
         use crate::rando::gen5::{
-            AbilityRules, Change, Evolving, Movesets, Options, Spread, StaticRules, Statics, Stats,
-            Taught, Themes, TrainerItems, TrainerRules, Wild, WildRule, WildRules,
+            AbilityRules, Change, Evolving, Movesets, Options, Spread, Starters, StaticRules,
+            Statics, Stats, Taught, Themes, TrainerItems, TrainerRules, Wild, WildRule, WildRules,
         };
         // Files of 4.6.0 and 4.6.1 have the same layout; older ones the
         // randomizer rewrites first.
@@ -588,7 +588,23 @@ impl Preset {
                 _ => return None,
             },
             wild_forms: bit(39, 7),
-            random_starters: either(4, 0xFF, 2, 1)?,
+            // Held items and other forms for starters are not of
+            // these games.
+            starters: match d[4] {
+                0b0100 => Starters::Unchanged,
+                0b0010 => Starters::Random,
+                0b1000 => Starters::TwoEvolutions,
+                0b0001 => {
+                    let wanted = [5, 7, 9].map(|at| u16::from_le_bytes([d[at], d[at + 1]]));
+                    // A species the game does not have, the original
+                    // swaps for another.
+                    if wanted.iter().any(|&w| usize::from(w) > 649) {
+                        return None;
+                    }
+                    Starters::Custom(wanted)
+                }
+                _ => return None,
+            },
             random_move_powers: bit(25, 0),
             random_move_accuracies: bit(25, 1),
             random_move_pps: bit(25, 2),
@@ -771,7 +787,7 @@ fn base64_decode(text: &[u8]) -> Option<Vec<u8>> {
 mod tests {
     use super::*;
     use crate::rando::gen5::{
-        AbilityRules, StaticRules, Statics, Taught, Wild, WildRule, WildRules,
+        AbilityRules, Starters, StaticRules, Statics, Taught, Wild, WildRule, WildRules,
     };
 
     /// A real settings file for Black 2 (German), saved by randomizer 4.6.0:
@@ -799,7 +815,7 @@ mod tests {
             o.no_time_evolutions,
             o.random_wild,
             o.wild_forms,
-            o.random_starters,
+            o.starters == Starters::Random,
             o.random_tutor_moves,
             o.random_trainers,
             o.trainer_forms,
@@ -983,6 +999,20 @@ mod tests {
         assert!(rules.wonder_guard && rules.no_trapping && rules.no_negative && rules.no_bad);
         assert!(rules.always_two && rules.alike_together);
 
+        // Starters: three that evolve twice, or chosen ones, where 0
+        // leaves a place to chance.
+        let mut first = preset.clone();
+        first.data[4] = 1 << 3;
+        assert_eq!(first.native().unwrap().starters, Starters::TwoEvolutions);
+        first.data[4] = 1;
+        first.data[5..11].copy_from_slice(&[25, 0, 0, 0, 0x89, 0x02]);
+        let starters = first.native().unwrap().starters;
+        assert_eq!(starters, Starters::Custom([25, 0, 649]));
+        first.data[9] += 1;
+        assert!(first.native().is_none());
+        first.data[4] = 1 << 1 | 1 << 6;
+        assert!(first.native().is_none());
+
         // TMs and move tutors with every rule of their own.
         let mut taught = preset.clone();
         let native = taught.native().unwrap();
@@ -1042,7 +1072,6 @@ mod tests {
         for (id, value) in [
             ("evolutions", Value::Choice("random_every_level".into())),
             ("update_base_stats", Value::Flag(true)),
-            ("starters", Value::Choice("random_two_evolutions".into())),
             ("shops", Value::Choice("shuffle".into())),
             ("update_moves", Value::Flag(true)),
         ] {

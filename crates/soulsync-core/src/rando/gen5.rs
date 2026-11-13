@@ -265,6 +265,19 @@ fn find(data: &[u8], mark: &[u8]) -> Option<usize> {
     (found.next().is_none() && first > 0).then_some(first)
 }
 
+/// Which Pokémon the game starts with.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Starters {
+    #[default]
+    Unchanged,
+    /// Any three.
+    Random,
+    /// Three that evolve twice.
+    TwoEvolutions,
+    /// These three species; 0 stands for any.
+    Custom([u16; 3]),
+}
+
 /// What a randomization changes; everything is off by default.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Options {
@@ -292,8 +305,8 @@ pub struct Options {
     pub wild_rules: WildRules,
     /// Pokémon get easier to catch, in steps from 1 to 5; 0 leaves them.
     pub min_catch_rate: u8,
-    /// Three random Pokémon to choose the first one from.
-    pub random_starters: bool,
+    /// The three Pokémon to choose the first one from.
+    pub starters: Starters,
     /// The move tutors teach random moves.
     pub random_tutor_moves: bool,
     /// Trainers have random Pokémon, with `trainer_forms` also other
@@ -942,13 +955,53 @@ impl<'a> Game<'a> {
         remove_time_based(&mut self.species);
     }
 
-    /// Chooses three different random Pokémon as starters.
-    pub fn randomize_starters(&mut self) -> Result<(), RomError> {
+    /// Chooses the three starters as `how` says; no Pokémon twice
+    /// unless it was asked for.
+    pub fn choose_starters(&mut self, how: Starters) -> Result<(), RomError> {
         let mut picked: Vec<u16> = Vec::with_capacity(3);
-        while picked.len() < 3 {
-            let species = 1 + self.random.index(SPECIES) as u16;
-            if !picked.contains(&species) {
-                picked.push(species);
+        match how {
+            Starters::Unchanged => return Ok(()),
+            Starters::Random => {
+                while picked.len() < 3 {
+                    let species = 1 + self.random.index(SPECIES) as u16;
+                    if !picked.contains(&species) {
+                        picked.push(species);
+                    }
+                }
+            }
+            Starters::TwoEvolutions => {
+                // The first stage of a family with at least three.
+                let evolves = |n: usize| !self.species[n].evolutions.is_empty();
+                let evolved: Vec<u16> = (1..=SPECIES)
+                    .flat_map(|n| self.species[n].evolutions.iter().map(|e| e.to))
+                    .collect();
+                let usable: Vec<u16> = (1..=SPECIES)
+                    .filter(|&n| {
+                        let twice = |e: &Evolution| evolves(usize::from(e.to));
+                        !evolved.contains(&(n as u16))
+                            && self.species[n].evolutions.iter().any(twice)
+                    })
+                    .map(|n| n as u16)
+                    .collect();
+                while picked.len() < 3 {
+                    let species = usable[self.random.index(usable.len())];
+                    if !picked.contains(&species) {
+                        picked.push(species);
+                    }
+                }
+            }
+            Starters::Custom(wanted) => {
+                for species in wanted {
+                    let mut species = species;
+                    // 0 is any that is neither wanted nor picked.
+                    while species == 0 || species as usize > SPECIES {
+                        let any = 1 + self.random.index(SPECIES) as u16;
+                        if !picked.contains(&any) && !wanted.contains(&any) {
+                            species = any;
+                        }
+                    }
+                    picked.push(species);
+                }
             }
         }
         self.set_starters([picked[0], picked[1], picked[2]])
@@ -1230,9 +1283,7 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
     if options.no_time_evolutions {
         game.remove_time_based_evolutions();
     }
-    if options.random_starters {
-        game.randomize_starters()?;
-    }
+    game.choose_starters(options.starters)?;
     if matches!(options.movesets, Movesets::Random | Movesets::PreferType) {
         game.randomize_movesets(
             options.movesets == Movesets::PreferType,
@@ -1282,7 +1333,9 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
     } else if options.trainer_rules.levels != 0 {
         game.change_trainer_levels(options.trainer_rules.levels)?;
     }
-    if options.rival_carries_starter && (options.random_trainers || options.random_starters) {
+    if options.rival_carries_starter
+        && (options.random_trainers || options.starters != Starters::Unchanged)
+    {
         game.rival_carries_starter()?;
     }
     if options.trainers_fully_evolved_from > 0 {
