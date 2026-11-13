@@ -9,7 +9,8 @@
 //! for who learns the moves of TMs and tutors; `statsshuffle`,
 //! `statsrandom`, `statsevo`, `statsgrow`, `ptypes`, `ptypesevo`,
 //! `twotypes`, `abilities`, `abilitiesevo` and `wonderguard` for what the
-//! species are like.
+//! species are like; `movepower`, `moveaccuracy`, `movepp` and `movetypes`
+//! for the moves.
 use soulsync_core::rando::gen5;
 
 fn main() {
@@ -41,6 +42,10 @@ fn main() {
         }
     };
     let options = gen5::Options {
+        random_move_powers: on("movepower"),
+        random_move_accuracies: on("moveaccuracy"),
+        random_move_pps: on("movepp"),
+        random_move_types: on("movetypes"),
         stats: if on("statsshuffle") {
             gen5::Stats::Shuffle
         } else if on("statsrandom") {

@@ -426,7 +426,7 @@ impl Preset {
             && d[19] & !1 == 0
             && d[20] == 0
             && d[22] == 0
-            && d[25] == 0
+            && d[25] & 0xF0 == 0
             && d[26] == 1
             && d[27] & !(1 << 1) == 0
             && d[40] == 0
@@ -509,6 +509,10 @@ impl Preset {
             },
             wild_forms: bit(39, 7),
             random_starters: either(4, 0xFF, 2, 1)?,
+            random_move_powers: bit(25, 0),
+            random_move_accuracies: bit(25, 1),
+            random_move_pps: bit(25, 2),
+            random_move_types: bit(25, 3),
             stats,
             stats_follow_evolutions: bit(1, 0),
             stats_grow_at_random: bit(1, 7),
