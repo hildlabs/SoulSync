@@ -403,6 +403,7 @@ impl Preset {
     pub fn native(&self) -> Option<crate::rando::gen5::Options> {
         use crate::rando::gen5::{
             Change, Evolving, Movesets, Options, Spread, Stats, Themes, TrainerItems, TrainerRules,
+            Wild, WildRule, WildRules,
         };
         // Files of 4.6.0 and 4.6.1 have the same layout; older ones the
         // randomizer rewrites first.
@@ -430,11 +431,11 @@ impl Preset {
             && d[40] & 0x80 == 0
             && d[41] & 0xC0 == 0
             && d[0] & !(1 | 1 << 3 | 1 << 4 | 1 << 5 | 1 << 6) == 0
-            && d[16] & !(1 << 3 | 1 << 4) == 0
+            && d[16] & (1 | 1 << 5 | 1 << 6) == 0
             && d[39] & (1 << 4 | 1 << 5) == 0
             && tweaks & !TWEAKS == 0
-            // No changed levels of wild or fixed Pokémon.
-            && [38, 47].iter().all(|&b| d[b] & 0x80 == 0);
+            // No changed levels of fixed Pokémon.
+            && d[47] & 0x80 == 0;
         if !untouched {
             return None;
         }
@@ -521,6 +522,22 @@ impl Preset {
         };
         let (machines, random_tm_moves) = learning(TMS)?;
         let (tutors, random_tutor_moves) = learning(TUTORS)?;
+        // Wild Pokémon: as they are, or new ones for each area, each
+        // slot or the whole game; then the one rule they follow.
+        let wild = match d[15] & 0b0111_0010 {
+            0b0100_0000 => None,
+            0b0000_0010 => Some(Wild::Areas),
+            0b0010_0000 => Some(Wild::Slots),
+            0b0001_0000 => Some(Wild::Everywhere),
+            _ => return None,
+        };
+        let wild_rule = match (d[15] & 0b1101, bit(16, 2)) {
+            (0b0100, false) => WildRule::None,
+            (0b0001, false) => WildRule::CatchThemAll,
+            (0b1000, false) => WildRule::TypeThemes,
+            (0, true) => WildRule::SimilarStrength,
+            _ => return None,
+        };
         let random_trades = match d[23] & (1 | 1 << 1 | 1 << 6) {
             0x40 => false,
             // Random trainer names of the traded Pokémon are not built.
@@ -547,12 +564,18 @@ impl Preset {
             change_impossible_evolutions: bit(0, 0),
             easier_evolutions: bit(0, 5),
             no_time_evolutions: bit(0, 6),
-            // Each species of an area becomes one other, with no rule
-            // about which.
-            random_wild: match d[15] {
-                0b0100_0100 => false,
-                0b0000_0110 => true,
-                _ => return None,
+            random_wild: wild.is_some(),
+            wild_rules: WildRules {
+                mode: wild.unwrap_or_default(),
+                rule: wild_rule,
+                seasons: bit(15, 7),
+                no_legendaries: bit(16, 1),
+                balance_shaking_grass: bit(16, 7),
+                levels: if bit(38, 7) {
+                    (d[38] & 0x7F) as i8 - 50
+                } else {
+                    0
+                },
             },
             wild_forms: bit(39, 7),
             random_starters: either(4, 0xFF, 2, 1)?,
@@ -712,6 +735,7 @@ fn base64_decode(text: &[u8]) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::rando::gen5::{Wild, WildRule, WildRules};
 
     /// A real settings file for Black 2 (German), saved by randomizer 4.6.0:
     /// TM moves random, TM compatibility unchanged, full HM compatibility.
@@ -850,6 +874,31 @@ mod tests {
         themed.data[40] |= 1;
         assert!(themed.native().unwrap().double_battles);
 
+        // Wild Pokémon: slot by slot and all alike in strength, for
+        // each season, a fifth higher in level.
+        let mut wild = preset.clone();
+        assert_eq!(wild.native().unwrap().wild_rules, WildRules::default());
+        wild.data[15] = 1 << 5 | 1 << 7;
+        wild.data[16] |= 1 << 1 | 1 << 2 | 1 << 7;
+        wild.data[38] = 0x80 | 70;
+        let rules = wild.native().unwrap().wild_rules;
+        assert_eq!(
+            (rules.mode, rules.rule),
+            (Wild::Slots, WildRule::SimilarStrength)
+        );
+        assert!(rules.seasons && rules.no_legendaries && rules.balance_shaking_grass);
+        assert_eq!(rules.levels, 20);
+        // Two rules at once, or none, are no setting of the original.
+        wild.data[15] |= 1;
+        assert!(wild.native().is_none());
+        wild.data[15] = 1 << 4 | 1 << 3;
+        wild.data[16] &= !(1 << 2);
+        let rules = wild.native().unwrap().wild_rules;
+        assert_eq!(
+            (rules.mode, rules.rule),
+            (Wild::Everywhere, WildRule::TypeThemes)
+        );
+
         let mut evolving = Overrides::default();
         evolving.set("evolutions", Value::Choice("random".into()));
         let mut evolving = preset.with(&evolving);
@@ -884,18 +933,26 @@ mod tests {
         for (id, value) in [
             ("evolutions", Value::Choice("random_every_level".into())),
             ("update_base_stats", Value::Flag(true)),
-            ("wild", Value::Choice("global_mapping".into())),
-            ("wild_rule", Value::Choice("catch_em_all".into())),
             ("statics", Value::Choice("random".into())),
             ("starters", Value::Choice("random_two_evolutions".into())),
             ("shops", Value::Choice("shuffle".into())),
             ("update_moves", Value::Flag(true)),
-            ("wild_no_legendaries", Value::Flag(true)),
         ] {
             let mut change = Overrides::default();
             change.set(id, value);
             assert_eq!(preset.with(&change).native(), None, "{id}");
         }
+        // Every wild Pokémon becomes one other all over the game, and
+        // every species comes up before one comes up twice.
+        let mut wild = Overrides::default();
+        wild.set("wild", Value::Choice("global_mapping".into()));
+        wild.set("wild_rule", Value::Choice("catch_em_all".into()));
+        wild.set("wild_no_legendaries", Value::Flag(true));
+        let rules = preset.with(&wild).native().unwrap().wild_rules;
+        assert_eq!(
+            (rules.mode, rules.rule, rules.no_legendaries),
+            (Wild::Everywhere, WildRule::CatchThemAll, true)
+        );
         // The file of the other tests differs in its random TM moves only.
         let other = Preset::read(&super::tests::file()).unwrap().native();
         assert!(other.is_some_and(|o| o.random_tm_moves && o.random_wild));

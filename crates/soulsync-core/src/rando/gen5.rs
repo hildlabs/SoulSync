@@ -25,6 +25,7 @@ pub use movesets::Movesets;
 pub use trainer_items::TrainerItems;
 pub use trainers::{Spread, Themes, TrainerRules};
 pub use traits::{Change, Stats};
+pub use wild::{Wild, WildRule, WildRules};
 
 use super::random::JavaRandom;
 use super::text::{chars, Text};
@@ -285,6 +286,8 @@ pub struct Options {
     /// other, with `wild_forms` also other forms.
     pub random_wild: bool,
     pub wild_forms: bool,
+    /// How they are made random; the levels in it change anyway.
+    pub wild_rules: WildRules,
     /// Three random Pokémon to choose the first one from.
     pub random_starters: bool,
     /// The move tutors teach random moves.
@@ -1300,7 +1303,9 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
         game.randomize_statics()?;
     }
     if options.random_wild {
-        game.randomize_wild(options.wild_forms)?;
+        game.randomize_wild(options.wild_forms, &options.wild_rules)?;
+    } else if options.wild_rules.levels != 0 {
+        game.change_wild_levels(options.wild_rules.levels)?;
     }
     if options.random_trades {
         game.randomize_trades(

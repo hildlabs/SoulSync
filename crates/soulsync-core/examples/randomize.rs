@@ -107,6 +107,7 @@ fn main() {
         no_time_evolutions: on("time"),
         random_wild: on("wild"),
         wild_forms: on("wildforms"),
+        wild_rules: Default::default(),
         random_starters: on("starters"),
         full_hm: on("hm"),
         random_tutor_moves: on("tutors"),
