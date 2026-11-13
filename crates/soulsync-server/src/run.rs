@@ -238,7 +238,7 @@ impl Run {
             p.connections += 1;
             return Ok(());
         }
-        if self.players.len() >= self.settings.players.clamp(2, MAX_PLAYERS) {
+        if self.players.len() >= self.settings.players.clamp(1, MAX_PLAYERS) {
             return Err(JoinError::Full);
         }
         self.players.push(Player {
@@ -308,7 +308,7 @@ impl Run {
         RunState {
             code: self.code.clone(),
             seed: self.seed,
-            seeds: (0..self.settings.players.clamp(2, MAX_PLAYERS))
+            seeds: (0..self.settings.players.clamp(1, MAX_PLAYERS))
                 .map(|seat| player_seed(self.seed, seat, self.settings.shared_seed))
                 .collect(),
             attempt: self.attempt,
@@ -489,6 +489,25 @@ mod tests {
         let s = r.state();
         assert_eq!(s.seeds.len(), 3);
         assert!(s.seeds[0] != s.seeds[1] && s.seeds[1] != s.seeds[2]);
+    }
+
+    #[test]
+    fn a_solo_run_has_one_seat_and_its_catches_stand_alone() {
+        let settings = RunSettings {
+            players: 1,
+            ..RunSettings::default()
+        };
+        assert!(settings.validate().is_ok());
+        let mut r = Run::new("ZORUA-1234".into(), 7, settings);
+        r.join("Hannes").unwrap();
+        assert_eq!(r.join("Buddy"), Err(JoinError::Full));
+        r.update("Hannes", snap(20), 1);
+        let s = r.state();
+        assert_eq!(s.seeds.len(), 1);
+        assert_eq!(s.links.len(), 2);
+        assert!(s.links.iter().all(|l| l.is_complete() && !l.is_dead()));
+        r.update("Hannes", snap(0), 2);
+        assert!(r.state().links.iter().any(|l| l.is_dead()));
     }
 
     #[test]

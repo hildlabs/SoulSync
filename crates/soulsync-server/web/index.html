@@ -470,6 +470,7 @@ button:active{transform:scale(.97)}
 .pairc .ploc{position:absolute;left:50%;top:10px;transform:translateX(-50%);z-index:1;max-width:60%;padding:2px 9px;border-radius:999px;background:var(--pillbg);border:1px solid var(--edge-hi);font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pairc::before{content:"";position:absolute;left:50%;top:22px;bottom:22px;width:2px;background:linear-gradient(var(--a),var(--b));opacity:.8}
 .pairc.multi::before{display:none}
+.pairs.solo{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
 .tm{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 10px;border-radius:14px;min-width:0;text-align:center;transition:background .2s}
 .tm:hover{background:var(--ov-1)}
 .tm .stage{width:96px;height:80px}
@@ -686,6 +687,9 @@ dialog.mon[open]{animation:rise .5s var(--spring) backwards}
 .rgroup .kv.chg span{color:var(--a)}
 .field select{width:100%;height:44px;padding:0 10px;background:var(--ov-1);border:1px solid var(--edge);border-radius:12px;font:inherit;font-size:14px;color:var(--text);outline:0}
 .field .seg3{margin-bottom:4px}
+#f-players{grid-template-columns:repeat(4,1fr)}
+#f-rules.solo .linkrule{display:none}
+#f-rules.solo .pair-t,#f-rules:not(.solo) .solo-t{display:none}
 .field small{display:block;margin-top:8px;font-size:12.5px;line-height:1.45;color:var(--muted)}
 .field small.ok{color:var(--ok)}
 .field small.bad{color:var(--danger)}
@@ -881,6 +885,9 @@ details.adv .field{margin-top:12px}
 const T = {
   en: {
     links: "Links", run: "Run", activity: "Activity", copy: "Copy", copied: "Copied",
+    // Where a run with one player, a classic Nuzlocke, says it differently.
+    solo: { links: "Catches", soulLink: () => "Nuzlocke  ·  solo", liveAll: () => "Live", sum: (l, o, x) => [`<b>${l} alive</b>`, x ? `<span class="bad">${x} lost</span>` : `0 lost`].join("  ·  "), hint: { team: "in the team", boxed: "resting in the PC", open: "", lost: "fainted or not caught" }, teamLead: "Your team. Click a Pokémon for its moves and stats.", teamEmpty: "No Pokémon in the team yet.", rCapsHint: "The highlighted cap applies until you have the next badge.", rRules: "Nuzlocke rules", rules: { fate: ["Fainted means gone", "A Pokémon that faints counts as dead and stays out for the rest of the run."], failed: ["Failed catch", "If the first Pokémon of an area gets away or faints, the area is used up."] } },
+    fSolo: "Solo",
     liveAll: n => n === 2 ? "Both players live" : `All ${n} players live`, liveSome: (k, n) => `${k} of ${n} players live`, live0: "Waiting for players", offline: "Reconnecting", missing: "Run not found",
     theme: "Switch theme",
     ballHave: (b, n) => `${b}: ${n} in the bag`,
@@ -921,7 +928,7 @@ waitPlayer: n => `Waiting for player ${n}`, playerN: n => `Player ${n}`, fPlayer
     evEvolved: (m, s) => `<b>${m}</b> evolved into ${s}`, evLevel: (m, n) => `<b>${m}</b> grew to Lv ${n}`,
     evParty: m => `<b>${m}</b> moved to the team`, evBox: (m, n) => `<b>${m}</b> moved to Box ${n}`, evGone: m => `<b>${m}</b> is gone`, evMet: (n, m, l) => `<b>${n}</b> met <b>${m}</b> first in ${l}.`, missed: "Not caught", forget: "Remove", forgetSure: "Really remove?", forgetTip: "Remove this encounter if it was recorded by mistake", locked: "Location used up", sPlace: "You are in", sPlaceNone: "unknown",
     evBadges: (p, n) => `<b>${p}</b> now has ${n === 1 ? "1 badge" : n + " badges"}`,
-    startTitle: "Start a Soul Link", startLead: "Two to four players, one run. Every catch is linked to the others’ catches from the same area.",
+    startTitle: "Start a Soul Link", startLead: "Two to four players, one run. Every catch is linked to the others’ catches from the same area. Or play a classic Nuzlocke on your own.",
     setupTitle: "Set up SoulSync", setupLead: "Pick your game once. SoulSync then keeps it in sync and shows the dashboard.",
     fName: "Your name", fNamePh: "Shown to your partner", fRom: "Your ROM", fSave: "Your save", sGameHint: "Playing another game in this run, such as one you already started? Choose its ROM: SoulSync takes the save next to it in DeSmuME's Battery folder, or choose the save yourself.", browse: "Browse", fPathPh: "Path to the file",
     romOk: (g, n) => `Pokémon ${g}  ·  Gen ${n}`, romBad: "This is not a supported Pokémon ROM (Black, White, Black 2, White 2).",
@@ -955,6 +962,8 @@ rando: { title: "What gets randomized", lead: "Preset for a Soul Link. Open a gr
   },
   de: {
     links: "Links", run: "Run", activity: "Verlauf", copy: "Kopieren", copied: "Kopiert",
+    solo: { links: "Fänge", soulLink: () => "Nuzlocke  ·  solo", liveAll: () => "Live", sum: (l, o, x) => [`<b>${l} am Leben</b>`, x ? `<span class="bad">${x} verloren</span>` : `0 verloren`].join("  ·  "), hint: { team: "im Team", boxed: "ruhen im PC", open: "", lost: "besiegt oder nicht gefangen" }, teamLead: "Dein Team. Klick auf ein Pokémon für Attacken und Werte.", teamEmpty: "Noch kein Pokémon im Team.", rCapsHint: "Das markierte Limit gilt, bis du den nächsten Orden hast.", rRules: "Nuzlocke-Regeln", rules: { fate: ["Besiegt heißt weg", "Ein Pokémon, das besiegt wird, gilt als tot und bleibt für den Rest des Runs draußen."], failed: ["Fehlgeschlagener Fang", "Entkommt das erste Pokémon eines Gebiets oder wird es besiegt, ist das Gebiet verbraucht."] } },
+    fSolo: "Solo",
     liveAll: n => n === 2 ? "Beide Spieler live" : `Alle ${n} Spieler live`, liveSome: (k, n) => `${k} von ${n} Spielern live`, live0: "Warte auf Spieler", offline: "Verbinde neu", missing: "Run nicht gefunden",
     theme: "Farbschema wechseln",
     ballHave: (b, n) => `${b}: ${n} im Beutel`,
@@ -995,7 +1004,7 @@ waitPlayer: n => `Warte auf Spieler ${n}`, playerN: n => `Spieler ${n}`, fPlayer
     evEvolved: (m, s) => `<b>${m}</b> hat sich zu ${s} entwickelt`, evLevel: (m, n) => `<b>${m}</b> ist jetzt Lv ${n}`,
     evParty: m => `<b>${m}</b> ist jetzt im Team`, evBox: (m, n) => `<b>${m}</b> liegt jetzt in Box ${n}`, evGone: m => `<b>${m}</b> ist weg`, evMet: (n, m, l) => `<b>${n}</b> trifft zuerst auf <b>${m}</b> (${l}).`, missed: "Nicht gefangen", forget: "Entfernen", forgetSure: "Wirklich entfernen?", forgetTip: "Begegnung entfernen, wenn sie versehentlich erfasst wurde", locked: "Ort verbraucht", sPlace: "Du bist in", sPlaceNone: "unbekannt",
     evBadges: (p, n) => `<b>${p}</b> hat jetzt ${n} Orden`,
-    startTitle: "Soul Link starten", startLead: "Zwei bis vier Spieler, ein Run. Jeder Fang ist mit den Fängen der anderen aus demselben Gebiet verbunden.",
+    startTitle: "Soul Link starten", startLead: "Zwei bis vier Spieler, ein Run. Jeder Fang ist mit den Fängen der anderen aus demselben Gebiet verbunden. Oder spiel allein einen klassischen Nuzlocke.",
     setupTitle: "SoulSync einrichten", setupLead: "Wähle einmal dein Spiel aus. SoulSync hält es danach synchron und zeigt das Dashboard.",
     fName: "Dein Name", fNamePh: "So sieht dich dein Partner", fRom: "Deine ROM", fSave: "Dein Spielstand", sGameHint: "Ein anderes Spiel in diesem Run spielen, etwa eines, das du schon angefangen hast? Wähl seine ROM: SoulSync nimmt den Spielstand daneben im Battery-Ordner von DeSmuME, oder wähl den Spielstand selbst.", browse: "Durchsuchen", fPathPh: "Pfad zur Datei",
     romOk: (g, n) => `Pokémon ${g}  ·  Gen ${n}`, romBad: "Das ist keine unterstützte Pokémon-ROM (Schwarz, Weiß, Schwarz 2, Weiß 2).",
@@ -1285,15 +1294,16 @@ async function loadPresets() {
   try { const r = await fetch(`${SRV}/api/presets`); PRESETS = r.ok ? await r.json() : []; } catch { PRESETS = []; }
   return PRESETS;
 }
-function rulePicker(chosen, first = "") {
-  return `<div class="field"><label>${t().pickRules}</label><div class="checks" id="f-rules">${first}${RULES.filter(id => id !== "cap").map(id => {
+function rulePicker(chosen, first = "", alone = false) {
+  return `<div class="field"><label>${t().pickRules}</label><div class="checks${alone ? " solo" : ""}" id="f-rules">${first}${RULES.filter(id => id !== "cap").map(id => {
     const fixed = RULES_FIXED.includes(id);
-    return `<label><input type="checkbox" value="${id}" ${chosen.includes(id) ? "checked" : ""} ${fixed ? "disabled" : ""}><span>${t().rules[id][0]}${fixed ? `  ·  ${t().rAlways}` : ""}</span><small>${t().rules[id][1]}</small></label>`;
+    return `<label${LINK_RULES.includes(id) || id === "fate" ? ` class="linkrule"` : ""}><input type="checkbox" value="${id}" ${chosen.includes(id) ? "checked" : ""} ${fixed ? "disabled" : ""}><span>${t().rules[id][0]}${fixed ? `  ·  ${t().rAlways}` : ""}</span>${t().solo.rules[id] && !fixed ? `<small class="pair-t">${t().rules[id][1]}</small><small class="solo-t">${t().solo.rules[id][1]}</small>` : `<small>${t().rules[id][1]}</small>`}</label>`;
   }).join("")}</div></div>`;
 }
 function readRules(caps) {
+  const box = document.getElementById("f-rules"), alone = box && box.classList.contains("solo");
   const ids = [...document.querySelectorAll("#f-rules input:checked")].map(i => i.value);
-  return RULES.filter(id => ids.includes(id) || (id === "cap" && caps.length));
+  return RULES.filter(id => (ids.includes(id) || (id === "cap" && caps.length)) && !(alone && LINK_RULES.includes(id)));
 }
 function parseCaps(raw) {
   const caps = raw.trim() ? raw.trim().split(/[\s,;]+/).filter(Boolean).map(Number) : [];
@@ -1420,7 +1430,7 @@ function renderSetup() {
       <div class="ptabs glass" role="tablist" data-i="${u.tab}"><button type="button" role="tab" aria-selected="${u.tab === 0}" data-i="0">${t().tabJoin}</button><button type="button" role="tab" aria-selected="${u.tab === 1}" data-i="1">${t().tabNew}</button></div>
       <div class="pane glass reveal" style="--i:1">${u.tab === 0
         ? `<div class="field"><label for="f-code">${t().code}</label><input id="f-code" class="mono" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="HYPNO-6811" value="${esc(u.code)}"><small>${t().codeHelp}${u.mode === "roll" ? " " + t().pJoin : ""}</small></div>`
-        : playersField(u.players) + presetField(u, fr) + rulePicker(u.rules, capPicker(u.capOn, u.mode === "roll" ? fr.original : rom))}
+        : playersField(u.players) + presetField(u, fr) + rulePicker(u.rules, capPicker(u.capOn, u.mode === "roll" ? fr.original : rom), u.players === 1)}
         <details class="adv" ${local.server ? "open" : ""}><summary>${t().advanced}</summary><div class="field"><label for="f-server">${t().fServer}</label><input id="f-server" autocomplete="off" spellcheck="false" placeholder="https://" value="${esc(local.server)}"><small>${t().fServerHelp}</small></div>${u.tab === 1 ? `<div class="field"><div class="checks"><label><input type="checkbox" id="f-seed" ${u.sharedSeed ? "checked" : ""}><span>${t().fSeed}</span><small>${t().fSeedHelp}</small></label></div></div>` : ""}</details>
         <p class="err" id="err" ${u.error ? "" : "hidden"}>${esc(u.error)}</p>
         <button class="btn" type="submit">${ICON.play.replace("<svg", '<svg width="20" height="20"')}${u.tab === 0 ? t().startJoin : t().startNew}</button>
@@ -1471,7 +1481,7 @@ function renderSetup() {
     if (!caps) return fail(t().capsNoRom);
     if (roll && !(fr.original && fr.original.ok)) return fail(t().eRoll);
     if (roll && !fr.emulator) return fail(t().eEmu);
-    const body = u.tab === 0 ? { code: u.code.trim(), roll } : { roll, settings: { players: u.players, caps, shared_seed: u.sharedSeed, rules: RULES.filter(id => u.rules.includes(id) || (id === "cap" && caps.length)) } };
+    const body = u.tab === 0 ? { code: u.code.trim(), roll } : { roll, settings: { players: u.players, caps, shared_seed: u.sharedSeed, rules: RULES.filter(id => (u.rules.includes(id) || (id === "cap" && caps.length)) && !(u.players === 1 && LINK_RULES.includes(id))) } };
     if (u.tab === 1 && u.preset !== "none") {
       const p = (PRESETS || []).find(x => x.id === u.preset);
       if (u.preset === "own" && !(fr.options && fr.options.ok)) return fail(t().pOwnMissing);
@@ -1498,13 +1508,21 @@ const SECTIONS = ["open", "team", "boxed", "lost"];
 // A run has two to four seats; each has its colour.
 const COLS = ["--a", "--b", "--p3", "--p4"];
 const col = i => `var(${COLS[i] || "--muted"})`;
-const seats = () => Math.max(2, Math.min(4, state && state.settings && state.settings.players || 2), state ? state.players.length : 0);
+const seats = () => Math.max(1, Math.min(4, state && state.settings && state.settings.players || 2), state ? state.players.length : 0);
+const solo = () => seats() === 1;
+// The texts for this run: a solo run has no partners to speak of.
+const ts = () => solo() ? { ...t(), ...t().solo, rules: { ...t().rules, ...t().solo.rules } } : t();
+// Rules about partners, which a solo run goes without. Shared fate stays,
+// as plain "fainted means gone".
+const LINK_RULES = ["linked", "together"];
 const seatList = () => [...Array(seats()).keys()];
 const seatName = i => state.players[i] ? state.players[i].name : t().playerN(i + 1);
-const playersField = n => `<div class="field"><label>${t().fPlayers}</label><div class="seg3" id="f-players">${[2, 3, 4].map(k => `<button type="button" data-n="${k}" aria-pressed="${k === n}">${k}</button>`).join("")}</div></div>`;
+const playersField = n => `<div class="field"><label>${t().fPlayers}</label><div class="seg3" id="f-players">${[1, 2, 3, 4].map(k => `<button type="button" data-n="${k}" aria-pressed="${k === n}">${k === 1 ? t().fSolo : k}</button>`).join("")}</div></div>`;
 const pickPlayers = e => {
   const b = e.target.closest("#f-players button");
   if (b) b.parentNode.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
+  const rules = document.getElementById("f-rules");
+  if (b && rules) rules.classList.toggle("solo", b.dataset.n === "1");
   return b ? +b.dataset.n : null;
 };
 const TILED = { boxed: true, lost: true };
@@ -1523,9 +1541,9 @@ function mount() {
       </div>
       <div class="hpanel glass">
         <div class="col live blk" data-b="live"><h3>${t().live}<small id="livesrc"></small>${layBar("live")}</h3><div id="pcards"></div></div>
-        <div class="col links blk" data-b="links"><h3>${t().links}<em id="nlinks"></em><small id="sum2"></small>${layBar("links")}</h3>
+        <div class="col links blk" data-b="links"><h3>${ts().links}<em id="nlinks"></em><small id="sum2"></small>${layBar("links")}</h3>
           <div id="setup"></div>
-          ${SECTIONS.map(s => `<section class="sec" data-sec="${s}" hidden><h3><span class="glyph"><i></i><u></u><i></i></span><span>${t()[s]}</span><em></em><small>${t().hint[s]}</small></h3><div class="${TILED[s] ? "tiles" : "rows"}"></div></section>`).join("")}
+          ${SECTIONS.map(s => `<section class="sec" data-sec="${s}" hidden><h3><span class="glyph"><i></i><u></u><i></i></span><span>${t()[s]}</span><em></em><small>${ts().hint[s]}</small></h3><div class="${TILED[s] ? "tiles" : "rows"}"></div></section>`).join("")}
           <p class="empty-list" id="none" hidden>${t().noLinks}</p>
         </div>
         <div class="col feedc blk" data-b="feed"><h3>${t().activity}${layBar("feed")}</h3><div class="feed" id="feed"></div><p class="feed-empty" id="nofeed" hidden>${t().noEvents}</p></div>
@@ -1535,7 +1553,7 @@ function mount() {
       ${head("encounters", `<div class="etools"><div class="filters glass" id="efilt"></div><label class="search glass">${ICON.search}<input id="efind" type="search" autocomplete="off" spellcheck="false" placeholder="${t().encFind}" aria-label="${t().encFind}"></label></div>`)}
       <div class="tablep glass"><div class="thead" id="ehead"></div><div class="scroll" id="enc"></div></div>
     </div>
-    <div class="view" data-view="team" hidden>${head("team", "", t().teamLead)}<div class="scroll" id="team"></div></div>
+    <div class="view" data-view="team" hidden>${head("team", "", ts().teamLead)}<div class="scroll" id="team"></div></div>
     <div class="view" data-view="timeline" hidden>${head("timeline")}<div class="glass scroll tl" id="tl"></div></div>
     <div class="view" data-view="types" hidden>${head("types")}<div class="glass scroll types" id="types"></div></div>
     <div class="view" data-view="rules" hidden>${head("rules")}<div class="scroll rules" id="rules"></div></div>
@@ -1648,7 +1666,7 @@ function updateEncounters() {
   $("#ehead").innerHTML = `<span>${t().area}</span>${seatList().map(i => `<span><i style="background:${col(i)}"></i>${esc(seatName(i))}</span>`).join("")}<span>${t().status}</span>`;
   const count = s => ms.filter(m => s === "all" || m.sec === s).length;
   const ec = $("#ecount"); if (ec) ec.textContent = ms.length || "";
-  $("#efilt").innerHTML = ["all", ...SECTIONS].map(s => `<button type="button" data-f="${s}" aria-pressed="${u.f === s}">${s === "all" ? t().encAll : t()[s]}<em>${count(s)}</em></button>`).join("");
+  $("#efilt").innerHTML = ["all", ...SECTIONS.filter(x => !(solo() && x === "open"))].map(s => `<button type="button" data-f="${s}" aria-pressed="${u.f === s}">${s === "all" ? t().encAll : t()[s]}<em>${count(s)}</em></button>`).join("");
   const cell = (s, i) => {
     if (!s) return `<span class="ecell none">–</span>`;
     const p = s.pokemon, b = p.battle;
@@ -1715,14 +1733,14 @@ function updateRules() {
   const withSave = state.players.filter(p => p.snapshot);
   const badges = withSave.length ? Math.min(...withSave.map(p => p.snapshot.trainer.badges)) : 0;
   const now = Math.min(badges, caps.length - 1);
-  const sig = [lang, caps.join(), now, chosen.join()].join("|"), el = $("#rules");
+  const sig = [lang, caps.join(), now, chosen.join(), seats()].join("|"), el = $("#rules");
   if (el._sig === sig) return;
   el._sig = sig;
-  const list = RULES.filter(id => chosen.includes(id) && (id !== "cap" || caps.length));
+  const list = RULES.filter(id => chosen.includes(id) && (id !== "cap" || caps.length) && !(solo() && LINK_RULES.includes(id)));
   el.innerHTML = `<section class="rblock glass reveal"><h2>${t().rCaps}</h2>${caps.length
-      ? `<div class="caps">${caps.map((c, i) => `<span class="capc ${i < now ? "done" : i === now ? "now" : ""}"><small>${i < 8 ? t().gym(i + 1) : t().league}</small><b>${c}</b></span>`).join("")}</div><p>${t().rCapsHint}</p>`
+      ? `<div class="caps">${caps.map((c, i) => `<span class="capc ${i < now ? "done" : i === now ? "now" : ""}"><small>${i < 8 ? t().gym(i + 1) : t().league}</small><b>${c}</b></span>`).join("")}</div><p>${ts().rCapsHint}</p>`
       : `<p>${t().rNoCaps}</p>`}</section>
-    <section class="rblock glass reveal" style="--i:1"><h2>${t().rRules}</h2><ol class="rlist">${list.map(id => `<li><b>${t().rules[id][0]}</b><span>${t().rules[id][1]}</span></li>`).join("")}</ol><p>${t().rNote}</p></section>`;
+    <section class="rblock glass reveal" style="--i:1"><h2>${ts().rRules}</h2><ol class="rlist">${list.map(id => `<li><b>${ts().rules[id][0]}</b><span>${ts().rules[id][1]}</span></li>`).join("")}</ol><p>${t().rNote}</p></section>`;
 }
 
 // A button that asks for a second click before it acts.
@@ -2009,8 +2027,8 @@ function patchRow(el, m, fresh) {
 // under their names.
 function newRow() {
   const el = document.createElement("div"), n = seats();
-  el.className = "row enter" + (n > 2 ? " multi" : ""); el._kind = "row";
-  el.innerHTML = n > 2
+  el.className = "row enter" + (n !== 2 ? " multi" : ""); el._kind = "row";
+  el.innerHTML = n !== 2
     ? `<span class="loc"></span>` + seatList().map(i => `<div class="side" style="--c:${col(i)}"></div>`).join("")
     : `<div class="side a" style="--c:var(--a)"></div><div class="tether"><i class="seg a"></i><span class="loc"></span><i class="seg b"></i></div><div class="side b" style="--c:var(--b)"></div>`;
   el.addEventListener("animationend", e => { if (e.target === el) el.classList.remove("enter"); });
@@ -2268,7 +2286,7 @@ function updateLinks() {
   $("#none").hidden = ms.length > 0 || state.players.length < seats();
   const n = s => ms.filter(m => m.sec === s).length;
   const fin = state.finished, played = state.played_ms || 0;
-  $("#sum").innerHTML = (fin ? `<span class="done ${fin}">${t().doneChip[fin]}</span>` : "") + t().sum(n("team") + n("boxed"), n("open"), n("lost")) + (played >= 6e4 ? `  ·  <span class="played">${t().played(played)}</span>` : "");
+  $("#sum").innerHTML = (fin ? `<span class="done ${fin}">${t().doneChip[fin]}</span>` : "") + ts().sum(n("team") + n("boxed"), n("open"), n("lost")) + (played >= 6e4 ? `  ·  <span class="played">${t().played(played)}</span>` : "");
 }
 
 /* ---------- type chart (generations 2 to 5) */
@@ -2489,7 +2507,7 @@ function updateStatus() {
   const el = $("#status"); if (!el) return;
   const live = state ? state.players.filter(p => p.connected).length : 0;
   el.className = "status" + (conn === "missing" ? " bad" : conn === "live" && live ? " live" : "");
-  $("span", el).textContent = conn === "missing" ? t().missing : conn !== "live" ? t().offline : !live ? t().live0 : live >= seats() ? t().liveAll(live) : t().liveSome(live, seats());
+  $("span", el).textContent = conn === "missing" ? t().missing : conn !== "live" ? t().offline : !live ? t().live0 : live >= seats() ? ts().liveAll(live) : t().liveSome(live, seats());
 }
 
 function syncCmd() {
@@ -2515,7 +2533,7 @@ function updateRail() {
   const seeds = state.seeds && state.seeds.length ? state.seeds : [state.seed];
   const shared = state.settings.shared_seed || seeds.length < 2;
   const chip = (v, hl) => `<span class="tag${hl ? " hl" : ""}">${v}</span>`;
-  const html = [chip(t().soulLink(seats()), true), games.length ? chip(`Pokémon ${esc(games.join(" / "))}  ·  ${t().gen(5)}`) : "", seeds[0] != null ? chip(shared ? `${t().kSeed} <span class="mono">${esc(seeds[0])}</span>` : t().seedOwn) : ""].join("");
+  const html = [chip(ts().soulLink(seats()), true), games.length ? chip(`Pokémon ${esc(games.join(" / "))}  ·  ${t().gen(5)}`) : "", seeds[0] != null ? chip(shared ? `${t().kSeed} <span class="mono">${esc(seeds[0])}</span>` : t().seedOwn) : ""].join("");
   const el = $("#chips");
   if (el._h !== html) { el._h = html; el.innerHTML = html; el.title = shared ? "" : seeds.map((v, i) => `${seatName(i)}: ${v}`).join("\n"); }
   updateActions();
@@ -2620,10 +2638,10 @@ function updateTeam() {
     const tys = (p.types || []).map(tyChip).join("");
     return `<div class="tm" style="--c:${col(i)}" data-mon="${p.pid}" data-seat="${i}" role="button" tabindex="0" title="${esc(t().mon.open)}"><span class="stage">${spriteImg(p)}</span><b>${esc(label(p))}</b><small>${esc(species(p))}${b ? `  ·  ${t().lv} ${b.level}` : `  ·  ${t().box(p.place.box ?? "")}`}</small><div class="tys">${tys}</div>${b ? hpLine(b) : ""}</div>`;
   };
-  const card = (m, k) => `<article class="pairc glass reveal${n > 2 ? " multi" : ""}" style="--n:${n};--i:${Math.min(k, 10)}"><span class="ploc">${esc(locName(m.link))}</span>${m.sides.map(mon).join("")}</article>`;
+  const card = (m, k) => `<article class="pairc glass reveal${n !== 2 ? " multi" : ""}" style="--n:${n};--i:${Math.min(k, 10)}"><span class="ploc">${esc(locName(m.link))}</span>${m.sides.map(mon).join("")}</article>`;
   const team = ms.filter(m => m.sec === "team"), boxed = ms.filter(m => m.sec === "boxed");
-  el.innerHTML = (team.length ? `<div class="pairs">${team.map(card).join("")}</div>` : `<p class="empty-list">${t().teamEmpty}</p>`)
-    + (boxed.length ? `<div class="sec" style="margin-top:20px"><h3><span>${t().boxed}</span><em>${boxed.length}</em><small>${t().hint.boxed}</small></h3></div><div class="pairs">${boxed.map(card).join("")}</div>` : "");
+  el.innerHTML = (team.length ? `<div class="pairs${n === 1 ? " solo" : ""}">${team.map(card).join("")}</div>` : `<p class="empty-list">${ts().teamEmpty}</p>`)
+    + (boxed.length ? `<div class="sec" style="margin-top:20px"><h3><span>${t().boxed}</span><em>${boxed.length}</em><small>${ts().hint.boxed}</small></h3></div><div class="pairs${n === 1 ? " solo" : ""}">${boxed.map(card).join("")}</div>` : "");
 }
 const tyChip = ty => `<span class="ty" style="--tc:${TCOL[ty]}">${esc(typeName(ty))}</span>`;
 function hpLine(b) {

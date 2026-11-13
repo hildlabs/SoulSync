@@ -31,7 +31,7 @@ In a Soul Link, two or more players play the same game side by side. The first P
 
 - **Live from the emulator.** A small Lua script inside DeSmuME reads your party, the wild Pokémon you face and your bag while you play. Catches, faints and level-ups show up within a second or two, for everyone in the run.
 - **Links and encounters, automatic.** The first encounter of every location is recorded for each player and paired up. A Pokémon you fail to catch closes the location for the whole group.
-- **Two to four players.** Each player sees all teams, the shared activity feed and who is in battle right now.
+- **Solo or with up to three friends.** Play a classic Nuzlocke on your own, or a Soul Link with two to four players. Everyone sees all teams, the shared activity feed and who is in battle right now.
 - **Rules that watch themselves.** Level caps read from the gym leaders in your ROM, shared fate, "together or not at all", failed catches. SoulSync points out when a team breaks one; it never stops you from playing.
 - **Catch odds in battle.** The wild Pokémon's HP, status and the Poké Balls in your bag give the chance to catch it, before you throw.
 - **Made for randomizers.** Moves, abilities and learnsets come from each player's own ROM, so a randomized game shows what is really in it. A new attempt rerolls the ROM and restarts the save in one click.
@@ -91,7 +91,6 @@ SoulSync reads the game **from the outside**, through the save file and the emul
 Next up, roughly in this order:
 
 - [ ] Starting a randomized run without bringing your own randomizer
-- [ ] Playing alone (classic Nuzlocke)
 - [ ] A smoother first start and a signed Windows build
 - [ ] An OBS overlay for streamers
 - [ ] More games and emulators

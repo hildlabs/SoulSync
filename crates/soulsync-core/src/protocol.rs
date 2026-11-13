@@ -41,7 +41,8 @@ pub enum ServerMsg {
 /// Settings chosen when a run is created.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RunSettings {
-    /// How many players the run has seats for: 2 to [`MAX_PLAYERS`].
+    /// How many players the run has seats for: 1 (a classic Nuzlocke) to
+    /// [`MAX_PLAYERS`].
     #[serde(default = "two")]
     pub players: usize,
     /// Level cap before each badge: `caps[n]` applies while a player has `n`
@@ -103,8 +104,8 @@ impl Default for RunSettings {
 impl RunSettings {
     /// Checks limits before a server accepts the settings.
     pub fn validate(&self) -> Result<(), &'static str> {
-        if !(2..=MAX_PLAYERS).contains(&self.players) {
-            return Err("a run has 2 to 4 players");
+        if !(1..=MAX_PLAYERS).contains(&self.players) {
+            return Err("a run has 1 to 4 players");
         }
         if self.caps.len() > 16 || self.caps.iter().any(|&c| c == 0 || c > 100) {
             return Err("caps must be 1 to 100, at most 16 of them");
@@ -265,10 +266,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn runs_have_two_to_four_players() {
+    fn runs_have_one_to_four_players() {
         let old: RunSettings = serde_json::from_str("{}").unwrap();
         assert_eq!(old.players, 2);
-        for (players, ok) in [(1, false), (2, true), (4, true), (5, false)] {
+        for (players, ok) in [(0, false), (1, true), (2, true), (4, true), (5, false)] {
             let s = RunSettings {
                 players,
                 ..RunSettings::default()
