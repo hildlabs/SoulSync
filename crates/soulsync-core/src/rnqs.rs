@@ -402,7 +402,7 @@ impl Preset {
     /// switch, is `None`: such settings go to the original randomizer.
     pub fn native(&self) -> Option<crate::rando::gen5::Options> {
         use crate::rando::gen5::{
-            Change, Evolving, Movesets, Options, Spread, Stats, Themes, TrainerRules,
+            Change, Evolving, Movesets, Options, Spread, Stats, Themes, TrainerItems, TrainerRules,
         };
         // Files of 4.6.0 and 4.6.1 have the same layout; older ones the
         // randomizer rewrites first.
@@ -429,7 +429,6 @@ impl Preset {
             && d[27] & !(1 | 1 << 1 | 1 << 2 | 1 << 3 | 1 << 4) == 0
             && d[40] & 0x81 == 0
             && d[41] & 0xC0 == 0
-            && d[48] & 7 == 0
             && d[0] & !(1 | 1 << 3 | 1 << 4 | 1 << 5 | 1 << 6) == 0
             && d[16] & !(1 << 3 | 1 << 4) == 0
             && d[39] & (1 << 4 | 1 << 5) == 0
@@ -578,6 +577,14 @@ impl Preset {
             trainer_forms: bit(39, 6),
             rival_carries_starter: bit(27, 1),
             trainers_fully_evolved_from: fully_evolved,
+            trainer_items: TrainerItems {
+                boss: bit(48, 0),
+                important: bit(48, 1),
+                regular: bit(48, 2),
+                consumable: bit(48, 3),
+                sensible: bit(48, 4),
+                strongest_only: bit(48, 5),
+            },
             random_trainer_names: bit(0, 3),
             random_trainer_class_names: bit(0, 4),
             random_trades,
@@ -828,6 +835,12 @@ mod tests {
         assert_eq!(themed.native().unwrap().more_trainer_pokemon, [1, 2, 3]);
         themed.data[50] |= 3;
         assert_eq!(themed.native().unwrap().trainer_rules.elite_unique, 3);
+        // Bosses' Pokémon hold items of use to them, the strongest only.
+        assert!(!themed.native().unwrap().trainer_items.any());
+        themed.data[48] |= 1 | 1 << 4 | 1 << 5;
+        let items = themed.native().unwrap().trainer_items;
+        assert!(items.boss && items.sensible && items.strongest_only);
+        assert!(!items.regular && !items.consumable);
 
         let mut evolving = Overrides::default();
         evolving.set("evolutions", Value::Choice("random".into()));
