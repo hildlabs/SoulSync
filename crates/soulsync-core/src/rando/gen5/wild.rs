@@ -31,9 +31,11 @@ const AREA_OF_FILE: [i8; 135] = [
 const ROUTE_4: (i8, usize, usize) = (40, 104, 105);
 const VICTORY_ROAD: (i8, [usize; 2], [usize; 2]) = (76, [71, 73], [78, 79]);
 const REVERSAL_MOUNTAIN: (i8, (usize, usize), (usize, usize)) = (73, (49, 54), (55, 60));
-/// Forms a player could not keep: Giratina's and Shaymin's other form,
-/// and those that only exist through an ability.
-const NOT_WILD: [usize; 6] = [655, 656, 662, 663, 664, 666];
+/// Forms a player could not keep: Shaymin's and Giratina's other form.
+/// Those that only exist through an ability, Castform's and Darmanitan's,
+/// are left out too unless abilities are random.
+const NOT_WILD: [usize; 2] = [655, 656];
+const BY_ABILITY: [usize; 4] = [662, 663, 664, 666];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Slot {
@@ -184,7 +186,9 @@ impl<'a> Game<'a> {
                 let picked = loop {
                     self.random.index(others);
                     let picked = 1 + self.random.index(last);
-                    let fits = !self.species[picked].looks_only && !NOT_WILD.contains(&picked);
+                    let fits = !self.species[picked].looks_only
+                        && !NOT_WILD.contains(&picked)
+                        && (self.abilities_changed || !BY_ABILITY.contains(&picked));
                     if fits && !new.contains(&picked) {
                         break picked;
                     }

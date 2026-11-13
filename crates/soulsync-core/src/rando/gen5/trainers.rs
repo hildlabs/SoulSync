@@ -289,7 +289,7 @@ impl<'a> Game<'a> {
                 let entry = &self.species[n];
                 let by_ability =
                     entry.base == CASTFORM || (entry.base == DARMANITAN && entry.form == 1);
-                !entry.looks_only && !by_ability
+                !entry.looks_only && (!by_ability || self.abilities_changed)
             })
             .collect();
         let mut all = self.trainers()?;

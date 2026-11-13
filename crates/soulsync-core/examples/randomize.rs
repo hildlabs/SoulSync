@@ -6,7 +6,10 @@
 //! Pokémon, nicknames, IVs and items of the trades), `field`,
 //! `goodfield`, `shops`, `goodshops`, `pickup`, `goodpickup`, `tms`, and
 //! `tmrandom`, `tmtype`, `tmfull`, `tutorrandom`, `tutortype`, `tutorfull`
-//! for who learns the moves of TMs and tutors.
+//! for who learns the moves of TMs and tutors; `statsshuffle`,
+//! `statsrandom`, `statsevo`, `statsgrow`, `ptypes`, `ptypesevo`,
+//! `twotypes`, `abilities`, `abilitiesevo` and `wonderguard` for what the
+//! species are like.
 use soulsync_core::rando::gen5;
 
 fn main() {
@@ -28,7 +31,29 @@ fn main() {
             Compat::Unchanged
         }
     };
+    let change = |name: &str| {
+        if on(&format!("{name}evo")) {
+            gen5::Change::FollowEvolutions
+        } else if on(name) {
+            gen5::Change::Random
+        } else {
+            gen5::Change::Unchanged
+        }
+    };
     let options = gen5::Options {
+        stats: if on("statsshuffle") {
+            gen5::Stats::Shuffle
+        } else if on("statsrandom") {
+            gen5::Stats::Random
+        } else {
+            gen5::Stats::Unchanged
+        },
+        stats_follow_evolutions: on("statsevo"),
+        stats_grow_at_random: on("statsgrow"),
+        types: change("ptypes"),
+        two_types: on("twotypes"),
+        abilities: change("abilities"),
+        wonder_guard: on("wonderguard"),
         random_tm_moves: on("tms"),
         machines: compat("tm"),
         tutors: compat("tutor"),
