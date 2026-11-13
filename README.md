@@ -10,7 +10,7 @@ SoulSync reads the game state of two to four players and shows it on one shared 
 
 ## The app
 
-Get `SoulSync.exe` for Windows from the [latest release](https://github.com/hildlabs/SoulSync/releases/latest). Later builds are offered in the app's top bar and install with one click. Start `SoulSync`; it opens in its own window, and closing the window quits it:
+Get `SoulSync.exe` for Windows from the [latest release](https://github.com/hildlabs/SoulSync/releases/latest). Later versions are offered in the app's top bar and install with one click. Under *Settings › Run › Updates* you can also get preview builds, made from every change and not yet released. Start `SoulSync`; it opens in its own window, and closing the window quits it:
 
 1. Enter your name and pick your ROM and your save. For DeSmuME the save is the `.dsv` in its `Battery` folder; SoulSync finds it next to the ROM if it can.
 2. Start a new run, choose how many players it has (two to four) and your rules, or join your partner's run with their code.
@@ -37,6 +37,10 @@ The host name your provider gave the machine works as the domain too. Many custo
 For a quick test without HTTPS, `SOULSYNC_DOMAIN=:80` serves plain HTTP; players then enter `http://` and the machine's address as the server.
 
 If the machine already runs a reverse proxy, start only the server with `docker compose up -d --build` and point the proxy at `127.0.0.1:3000`, passing WebSocket upgrades through. Runs are kept in memory.
+
+## Releasing
+
+Every push to `main` publishes a preview build (a GitHub pre-release `build-<n>`). To release a version, open *Actions › CI › Run workflow* on `main` and enter the version, such as `0.1.0`: it builds `main`, publishes it as the release *SoulSync 0.1.0* and tags the commit `v0.1.0`. Apps on the default channel only update to such releases, and a server run with `SOULSYNC_TRACK=releases deploy/update.sh` only to their tags.
 
 ## Command line
 

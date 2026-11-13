@@ -2,17 +2,21 @@
 //!
 //! Every build of the main branch is published as a release tagged
 //! `build-<number>` with `SoulSync.exe` attached, and the app knows its own
-//! build number. A newer release is offered in the app; installing it swaps
-//! the program file and starts the new one. Nothing about the player is sent:
-//! the app only reads the public list of releases.
+//! build number. Builds of main are marked as pre-releases; a version made
+//! with the Release button in GitHub Actions is a full release named
+//! `SoulSync <version>`. The app offers full releases only, and pre-releases
+//! too when the player asked for them. Installing one swaps the program
+//! file and starts the new one. Nothing about the player is sent: the app
+//! only reads the public list of releases.
 
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
 /// The newest releases. Not `releases/latest`: GitHub picks that by the date
 /// of the tagged commit, so a build published late (a rerun) can hide newer
-/// ones. The highest build number decides instead.
-const RELEASES: &str = "https://api.github.com/repos/hildlabs/SoulSync/releases?per_page=20";
+/// ones. The highest build number decides instead. A hundred, so that the
+/// last version is still among them after many pre-releases.
+const RELEASES: &str = "https://api.github.com/repos/hildlabs/SoulSync/releases?per_page=100";
 /// Where a release's files come from. Anything else is not installed.
 const DOWNLOADS: &str = "https://github.com/hildlabs/SoulSync/releases/download/";
 const ASSET: &str = "SoulSync.exe";
@@ -26,10 +30,18 @@ pub fn build() -> Option<u64> {
     option_env!("SOULSYNC_BUILD")?.parse().ok()
 }
 
+/// The version this program was released as, such as `0.1.0`. Builds of
+/// main and builds made by hand have none.
+pub fn version() -> Option<&'static str> {
+    option_env!("SOULSYNC_VERSION").filter(|v| !v.is_empty())
+}
+
 /// A published build.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Release {
     pub build: u64,
+    /// The version of a full release; a pre-release has none.
+    pub version: Option<String>,
     #[serde(skip)]
     url: String,
 }
@@ -45,23 +57,31 @@ fn parse_release(json: &serde_json::Value) -> Option<Release> {
         .iter()
         .find(|a| a["name"] == ASSET)?["browser_download_url"]
         .as_str()?;
+    let version = (json["prerelease"] != true)
+        .then(|| json["name"].as_str()?.strip_prefix("SoulSync "))
+        .flatten()
+        .filter(|v| v.starts_with(|c: char| c.is_ascii_digit()))
+        .map(str::to_owned);
     url.starts_with(DOWNLOADS).then(|| Release {
         build,
+        version,
         url: url.to_owned(),
     })
 }
 
-/// The release with the highest build number among `list`.
-fn newest(list: &serde_json::Value) -> Option<Release> {
+/// The release with the highest build number among `list`; pre-releases
+/// only with `preview`.
+fn newest(list: &serde_json::Value, preview: bool) -> Option<Release> {
     list.as_array()?
         .iter()
-        .filter(|r| r["draft"] != true && r["prerelease"] != true)
+        .filter(|r| r["draft"] != true && (preview || r["prerelease"] != true))
         .filter_map(parse_release)
         .max_by_key(|r| r.build)
 }
 
-/// The newest published build. Blocks.
-pub fn latest() -> Option<Release> {
+/// The newest published build, pre-releases included with `preview`.
+/// Blocks.
+pub fn latest(preview: bool) -> Option<Release> {
     let json: serde_json::Value = ureq::get(RELEASES)
         .header("User-Agent", AGENT)
         .header("Accept", "application/vnd.github+json")
@@ -70,7 +90,7 @@ pub fn latest() -> Option<Release> {
         .body_mut()
         .read_json()
         .ok()?;
-    newest(&json)
+    newest(&json, preview)
 }
 
 /// The names a program file goes by while it is replaced.
@@ -284,8 +304,32 @@ mod tests {
         let mut draft = release(70);
         draft["draft"] = true.into();
         let list = serde_json::json!([release(56), release(62), release(54), draft]);
-        assert_eq!(newest(&list).unwrap().build, 62);
-        assert_eq!(newest(&serde_json::json!([])), None);
+        assert_eq!(newest(&list, false).unwrap().build, 62);
+        assert_eq!(newest(&serde_json::json!([]), false), None);
+    }
+
+    #[test]
+    fn offers_pre_releases_only_to_who_wants_them() {
+        let release = |n: u64, pre: bool, name: &str| {
+            serde_json::json!({
+                "tag_name": format!("build-{n}"),
+                "name": name,
+                "prerelease": pre,
+                "assets": [{ "name": "SoulSync.exe", "browser_download_url": format!("https://github.com/hildlabs/SoulSync/releases/download/build-{n}/SoulSync.exe") }],
+            })
+        };
+        let list = serde_json::json!([
+            release(97, false, "SoulSync 0.1.0"),
+            release(98, true, "Build 98"),
+            release(99, true, "Build 99"),
+        ]);
+        let stable = newest(&list, false).unwrap();
+        assert_eq!(
+            (stable.build, stable.version.as_deref()),
+            (97, Some("0.1.0"))
+        );
+        let preview = newest(&list, true).unwrap();
+        assert_eq!((preview.build, preview.version), (99, None));
     }
 
     /// Answers one request with `body`.
