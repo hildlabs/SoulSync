@@ -14,6 +14,7 @@
 //! (40 percent), `nobroken` and `moveorder` for what the species learn;
 //! `evolutions` with `evostrength`, `evotype`, `evothree` and `evochange`
 //! for what they evolve into; `trainerseven`, `trainersstory`,
+//! `trainerthemes`, `trainergyms`, `trainerweights`,
 //! `trainerstrength`, `trainernolegends`, `trainernoguard` and
 //! `trainerlevels` (20 percent up) for the trainers.
 use soulsync_core::rando::gen5;
@@ -118,6 +119,14 @@ fn main() {
             } else {
                 gen5::Spread::Free
             },
+            themes: if on("trainerthemes") {
+                gen5::Themes::All
+            } else if on("trainergyms") {
+                gen5::Themes::GymsAndElite
+            } else {
+                gen5::Themes::None
+            },
+            type_weights: on("trainerweights"),
             similar_strength: on("trainerstrength"),
             no_legendaries: on("trainernolegends"),
             no_early_wonder_guard: on("trainernoguard"),

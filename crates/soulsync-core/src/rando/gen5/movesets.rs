@@ -38,7 +38,7 @@ pub enum Movesets {
 }
 /// The place of each type of the game in the original randomizer's list
 /// of types, which is the order it goes through them.
-const TYPE_PLACES: [u8; 17] = [0, 1, 2, 13, 7, 6, 9, 12, 15, 5, 4, 3, 11, 8, 14, 10, 16];
+pub(super) const TYPE_PLACES: [u8; 17] = [0, 1, 2, 13, 7, 6, 9, 12, 15, 5, 4, 3, 11, 8, 14, 10, 16];
 
 /// What random movesets are made from.
 struct Pool {

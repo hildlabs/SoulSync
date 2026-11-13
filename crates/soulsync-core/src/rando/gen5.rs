@@ -20,7 +20,7 @@ mod wild;
 
 pub use evolutions::Evolving;
 pub use movesets::Movesets;
-pub use trainers::{Spread, TrainerRules};
+pub use trainers::{Spread, Themes, TrainerRules};
 pub use traits::{Change, Stats};
 
 use super::random::JavaRandom;
@@ -1234,7 +1234,11 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
         game.change_tutor_compatibility(options.tutors)?;
     }
     if options.random_trainers {
-        game.randomize_trainers(options.trainer_forms, &options.trainer_rules)?;
+        game.randomize_trainers(
+            options.trainer_forms,
+            &options.trainer_rules,
+            options.trainers_fully_evolved_from,
+        )?;
     } else if options.trainer_rules.levels != 0 {
         game.change_trainer_levels(options.trainer_rules.levels)?;
     }
