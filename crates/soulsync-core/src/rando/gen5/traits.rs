@@ -90,8 +90,8 @@ impl Game<'_> {
         let count = SPECIES + FORMS;
         // What each species evolves from, and whether it takes after it.
         let mut before: Vec<Vec<(usize, bool)>> = vec![Vec::new(); count + 1];
-        for from in 1..=SPECIES {
-            let evolutions = &self.species[from].evolutions;
+        for (from, species) in self.species.iter().enumerate().take(SPECIES + 1).skip(1) {
+            let evolutions = &species.evolutions;
             for evolution in evolutions {
                 let alone = evolutions.len() == 1 || evolution.method == LEVEL_WITH_EXTRA;
                 before[usize::from(evolution.to)].push((from, alone));
