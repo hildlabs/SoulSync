@@ -114,7 +114,11 @@ fn main() {
         wild_forms: on("wildforms"),
         wild_rules: Default::default(),
         min_catch_rate: 0,
-        random_starters: on("starters"),
+        starters: if on("starters") {
+            soulsync_core::rando::gen5::Starters::Random
+        } else {
+            Default::default()
+        },
         full_hm: on("hm"),
         random_tutor_moves: on("tutors"),
         random_trainers: on("trainers"),
