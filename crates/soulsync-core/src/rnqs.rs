@@ -402,7 +402,7 @@ impl Preset {
     /// switch, is `None`: such settings go to the original randomizer.
     pub fn native(&self) -> Option<crate::rando::gen5::Options> {
         use crate::rando::gen5::{
-            Change, Evolving, Movesets, Options, Spread, Stats, TrainerRules,
+            Change, Evolving, Movesets, Options, Spread, Stats, Themes, TrainerRules,
         };
         // Files of 4.6.0 and 4.6.1 have the same layout; older ones the
         // randomizer rewrites first.
@@ -426,7 +426,7 @@ impl Preset {
             && d[20] == 0
             && d[22] == 0
             && d[25] & 0xF0 == 0
-            && d[27] & !(1 | 1 << 1 | 1 << 3 | 1 << 4) == 0
+            && d[27] & !(1 | 1 << 1 | 1 << 2 | 1 << 3 | 1 << 4) == 0
             && d[40] == 0
             && d[41] & 0xC7 == 0
             && d[48] & 7 == 0
@@ -440,17 +440,21 @@ impl Preset {
         if !untouched {
             return None;
         }
-        // The trainers' Pokémon: as they are, random, or random and about
-        // equally often; by type is not built.
-        let (random_trainers, spread) = match d[13] {
-            0b0001 => (false, Spread::Free),
-            0b0010 => (true, Spread::Free),
-            0b0100 => (true, Spread::Even),
-            0b1000 => (true, Spread::EvenInStory),
+        // The trainers' Pokémon: as they are, random, random and about
+        // equally often, or of one type for each trainer.
+        let (random_trainers, spread, themes) = match d[13] {
+            0b00_0001 => (false, Spread::Free, Themes::None),
+            0b00_0010 => (true, Spread::Free, Themes::None),
+            0b00_0100 => (true, Spread::Even, Themes::None),
+            0b00_1000 => (true, Spread::EvenInStory, Themes::None),
+            0b01_0000 => (true, Spread::Free, Themes::All),
+            0b10_0000 => (true, Spread::Free, Themes::GymsAndElite),
             _ => return None,
         };
         let trainer_rules = TrainerRules {
             spread,
+            themes,
+            type_weights: bit(27, 2),
             similar_strength: bit(27, 0),
             no_legendaries: bit(27, 3),
             no_early_wonder_guard: bit(27, 4),
@@ -708,7 +712,7 @@ mod tests {
 
     #[test]
     fn the_soul_link_preset_is_one_for_the_own_randomizer() {
-        use crate::rando::gen5::{Change, Evolving, Movesets, Spread, Stats};
+        use crate::rando::gen5::{Change, Evolving, Movesets, Spread, Stats, Themes};
         let file = include_bytes!("../../soulsync-server/presets/soul-link.rnqs");
         let preset = Preset::read(file).unwrap();
         let o = preset.native().expect("every option of it is built");
@@ -805,6 +809,17 @@ mod tests {
         assert!(rules.similar_strength && !rules.no_early_wonder_guard);
         assert_eq!(rules.levels, -20);
 
+        let mut themed = Overrides::default();
+        themed.set("trainers", Value::Choice("type_themed_gyms".into()));
+        let mut themed = preset.with(&themed);
+        let rules = themed.native().unwrap().trainer_rules;
+        assert_eq!(
+            (rules.themes, rules.type_weights),
+            (Themes::GymsAndElite, false)
+        );
+        themed.data[27] |= 1 << 2;
+        assert!(themed.native().unwrap().trainer_rules.type_weights);
+
         let mut evolving = Overrides::default();
         evolving.set("evolutions", Value::Choice("random".into()));
         let mut evolving = preset.with(&evolving);
@@ -842,7 +857,6 @@ mod tests {
             ("wild", Value::Choice("global_mapping".into())),
             ("wild_rule", Value::Choice("catch_em_all".into())),
             ("statics", Value::Choice("random".into())),
-            ("trainers", Value::Choice("type_themed".into())),
             ("starters", Value::Choice("random_two_evolutions".into())),
             ("shops", Value::Choice("shuffle".into())),
             ("update_moves", Value::Flag(true)),

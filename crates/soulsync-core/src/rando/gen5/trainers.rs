@@ -1,9 +1,10 @@
 //! The teams of the trainers: read and written back the way the original
 //! randomizer does, and the steps that change them.
 
-use super::tables::{LEGENDARIES, STORY_TRAINERS};
+use super::tables::{LEGENDARIES, STORY_TRAINERS, THEME_GROUPS};
 use super::traits::WONDER_GUARD;
 use super::*;
+use std::collections::BTreeMap;
 
 const TRAINERS: &str = "a/0/9/1";
 const TEAMS: &str = "a/0/9/2";
@@ -76,10 +77,28 @@ pub enum Spread {
     EvenInStory,
 }
 
+/// Forms that turn back by themselves.
+const NOT_KEPT: [usize; 2] = [655, 656];
+/// The types of the game in the order the original randomizer lists them.
+const TYPES_IN_ORDER: [u8; 17] = [0, 1, 2, 11, 10, 9, 5, 4, 13, 6, 15, 12, 7, 3, 14, 8, 16];
+
+/// Which trainers have Pokémon of one type each.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Themes {
+    #[default]
+    None,
+    All,
+    /// Only the gyms and the elite.
+    GymsAndElite,
+}
+
 /// What the random Pokémon of the trainers have to be like.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TrainerRules {
     pub spread: Spread,
+    pub themes: Themes,
+    /// Themed trainers get a type as often as Pokémon have it.
+    pub type_weights: bool,
     /// About as strong as the ones they replace.
     pub similar_strength: bool,
     pub no_legendaries: bool,
@@ -395,25 +414,108 @@ impl<'a> Game<'a> {
         list[self.random.index(list.len())]
     }
 
+    /// A random type for themed trainers: every type alike, or with
+    /// `weights` as often as the Pokémon of the pool have it.
+    fn theme(&mut self, weights: Option<&[(u8, usize)]>) -> u8 {
+        let Some(weights) = weights else {
+            return self.random_type();
+        };
+        let total: usize = weights.iter().map(|&(_, count)| count).sum();
+        let picked = self.random.index(total);
+        let mut passed = 0;
+        for &(kind, count) in weights {
+            if passed + count > picked {
+                return kind;
+            }
+            passed += count;
+        }
+        weights[0].0
+    }
+
     /// Every trainer gets random Pokémon, with `forms` also other forms.
-    pub fn randomize_trainers(&mut self, forms: bool, how: &TrainerRules) -> Result<(), RomError> {
+    /// From level `evolved_from` on they will be fully evolved later (0
+    /// for never), which themed trainers take into account.
+    pub fn randomize_trainers(
+        &mut self,
+        forms: bool,
+        how: &TrainerRules,
+        evolved_from: u16,
+    ) -> Result<(), RomError> {
         let last = if forms { SPECIES + FORMS } else { SPECIES };
+        let usable = |game: &Self, n: usize| {
+            let entry = &game.species[n];
+            let species = if entry.base > 0 { entry.base } else { n };
+            let legendary = LEGENDARIES.contains(&(species as u16));
+            !entry.looks_only && !(how.no_legendaries && legendary)
+        };
+        // Everything of a type, and what trainers may get of it.
+        let of_type = |game: &Self, kind: u8| -> Vec<usize> {
+            let has = |n: usize| {
+                let stats = &game.stats[Self::stats_file(n)];
+                stats[FIRST_TYPE] == kind || stats[FIRST_TYPE + 1] == kind
+            };
+            (1..=last).filter(|&n| usable(game, n) && has(n)).collect()
+        };
+        let allowed = |game: &Self, n: usize| {
+            let entry = &game.species[n];
+            let by_ability =
+                entry.base == CASTFORM || (entry.base == DARMANITAN && entry.form == 1);
+            !by_ability || game.abilities_changed
+        };
         let pool: Vec<usize> = (1..=last)
-            .filter(|&n| {
-                let entry = &self.species[n];
-                let by_ability =
-                    entry.base == CASTFORM || (entry.base == DARMANITAN && entry.form == 1);
-                let species = if entry.base > 0 { entry.base } else { n };
-                let legendary = LEGENDARIES.contains(&(species as u16));
-                !entry.looks_only
-                    && (!by_ability || self.abilities_changed)
-                    && !(how.no_legendaries && legendary)
-            })
+            .filter(|&n| usable(self, n) && allowed(self, n))
             .collect();
         let mut all = self.trainers()?;
+
+        // Themed trainers: the groups first, one type each; no two gyms
+        // and no two of the elite share one.
+        let mut groups: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
+        let mut tags: Vec<&str> = vec![""; all.len()];
+        for (tag, members) in THEME_GROUPS {
+            for &member in members.iter().filter(|&&m| m <= all.len()) {
+                tags[member - 1] = tag;
+            }
+        }
+        let weights: Vec<(u8, usize)> = (TYPES_IN_ORDER.iter())
+            .map(|&kind| (kind, of_type(self, kind).len()))
+            .collect();
+        let weights = how.type_weights.then_some(weights.as_slice());
+        let mut types: BTreeMap<usize, u8> = BTreeMap::new();
+        let mut strongest: Vec<u8> = Vec::new();
+        if how.themes != Themes::None {
+            for (place, tag) in tags.iter().enumerate() {
+                let group = tag.split('-').next().unwrap_or("");
+                let whole = how.themes == Themes::All
+                    && (group.starts_with("CHAMPION") || group.starts_with("THEMED"));
+                if group.starts_with("GYM") || group.starts_with("ELITE") || whole {
+                    groups.entry(group).or_default().push(place);
+                }
+            }
+            let (mut gyms, mut elite): (Vec<u8>, Vec<u8>) = (Vec::new(), Vec::new());
+            for (group, members) in &mut groups {
+                self.random.shuffle(members);
+                let mut kind = self.theme(weights);
+                for (prefix, taken) in [("GYM", &mut gyms), ("ELITE", &mut elite)] {
+                    if group.starts_with(prefix) {
+                        while taken.contains(&kind) {
+                            kind = self.theme(weights);
+                        }
+                        taken.push(kind);
+                    }
+                }
+                if *group == "CHAMPION" {
+                    strongest.push(kind);
+                }
+                for &member in members.iter() {
+                    types.insert(all[member].index, kind);
+                }
+            }
+        }
+
         let mut order: Vec<usize> = (0..all.len()).collect();
         self.random.shuffle(&mut order);
         let mut used = vec![0u32; SPECIES + FORMS + 1];
+        let mut typed: BTreeMap<u8, Vec<usize>> = BTreeMap::new();
         for trainer in order {
             Self::change_levels(&mut all[trainer], how.levels);
             let index = all[trainer].index;
@@ -424,11 +526,51 @@ impl<'a> Game<'a> {
                     (STORY_TRAINERS.iter()).any(|&(first, last)| (first..=last).contains(&index))
                 }
             };
+            let mut kind = types.get(&index).copied();
+            if kind.is_none() && how.themes == Themes::All {
+                let mut own = self.theme(weights);
+                if tags[trainer] == "UBER" {
+                    while strongest.contains(&own) {
+                        own = self.theme(weights);
+                    }
+                    strongest.push(own);
+                }
+                kind = Some(own);
+            }
+            // What would leave the type when it is fully evolved.
+            let mut leaving: Vec<usize> = Vec::new();
+            if let Some(kind) = kind {
+                let whole = of_type(self, kind);
+                for &n in &whole {
+                    if !whole.contains(&self.fully_evolved(n, index)) {
+                        leaving.push(n);
+                    }
+                }
+                // Themed trainers never have the forms a player's Pokémon
+                // cannot keep: Giratina's and Shaymin's.
+                typed.entry(kind).or_insert_with(|| {
+                    (whole.into_iter())
+                        .filter(|&n| allowed(self, n) && !NOT_KEPT.contains(&n))
+                        .collect()
+                });
+            }
+            let themed = kind.and_then(|kind| typed.get(&kind)).filter(|_| !evenly);
             for pokemon in &mut all[trainer].team {
                 let current = self.form_of(pokemon.species, pokemon.form);
                 let wonder_guard = !how.no_early_wonder_guard || pokemon.level >= 20;
                 let used_so_far = evenly.then_some(used.as_slice());
-                let chosen = self.trainer_pokemon(&pool, current, how, wonder_guard, used_so_far);
+                let evolves = evolved_from > 0 && pokemon.level >= evolved_from;
+                let mut list: &[usize] = themed.map_or(&pool, Vec::as_slice);
+                let staying: Vec<usize>;
+                if evolves && !leaving.is_empty() {
+                    staying = (list.iter().copied())
+                        .filter(|n| !leaving.contains(n))
+                        .collect();
+                    if !staying.is_empty() {
+                        list = &staying;
+                    }
+                }
+                let chosen = self.trainer_pokemon(list, current, how, wonder_guard, used_so_far);
                 if evenly {
                     used[chosen] += 1;
                 }
