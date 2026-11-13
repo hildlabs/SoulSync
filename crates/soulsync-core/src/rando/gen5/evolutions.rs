@@ -17,6 +17,9 @@ pub struct Evolving {
     pub three_stages: bool,
     /// Never what the species evolved into before.
     pub force_change: bool,
+    /// Every species evolves with each level it gains, into one other;
+    /// strength and the length of families do not count then.
+    pub every_level: bool,
 }
 
 /// The new evolutions while they are being made: what each species
@@ -140,10 +143,68 @@ impl Game<'_> {
         fit[self.random.index(fit.len())]
     }
 
+    /// Every species evolves into one random other with each level it
+    /// gains, of the same speed of gaining levels.
+    fn randomize_evolutions_every_level(&mut self, how: Evolving) -> Result<(), RomError> {
+        let original: Vec<Vec<Evolution>> = (self.species.iter().take(SPECIES + 1))
+            .map(|s| s.evolutions.clone())
+            .collect();
+        let was = |from: usize, to: usize| original[from].iter().any(|e| usize::from(e.to) == to);
+        let mut order: Vec<usize> = (1..=SPECIES).collect();
+        self.random.shuffle(&mut order);
+        for &from in &order {
+            let types = self.types_of(from);
+            let mut choice: Vec<usize> = (1..=SPECIES)
+                .filter(|&to| {
+                    to != from
+                        && self.stats[to][GROWTH] == self.stats[from][GROWTH]
+                        && !(how.force_change && was(from, to))
+                })
+                .collect();
+            if choice.is_empty() {
+                return Err(RomError::Layout("evolutions"));
+            }
+            if choice.len() > 1 && how.same_type {
+                let alike: Vec<usize> = (choice.iter().copied())
+                    .filter(|&to| {
+                        let (first, second) = self.types_of(to);
+                        first == types.0
+                            || Some(first) == types.1
+                            || second == Some(types.0)
+                            || (second.is_some() && second == types.1)
+                    })
+                    .collect();
+                if !alike.is_empty() {
+                    choice = alike;
+                }
+            }
+            let picked = match choice[..] {
+                [only] => only,
+                _ => choice[self.random.index(choice.len())],
+            };
+            // The original randomizer chooses a look for it, which the
+            // game has no place for.
+            let looks = usize::from(self.species[picked].looks);
+            if looks > 0 {
+                self.random.index(looks);
+            }
+            self.species[from].evolutions = vec![Evolution {
+                method: method::LEVEL,
+                extra: 1,
+                to: picked as u16,
+            }];
+        }
+        self.evolved_in = Some(order);
+        Ok(())
+    }
+
     /// Every species evolves into random others, in the ways and as
     /// often as before, with the same speed of gaining levels and never
     /// in a circle.
     pub fn randomize_evolutions(&mut self, how: Evolving) -> Result<(), RomError> {
+        if how.every_level {
+            return self.randomize_evolutions_every_level(how);
+        }
         let limit = if how.three_stages { 3 } else { 10 };
         let original: Vec<Vec<Evolution>> = (self.species.iter().take(SPECIES + 1))
             .map(|s| s.evolutions.clone())
