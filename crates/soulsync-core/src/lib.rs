@@ -6,6 +6,7 @@
 
 pub mod art;
 pub mod bag;
+pub mod blz;
 pub mod crypto;
 pub mod dex;
 pub mod events;
@@ -13,6 +14,7 @@ pub mod game;
 pub mod lang;
 pub mod links;
 pub mod live;
+pub mod nds;
 pub mod pk5;
 pub mod protocol;
 pub mod rnqs;
