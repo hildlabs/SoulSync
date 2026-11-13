@@ -14,7 +14,7 @@ const TWO_HITS: [usize; 6] = [155, 458, 24, 530, 544, 41];
 const TRIPLE_KICK: usize = 167;
 
 /// How often a move hits on average.
-fn hits(number: usize) -> f64 {
+pub(super) fn hits(number: usize) -> f64 {
     if SEVERAL_HITS.contains(&number) {
         19.0 / 6.0
     } else if TWO_HITS.contains(&number) {

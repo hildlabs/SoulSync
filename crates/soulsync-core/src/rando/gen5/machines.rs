@@ -39,7 +39,11 @@ impl Game<'_> {
             picked.push(usable.remove(self.random.index(usable.len())));
         }
         self.random.shuffle(&mut picked);
+        self.set_tm_moves(&picked)
+    }
 
+    /// Puts `picked` into the TMs, one move each.
+    pub(super) fn set_tm_moves(&mut self, picked: &[u16]) -> Result<(), RomError> {
         // The HMs stand between TM92 and TM93, in the ARM9 as in the items.
         let place = |tm: usize| if tm < FIRST_TMS { tm } else { tm + HMS };
         let item = |tm: usize| {

@@ -401,7 +401,7 @@ impl Preset {
     /// what they ask. Anything it has not built yet, down to a single
     /// switch, is `None`: such settings go to the original randomizer.
     pub fn native(&self) -> Option<crate::rando::gen5::Options> {
-        use crate::rando::gen5::{Change, Options, Stats};
+        use crate::rando::gen5::{Change, Movesets, Options, Stats};
         // Files of 4.6.0 and 4.6.1 have the same layout; older ones the
         // randomizer rewrites first.
         if !(321..=322).contains(&self.version) {
@@ -418,11 +418,8 @@ impl Preset {
         };
         const TWEAKS: u32 = 1 << 7 | 1 << 8 | 1 << 12;
         let tweaks = u32::from_be_bytes([d[32], d[33], d[34], d[35]]);
-        // Movesets, evolutions and moves as they are; nothing added to
-        // trainers.
-        let untouched = d[11] == 1 << 2
-            && d[48] & (1 << 6) == 0
-            && d[12] == 0
+        // Evolutions and moves as they are; nothing added to trainers.
+        let untouched = d[48] & (1 << 6) == 0
             && d[19] & !1 == 0
             && d[20] == 0
             && d[22] == 0
@@ -435,13 +432,21 @@ impl Preset {
             && d[50] & 7 == 0
             && d[0] & !(1 | 1 << 3 | 1 << 5 | 1 << 6) == 0
             && d[16] & !(1 << 3 | 1 << 4) == 0
-            && d[39] & (1 << 3 | 1 << 4 | 1 << 5) == 0
+            && d[39] & (1 << 4 | 1 << 5) == 0
             && tweaks & !TWEAKS == 0
             // No changed levels of trainers, wild or fixed Pokémon.
             && [36, 38, 47].iter().all(|&b| d[b] & 0x80 == 0);
         if !untouched {
             return None;
         }
+        // What the species learn: one way of four.
+        let movesets = match d[11] & 0x0F {
+            0b0001 => Movesets::Random,
+            0b0010 => Movesets::PreferType,
+            0b0100 => Movesets::Unchanged,
+            0b1000 => Movesets::Metronome,
+            _ => return None,
+        };
         // What the species are like. Updated stats, levelling alike, a
         // limit on the Pokémon and the bans on abilities are not built.
         let stats = match d[1] & 0b0111_1110 {
@@ -492,6 +497,11 @@ impl Preset {
             (true, level) => level as u16,
         };
         Some(Options {
+            movesets,
+            moves_at_start: if bit(11, 4) { (d[11] >> 6) + 2 } else { 0 },
+            good_attacks: if bit(12, 7) { d[12] & 0x7F } else { 0 },
+            no_broken_moves: bit(39, 3),
+            order_moves_by_damage: bit(11, 5),
             national_dex: tweaks & 1 << 7 != 0,
             update_type_effectiveness: tweaks & 1 << 8 != 0,
             ban_lucky_egg: tweaks & 1 << 12 != 0,
@@ -663,7 +673,7 @@ mod tests {
 
     #[test]
     fn the_soul_link_preset_is_one_for_the_own_randomizer() {
-        use crate::rando::gen5::{Change, Stats};
+        use crate::rando::gen5::{Change, Movesets, Stats};
         let file = include_bytes!("../../soulsync-server/presets/soul-link.rnqs");
         let preset = Preset::read(file).unwrap();
         let o = preset.native().expect("every option of it is built");
@@ -729,6 +739,22 @@ mod tests {
         let o = preset.with(&traits).native().unwrap();
         assert_eq!(o.abilities, Change::FollowEvolutions);
 
+        let mut learnt = Overrides::default();
+        learnt.set("movesets", Value::Choice("random_prefer_type".into()));
+        let mut learnt = preset.with(&learnt);
+        let o = learnt.native().unwrap();
+        assert_eq!(o.movesets, Movesets::PreferType);
+        assert_eq!((o.moves_at_start, o.good_attacks), (0, 0));
+        assert!(!o.no_broken_moves && !o.order_moves_by_damage);
+        // Four moves from the start, in order of power, 40 percent of
+        // them good attacks and none of fixed damage.
+        learnt.data[11] |= 1 << 4 | 1 << 5 | 2 << 6;
+        learnt.data[12] = 0x80 | 40;
+        learnt.data[39] |= 1 << 3;
+        let o = learnt.native().unwrap();
+        assert_eq!((o.moves_at_start, o.good_attacks), (4, 40));
+        assert!(o.no_broken_moves && o.order_moves_by_damage);
+
         let mut tms = Overrides::default();
         tms.set("tm", Value::Choice("full".into()));
         tms.set("tm_moves", Value::Choice("random".into()));
@@ -748,7 +774,6 @@ mod tests {
         for (id, value) in [
             ("evolutions", Value::Choice("random".into())),
             ("update_base_stats", Value::Flag(true)),
-            ("movesets", Value::Choice("random".into())),
             ("wild", Value::Choice("global_mapping".into())),
             ("wild_rule", Value::Choice("catch_em_all".into())),
             ("statics", Value::Choice("random".into())),
