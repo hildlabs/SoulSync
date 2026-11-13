@@ -4,6 +4,13 @@ on:
   push:
     branches: [main]
   pull_request:
+  # The Release button: Actions › CI › Run workflow, with a version such as
+  # 0.1.0. It builds main and publishes it as that version.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, such as 0.1.0"
+        required: true
 
 jobs:
   check:
@@ -22,8 +29,9 @@ jobs:
       - run: cargo test --all
 
   # The desktop app for Windows, to download from the run's summary page.
-  # Builds of main are also published as a release, which is where the app
-  # looks for updates; see crates/soulsync-app/src/update.rs.
+  # Builds of main are also published, as pre-releases, and a version made
+  # with the Release button as a full release; the app looks for updates
+  # there, see crates/soulsync-app/src/update.rs.
   windows-app:
     runs-on: windows-latest
     # One build of main at a time, so releases come out in order.
@@ -34,7 +42,14 @@ jobs:
       contents: write
     env:
       SOULSYNC_BUILD: ${{ github.run_number }}
+      SOULSYNC_VERSION: ${{ inputs.version }}
     steps:
+      - name: Check the version
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          [[ "$SOULSYNC_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "A version looks like 0.1.0"; exit 1; }
+          [ "$GITHUB_REF" = refs/heads/main ] || { echo "Releases are made from main"; exit 1; }
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
@@ -47,7 +62,8 @@ jobs:
           name: SoulSync-windows
           path: target/release/SoulSync.exe
           if-no-files-found: error
-      - name: Publish the build
+      # Offered only to players who chose preview builds in the app.
+      - name: Publish the build as a pre-release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: bash
         env:
@@ -55,5 +71,17 @@ jobs:
         run: >
           gh release create "build-${{ github.run_number }}" target/release/SoulSync.exe
           --target "${{ github.sha }}" --title "Build ${{ github.run_number }}"
-          --notes "SoulSync for Windows, built from ${{ github.sha }}. The app installs this by itself."
-          --latest
+          --notes "Preview build of SoulSync for Windows, built from ${{ github.sha }}. Apps set to preview builds install this by itself."
+          --prerelease
+      # The app reads the version from the title, so keep "SoulSync <version>".
+      - name: Publish the version
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "build-${{ github.run_number }}" target/release/SoulSync.exe \
+            --target "${{ github.sha }}" --title "SoulSync $SOULSYNC_VERSION" \
+            --notes "SoulSync $SOULSYNC_VERSION for Windows (build ${{ github.run_number }}, ${{ github.sha }}). Download SoulSync.exe and start it; later versions install from inside the app." \
+            --latest
+          gh api "repos/${{ github.repository }}/git/refs" -f ref="refs/tags/v$SOULSYNC_VERSION" -f sha="${{ github.sha }}"

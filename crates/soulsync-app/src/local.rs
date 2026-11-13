@@ -60,6 +60,9 @@ struct Config {
     candies_checked: bool,
     /// Every run this app was in, newest first, to go back to.
     runs: Vec<Saved>,
+    /// Whether builds of main are offered as updates too, not only
+    /// released versions.
+    preview: bool,
 }
 
 /// A count of Rare Candies, [`MAX_COUNT`](soulsync_core::bag::MAX_COUNT)
@@ -467,11 +470,23 @@ fn config_path() -> Option<PathBuf> {
     Some(data_dir()?.join("config.json"))
 }
 
+/// The run server a fresh install plays on, so that two players only need
+/// to share a code. A fork sets its own with `SOULSYNC_SERVER` at build time.
+const PUBLIC_SERVER: &str = match option_env!("SOULSYNC_SERVER") {
+    Some(s) => s,
+    None => "https://v2202611361749553675.megasrv.de",
+};
+
 fn read_config() -> Config {
-    config_path()
-        .and_then(|p| std::fs::read(p).ok())
-        .and_then(|d| serde_json::from_slice(&d).ok())
-        .unwrap_or_default()
+    let Some(data) = config_path().and_then(|p| std::fs::read(p).ok()) else {
+        // A fresh install: the public server. Whoever set things up before
+        // keeps their choice, also an empty one.
+        return Config {
+            server: PUBLIC_SERVER.to_owned(),
+            ..Config::default()
+        };
+    };
+    serde_json::from_slice(&data).unwrap_or_default()
 }
 
 fn write_config(config: &Config) {
@@ -672,6 +687,9 @@ impl Local {
             "live": inner.live.as_ref().map(|(script, out)| serde_json::json!({
                 "script": script,
                 "active": live_active(out),
+                "age": soulsync_client::modified(out)
+                    .and_then(|t| t.elapsed().ok())
+                    .map(|a| a.as_secs()),
                 "lua": inner.lua,
                 "auto": inner.auto,
                 "foreign": inner.foreign.as_ref().is_some_and(|f| *f.lock().unwrap()),
@@ -683,7 +701,10 @@ impl Local {
             })),
             "update": serde_json::json!({
                 "build": crate::update::build(),
+                "version": crate::update::version(),
+                "preview": c.preview,
                 "latest": inner.update.as_ref().map(|r| r.build),
+                "latest_version": inner.update.as_ref().and_then(|r| r.version.clone()),
                 "progress": inner.progress,
             }),
             "fresh": serde_json::json!({
@@ -868,6 +889,7 @@ struct Set {
     rando: Option<soulsync_core::rnqs::Overrides>,
     candies: Option<u16>,
     emulator: Option<String>,
+    preview: Option<bool>,
 }
 
 fn apply(config: &mut Config, set: Set) {
@@ -908,6 +930,9 @@ fn apply(config: &mut Config, set: Set) {
     }
     if let Some(server) = set.server {
         config.server = soulsync_client::base(&server).to_owned();
+    }
+    if let Some(preview) = set.preview {
+        config.preview = preview;
     }
 }
 
@@ -1485,6 +1510,93 @@ fn ureq_ok(url: &str) -> bool {
 }
 
 #[derive(Deserialize)]
+struct ReportReq {
+    /// Whether to ask the script for a copy of the game's memory too.
+    #[serde(default)]
+    dump: bool,
+}
+
+/// The file the app asks the script for a memory dump with, and the file
+/// the dump goes to; both next to the live report.
+fn dump_paths(out: &Path) -> (PathBuf, PathBuf) {
+    (
+        out.with_file_name("ram-request.txt"),
+        out.with_file_name("ram-dump.bin"),
+    )
+}
+
+/// How long the script gets to write a memory dump.
+const DUMP_WAIT: Duration = Duration::from_secs(20);
+
+/// "Report a problem": bundles logs, the save, what the script last sent
+/// and, if asked for, a dump of the game's memory into one zip file next to
+/// the settings, and opens its folder.
+async fn report(State(local): State<Local>, Json(req): Json<ReportReq>) -> Reply {
+    let dir = data_dir().ok_or_else(|| bad("no settings folder"))?;
+    let (info, save, code, out) = {
+        let view = local.view();
+        let inner = local.inner.lock().unwrap();
+        let info = format!(
+            "SoulSync report\nbuild {}\nsystem {} {}\n\n{}\n",
+            crate::update::build().map_or_else(|| "-".into(), |b| b.to_string()),
+            std::env::consts::OS,
+            std::env::consts::ARCH,
+            serde_json::to_string_pretty(&view).unwrap_or_default(),
+        );
+        let c = &inner.config;
+        let out = inner.live.as_ref().map(|(_, out)| out.clone());
+        (info, c.save.clone(), c.code.clone(), out)
+    };
+    let mut dumped = false;
+    if let Some(out) = out.as_deref().filter(|o| req.dump && live_active(o)) {
+        let (ask, dump) = dump_paths(out);
+        let _ = std::fs::remove_file(&dump);
+        if std::fs::write(&ask, "dump\n").is_ok() {
+            let start = std::time::Instant::now();
+            while start.elapsed() < DUMP_WAIT && !dump.is_file() {
+                tokio::time::sleep(Duration::from_millis(250)).await;
+            }
+            dumped = dump.is_file();
+            let _ = std::fs::remove_file(&ask);
+        }
+    }
+    let mut files: Vec<(&str, PathBuf)> = vec![
+        ("live-log.txt", dir.join("live-log.txt")),
+        ("update-log.txt", dir.join("update-log.txt")),
+        ("live-trainer.txt", dir.join("live-trainer.txt")),
+    ];
+    if let Some(out) = &out {
+        files.push(("live-party.bin", out.clone()));
+        if dumped {
+            files.push(("ram-dump.bin", dump_paths(out).1));
+        }
+    }
+    if let Some(p) = code.as_deref().and_then(encounters_path) {
+        files.push(("encounters.json", p));
+    }
+    if let Some(save) = save {
+        let name = if save
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("dsv"))
+        {
+            "save.dsv"
+        } else {
+            "save.sav"
+        };
+        files.push((name, save));
+    }
+    let now = now_ms() / 1000;
+    let path = tokio::task::spawn_blocking(move || crate::report::write(&dir, &info, &files, now))
+        .await
+        .map_err(|e| bad(e.to_string()))?
+        .map_err(|e| bad(e.to_string()))?;
+    if let Some(folder) = path.parent() {
+        let _ = open::that_detached(folder);
+    }
+    Ok(Json(serde_json::json!({ "path": path, "dump": dumped })))
+}
+
+#[derive(Deserialize)]
 struct Forget {
     pid: u32,
 }
@@ -1509,17 +1621,26 @@ fn look_for_update(local: &Local) {
         return;
     };
     let local = local.clone();
-    std::thread::spawn(move || loop {
-        let busy = local.inner.lock().unwrap().progress.is_some();
-        if !busy {
-            if let Some(release) = crate::update::latest().filter(|r| r.build > own) {
+    std::thread::spawn(move || {
+        // The choice of channel last looked with, and when.
+        let mut last: Option<(bool, std::time::Instant)> = None;
+        loop {
+            let (busy, preview) = {
+                let inner = local.inner.lock().unwrap();
+                (inner.progress.is_some(), inner.config.preview)
+            };
+            // Looked again right away when the player switches channels.
+            let due = last.map_or(true, |(p, at)| p != preview || at.elapsed() >= UPDATE_EVERY);
+            if !busy && due {
+                last = Some((preview, std::time::Instant::now()));
+                let found = crate::update::latest(preview).filter(|r| r.build > own);
                 let mut inner = local.inner.lock().unwrap();
                 if inner.progress.is_none() {
-                    inner.update = Some(release);
+                    inner.update = found;
                 }
             }
+            std::thread::sleep(Duration::from_secs(5));
         }
-        std::thread::sleep(UPDATE_EVERY);
     });
 }
 
@@ -1765,6 +1886,7 @@ pub fn routes(server: soulsync_server::AppState, own: String) -> Router {
         .route("/api/local/update", post(update))
         .route("/api/local/handoff", post(handoff))
         .route("/api/local/forget", post(forget))
+        .route("/api/local/report", post(report))
         .route("/api/local/template", post(template))
         .route("/api/local/untemplate", post(untemplate))
         .route("/api/local/fresh", post(fresh))
@@ -2035,6 +2157,11 @@ mod tests {
         for (name, raw) in later {
             globals.set(name, lua.create_string(&raw).unwrap()).unwrap();
         }
+        // Halfway through, the player reports a problem with a memory dump.
+        let (ask, dump) = dump_paths(&out);
+        globals
+            .set("REQUEST", ask.to_string_lossy().into_owned())
+            .unwrap();
         let harness = r#"
             local ram, later = RAM, {}
             local function byte(a)
@@ -2050,12 +2177,18 @@ mod tests {
               readdword = function(a)
                 return byte(a) + byte(a + 1) * 256 + byte(a + 2) * 65536 + byte(a + 3) * 16777216
               end,
+              readbyterange = function(a, n)
+                local t = {}
+                for i = 1, n do t[i] = byte(a + i - 1) end
+                return t
+              end,
             }
             local frames = 0
             emu = { frameadvance = function()
               frames = frames + 1
               if frames == 300 then put(0x8000, A) put(0xC000, B) put(0xD000, C) end
               if frames == 650 then put(0xC000, B2) put(0xE000, BATTLE) end
+              if frames == 400 then local f = io.open(REQUEST, "w") f:write("dump") f:close() end
               if frames > 1000 then error("enough frames") end
             end }
             print = function() end
@@ -2063,6 +2196,15 @@ mod tests {
         lua.load(harness).exec().unwrap();
         let stopped = lua.load(live_script(&out)).exec().unwrap_err();
         assert!(stopped.to_string().contains("enough frames"), "{stopped}");
+
+        let copy = std::fs::read(&dump).unwrap();
+        assert_eq!(copy.len(), 0x40_0000);
+        // The party, as the game has it then.
+        assert_eq!(
+            &copy[at..at + PARTY_BLOCK_LEN],
+            &ram[at..at + PARTY_BLOCK_LEN]
+        );
+        assert!(!ask.exists());
 
         let data = std::fs::read(&out).unwrap();
         let report = LiveReport::parse(&data).unwrap();

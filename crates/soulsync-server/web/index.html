@@ -161,6 +161,10 @@ button:active{transform:scale(.97)}
 @media (prefers-color-scheme:light){:root:not([data-theme=dark]) .hero h1 span{background-image:linear-gradient(90deg,var(--a),#C2410C 45%,#0369A1 55%,var(--b))}}
 .hero h1 span{background:linear-gradient(90deg,var(--a),#FFC6A3 45%,#BDEBFF 55%,var(--b));-webkit-background-clip:text;background-clip:text;color:transparent;background-size:200% 100%;animation:sheen 6s ease-in-out infinite alternate}
 .hero .sum{margin-top:12px;font-size:15px}
+.breaks{margin-top:12px;display:flex;flex-direction:column;gap:6px;max-width:680px}
+.breaks p{display:flex;gap:10px;align-items:flex-start;padding:8px 12px;border-radius:12px;font-size:13px;line-height:1.45;background:color-mix(in srgb,var(--warn) 16%,var(--ov-1));border:1px solid color-mix(in srgb,var(--warn) 38%,transparent);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+.breaks p>i{flex:none;display:grid;place-items:center;width:18px;height:18px;margin-top:1px;border-radius:50%;background:var(--warn);color:#1b1300;font-style:normal;font-weight:800;font-size:11px}
+.breaks small{display:block;color:var(--muted);font-size:11.5px}
 .actions{position:relative;z-index:6;display:flex;gap:10px;margin-top:22px;flex-wrap:wrap}
 .play{position:relative;display:flex;align-items:center;gap:12px;padding:0 26px;height:58px;border-radius:16px;font-size:18px;font-weight:700;color:#fff;text-align:left;background:linear-gradient(100deg,#FF7A35,#FF9A5C 48%,#4FB6E8 52%,#2E9BD6);background-size:220% 100%;box-shadow:0 10px 40px -10px color-mix(in srgb,var(--a) 70%,transparent),inset 0 1px 0 rgba(255,255,255,.35);transition:background-position .7s var(--out),transform .25s var(--spring),box-shadow .4s;overflow:hidden}
 .play:hover{background-position:100% 0;transform:translateY(-2px) scale(1.02);box-shadow:0 14px 50px -10px color-mix(in srgb,var(--b) 70%,transparent),inset 0 1px 0 rgba(255,255,255,.35)}
@@ -506,6 +510,9 @@ button:active{transform:scale(.97)}
 .kv b select option{background:var(--solid);color:var(--text)}
 .kv b input[type=number]{width:80px;text-align:right}
 .rblock>p.bad{color:var(--danger);white-space:pre-line}
+.rblock label.check{display:flex;align-items:center;gap:10px;margin:12px 0 4px;font-size:13px;color:var(--muted);cursor:pointer}
+.rblock label.check input:disabled{opacity:.45;cursor:default}
+.rblock .mono{word-break:break-all}
 .btn2{height:38px;margin-top:14px;padding:0 14px;border-radius:11px;border:1px solid var(--edge-hi);background:var(--ov-1);font-size:13px;font-weight:600;transition:color .2s,border-color .2s,background .2s,transform .12s var(--out)}
 .btn2:hover{background:var(--ov-2)}
 .btn2.arm{border-color:var(--danger);color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent)}
@@ -863,6 +870,7 @@ const T = {
     balls: [["Poké Ball", ""], ["Great Ball", ""], ["Ultra Ball", ""], ["Quick Ball", "turn 1"], ["Dusk Ball", "cave or night"]],
     rCaps: "Level caps", rNoCaps: "This run has no level caps.", rCapsHint: "The highlighted cap applies until both players have the next badge.", gym: n => `Gym ${n}`,
     rRules: "Soul Link rules", rNote: "SoulSync tracks links, levels and losses. The other rules are on your honour for now.",
+    brTogether: (a, b) => `<b>${a}</b> is in the team, its partner <b>${b}</b> is in the box.`, brFate: (a, b) => `<b>${a}</b> is still in the team, but its partner <b>${b}</b> has fainted.`, brFailed: a => `<b>${a}</b> is in the team, but its area was closed by a failed catch.`, brCap: (a, l, c) => `<b>${a}</b> is level ${l}, the level cap is ${c}.`, brWho: p => `on ${p}'s side`,
     rules: { first: ["First encounter only", "In each area you may catch only the first Pokémon you meet."], linked: ["Same area, linked", "Your catch and your partner’s catch from the same area form a link."], fate: ["Shared fate", "If one of them faints, its partner is lost too."], together: ["Together or not at all", "Linked partners are in the team together or in the box together."], failed: ["Failed catch", "If one of you fails the catch, the area is closed for both."], cap: ["Level cap", "No Pokémon may be above the strongest Pokémon of the next gym leader."], items: ["Item for item", "In a fight you may use one item for each item your opponent has used, and never before."], dupes: ["No duplicates", "A species you already own does not count as the first encounter."], nick: ["Nicknames", "Every caught Pokémon gets a nickname."], set: ["Set mode", "No switching after the opponent’s Pokémon faints."] },
     rAlways: "always on", pickRules: "Rules",
     team: "Team", boxed: "Boxed", open: "Open", lost: "Lost",
@@ -888,13 +896,13 @@ waitPlayer: n => `Waiting for player ${n}`, playerN: n => `Player ${n}`, fPlayer
     fName: "Your name", fNamePh: "Shown to your partner", fRom: "Your ROM", fSave: "Your save", sGameHint: "Playing another game in this run, such as one you already started? Choose its ROM: SoulSync takes the save next to it in DeSmuME's Battery folder, or choose the save yourself.", browse: "Browse", fPathPh: "Path to the file",
     romOk: (g, n) => `Pokémon ${g}  ·  Gen ${n}`, romBad: "This is not a supported Pokémon ROM (Black, White, Black 2, White 2).",
     saveOk: (n, b, p) => `Trainer ${n}  ·  ${b} badges  ·  ${p} Pokémon`, saveBad: "This save cannot be read. Pick the .dsv from DeSmuME’s Battery folder.",
-    fServer: "Run server", fServerHelp: "Leave empty to keep the run on this computer only. To play with a partner, both enter the same server address.", advanced: "Server",
+    fServer: "Run server", fServerHelp: "The public SoulSync server is set from the start; with a partner you only share the run code. Leave empty to keep the run on this computer only, or enter your own server.", advanced: "Server",
     startNew: "Start run", startJoin: "Join run",
     gMode: "Your game", gRoll: "Make a new game", gOwn: "Game I already have", gRollHelp: "SoulSync randomizes your original ROM with the run's settings and opens it in DeSmuME with a new save.", fOriginal: "Original ROM", fRando: "Randomizer", randoBuiltin: n => `Built in: ${n}. Downloaded with Java on your first game (about 50 MB).`, fetching: (n, d, t) => `Downloading ${n}: ${d}${t ? " / " + t : ""} MB`, making: "Making your game", fEmu: "DeSmuME", fEmuHelp: "Your DeSmuME .exe. The new game goes into its Roms and Battery folders.", fileOk: "found",
     fPreset: "Randomizer settings", pNone: "None, everyone randomizes on their own", pOwn: "My own settings file (.rnqs)", pOwnMissing: "Choose your .rnqs in Settings › Start over first.", pJoin: "The randomizer settings come from the run.",
     eRoll: "Choose your original ROM first.", eEmu: "Choose DeSmuME first.", ePreset: "The randomizer settings cannot be read.",
     rollNow: n => `Attempt ${n} has begun`, rollNowSub: "Randomize your game anew", runRando: "Settings of the run", candiesDue: n => `${n} Rare Candies go into your game as soon as DeSmuME is closed.`, runCandiesHint: "For everyone in the run, from the next new game on.", runRandoHint: "Every player's game is made with the run's settings. Rare Candies come from the run as well.", eName: "Enter your name.", eSave: "Pick a save that can be read first.", eCode: "No run with this code on the server.",
-    sLive: "Live from DeSmuME", sLua: "Lua for DeSmuME", sLuaState: { present: "ready", installed: "set up, restart DeSmuME", missing: "DeSmuME not found" }, sLiveOn: "connected", sLiveForeign: "connected, but your party was not found yet", sLiveOff: "script not running", sAuto: "Starts with the game", sAutoState: { present: "yes", installed: "set up, restart DeSmuME", missing: "no, load the script by hand" }, sLiveHint: "Without the script the dashboard updates when you save in-game. With it, it follows your party and your encounters right away. DeSmuME starts it by itself when you open the game. If it does not: in DeSmuME open Tools › Lua Scripting › New Lua Script Window, choose this file and press Run.", sLiveScript: "Script", sGame: "Your game", sRun: "Run", sSync: "Sync", sServer: "Server", sLocal: "this computer", sBuild: "App build", sDex: "Moves from the ROM", sDexOk: n => `${n} moves read`, sDexBad: "could not be read", startBusy: "Starting run…", startSlow: "Reading your ROM and save. This takes a few seconds.", uNew: n => `Update ${n} is ready`, uDo: "Install", uBusy: "Downloading update…", uLoad: n => `Downloading update… ${n} %`, uMb: (d, s) => s ? `Downloading update… ${d} of ${s} MB` : `Downloading update… ${d} MB`, uStart: "Installing…", uRestart: "Starting the new version…", uFail: "Update failed", uAgain: "Try again", fresh: "Start over", freshLead: "Run failed? One click randomizes your original ROM anew with your settings, puts your starting save in place, starts the next attempt and opens the game. Close DeSmuME first.", freshOriginal: "Original ROM", freshRando: "Randomizer", freshPreset: "Randomizer settings", freshSave: "Starting save", freshPick: "Choose", freshKeep: "Use current save", freshDrop: "Remove", freshKept: (n, k) => `${n}  ·  ${k} Pokémon`, freshSaveHint: "None yet? Then the first start begins a new game. Play the intro once, set text speed and battle style, save in-game: SoulSync keeps that save and every later start begins right there.", freshAwait: "Waiting for your first save in the new game…", freshNone: "none yet", freshDo: "Randomize and start", freshSure: "Click again: ROM and save are replaced, next attempt begins",
+    sLive: "Live from DeSmuME", sLua: "Lua for DeSmuME", sLuaState: { present: "ready", installed: "set up, restart DeSmuME", missing: "DeSmuME not found" }, sLiveOn: "connected", sLiveForeign: "connected, but your party was not found yet", sLiveOff: "script not running", sAuto: "Starts with the game", sAutoState: { present: "yes", installed: "set up, restart DeSmuME", missing: "no, load the script by hand" }, sLiveHint: "Without the script the dashboard updates when you save in-game. With it, it follows your party and your encounters right away. DeSmuME starts it by itself when you open the game. If it does not: in DeSmuME open Tools › Lua Scripting › New Lua Script Window, choose this file and press Run.", sLiveScript: "Script", sGame: "Your game", sRun: "Run", sSync: "Sync", sServer: "Server", sLocal: "this computer", sBuild: "App build", sChannel: "Updates", sChannelHint: "Preview builds come with every change and may have bugs.", sStable: "Releases", sPreview: "Preview builds", sDex: "Moves from the ROM", sDexOk: n => `${n} moves read`, sDexBad: "could not be read", sRead: "What SoulSync reads", sReadLead: "Straight from your game. If something here does not match the game, report a problem below.", sReadAge: "Last message from the script", sReadAgeV: n => n < 2 ? "just now" : `${n} s ago`, sTeam: "Team", sTeamV: (n, f) => `${n} Pokémon` + (f ? `, ${f} fainted` : ""), sBattle: "Wild battle", sBattleNone: "none right now", sBalls: "Balls in the bag", sBallsNone: "not read", sBallsEmpty: "none", sEnc: "Encounters noted", rep: "Report a problem", repLead: "Puts your logs, your save and what the script last sent into one zip file and opens its folder. Nothing is uploaded: send the file along with your bug report.", repDump: "Add a copy of the game's memory (4 MB, helps most with wrong values in battle)", repDumpOff: "The memory copy needs the script running in DeSmuME.", repDo: "Make report", repBusy: "Making report…", repBusyDump: "Copying the game's memory… keep DeSmuME running", repDone: p => `Saved as ${p}`, repNoDump: "The script did not answer, so the report has no memory copy.", repFail: "The report could not be made:", startBusy: "Starting run…", startSlow: "Reading your ROM and save. This takes a few seconds.", uNew: n => `Update ${n} is ready`, uDo: "Install", uBusy: "Downloading update…", uLoad: n => `Downloading update… ${n} %`, uMb: (d, s) => s ? `Downloading update… ${d} of ${s} MB` : `Downloading update… ${d} MB`, uStart: "Installing…", uRestart: "Starting the new version…", uFail: "Update failed", uAgain: "Try again", fresh: "Start over", freshLead: "Run failed? One click randomizes your original ROM anew with your settings, puts your starting save in place, starts the next attempt and opens the game. Close DeSmuME first.", freshOriginal: "Original ROM", freshRando: "Randomizer", freshPreset: "Randomizer settings", freshSave: "Starting save", freshPick: "Choose", freshKeep: "Use current save", freshDrop: "Remove", freshKept: (n, k) => `${n}  ·  ${k} Pokémon`, freshSaveHint: "None yet? Then the first start begins a new game. Play the intro once, set text speed and battle style, save in-game: SoulSync keeps that save and every later start begins right there.", freshAwait: "Waiting for your first save in the new game…", freshNone: "none yet", freshDo: "Randomize and start", freshSure: "Click again: ROM and save are replaced, next attempt begins",
     freshOptions: "Randomizer options", freshOptLead: "Changed here, on top of your settings file. The file itself stays as it is.", fTm: "TM compatibility", fTutor: "Tutor compatibility", fHm: "HMs for everyone", fCandies: "Rare Candies in the bag", fCandiesHint: "0 = as in the starting save",
     compat: { unchanged: "as in the original game", random_prefer_type: "random, own type preferred", random: "random", full: "every Pokémon learns every one" }, asFile: v => `as in the file (${v})`, yes: "yes", no: "no", tmMoves: "The moves on the TMs are randomized as well.", presetBad: "Settings file cannot be read:", freshBusy: "Randomizing…", freshDone: "Done. The game is starting.", freshNeed: "Choose the original ROM, the randomizer and its settings first.", freshWhy: { missing: "A file is missing:", running: "DeSmuME is still open. Close it and try again.", java: "Java could not be started.", download: "The randomizer or Java could not be downloaded. Check your internet connection and try again.", randomizer: "The randomizer did not produce a ROM.", preset: "The randomizer settings cannot be read.", save: "Rare Candies could not be added to the starting save.", write: "A file could not be written." }, sLeave: "Pause run", myRuns: "Your runs", runsLead: "Runs you were in. Paused runs keep everything and continue where you left them.", runResume: "Resume", runSwitch: "Switch", runDrop: "Remove", runDropSure: "Click again", runHere: "this computer", runNow: "playing", runMissing: "That run no longer exists on its server, so it was removed from the list.", runOffline: "The server of that run cannot be reached right now. Try again in a moment.", runLast: s => `played ${s}`, sLeaveSure: "Click again to pause", sLeaveHint: "Stops syncing and returns to the setup. The run stays on the server and under Your runs, to resume any time.",
     phase: { idle: "Not running", connecting: "Connecting", waiting: "Waiting for your first in-game save", live: "Live, every in-game save is sent", error: "Stopped" },
@@ -932,6 +940,7 @@ waitPlayer: n => `Waiting for player ${n}`, playerN: n => `Player ${n}`, fPlayer
     balls: [["Pokéball", ""], ["Superball", ""], ["Hyperball", ""], ["Flottball", "Runde 1"], ["Finsterball", "Höhle oder Nacht"]],
     rCaps: "Level-Caps", rNoCaps: "Dieser Run hat keine Level-Caps.", rCapsHint: "Der markierte Cap gilt, bis beide Spieler den nächsten Orden haben.", gym: n => `Arena ${n}`,
     rRules: "Soul-Link-Regeln", rNote: "SoulSync verfolgt Links, Level und Verluste. Die übrigen Regeln laufen vorerst auf Vertrauen.",
+    brTogether: (a, b) => `<b>${a}</b> ist im Team, sein Partner <b>${b}</b> in der Box.`, brFate: (a, b) => `<b>${a}</b> ist noch im Team, obwohl sein Partner <b>${b}</b> besiegt wurde.`, brFailed: a => `<b>${a}</b> ist im Team, obwohl sein Gebiet durch einen misslungenen Fang gesperrt ist.`, brCap: (a, l, c) => `<b>${a}</b> ist Level ${l}, das Level-Cap liegt bei ${c}.`, brWho: p => `bei ${p}`,
     rules: { first: ["Nur die erste Begegnung", "In jedem Gebiet darfst du nur das erste Pokémon fangen, das dir begegnet."], linked: ["Gleiches Gebiet, verbunden", "Dein Fang und der Fang deines Partners aus demselben Gebiet bilden einen Link."], fate: ["Geteiltes Schicksal", "Wird eins besiegt, ist auch sein Partner verloren."], together: ["Zusammen oder gar nicht", "Verbundene Partner sind gemeinsam im Team oder gemeinsam in der Box."], failed: ["Fehlgeschlagener Fang", "Misslingt einem von euch der Fang, ist das Gebiet für beide gesperrt."], cap: ["Level-Cap", "Kein Pokémon darf über dem stärksten Pokémon des nächsten Arenaleiters liegen."], items: ["Item gegen Item", "Im Kampf darfst du für jedes Item, das dein Gegner eingesetzt hat, selbst ein Item einsetzen, vorher keins."], dupes: ["Keine Doppelten", "Eine Art, die du schon besitzt, zählt nicht als erste Begegnung."], nick: ["Spitznamen", "Jedes gefangene Pokémon bekommt einen Spitznamen."], set: ["Folgemodus", "Kein Wechsel, nachdem ein gegnerisches Pokémon besiegt wurde."] },
     rAlways: "immer aktiv", pickRules: "Regeln",
     team: "Team", boxed: "In der Box", open: "Offen", lost: "Verloren",
@@ -957,13 +966,13 @@ waitPlayer: n => `Warte auf Spieler ${n}`, playerN: n => `Spieler ${n}`, fPlayer
     fName: "Dein Name", fNamePh: "So sieht dich dein Partner", fRom: "Deine ROM", fSave: "Dein Spielstand", sGameHint: "Ein anderes Spiel in diesem Run spielen, etwa eines, das du schon angefangen hast? Wähl seine ROM: SoulSync nimmt den Spielstand daneben im Battery-Ordner von DeSmuME, oder wähl den Spielstand selbst.", browse: "Durchsuchen", fPathPh: "Pfad zur Datei",
     romOk: (g, n) => `Pokémon ${g}  ·  Gen ${n}`, romBad: "Das ist keine unterstützte Pokémon-ROM (Schwarz, Weiß, Schwarz 2, Weiß 2).",
     saveOk: (n, b, p) => `Trainer ${n}  ·  ${b} Orden  ·  ${p} Pokémon`, saveBad: "Dieser Spielstand lässt sich nicht lesen. Wähle die .dsv aus dem Battery-Ordner von DeSmuME.",
-    fServer: "Run-Server", fServerHelp: "Leer lassen, dann bleibt der Run nur auf diesem Rechner. Für das Spiel zu zweit tragen beide dieselbe Server-Adresse ein.", advanced: "Server",
+    fServer: "Run-Server", fServerHelp: "Ab Werk ist der öffentliche SoulSync-Server eingetragen; zu zweit teilt ihr nur den Run-Code. Leer lassen, dann bleibt der Run nur auf diesem Rechner, oder deinen eigenen Server eintragen.", advanced: "Server",
     startNew: "Run starten", startJoin: "Run beitreten",
     gMode: "Dein Spiel", gRoll: "Neues Spiel erstellen", gOwn: "Vorhandenes Spiel", gRollHelp: "SoulSync würfelt deine Original-ROM mit den Einstellungen des Runs und öffnet sie in DeSmuME mit neuem Spielstand.", fOriginal: "Original-ROM", fRando: "Randomizer", randoBuiltin: n => `Eingebaut: ${n}. Wird beim ersten Spiel mit Java geladen (etwa 50 MB).`, fetching: (n, d, t) => `Lade ${n}: ${d}${t ? " / " + t : ""} MB`, making: "Dein Spiel wird erstellt", fEmu: "DeSmuME", fEmuHelp: "Deine DeSmuME-.exe. Das neue Spiel landet in ihren Ordnern Roms und Battery.", fileOk: "gefunden",
     fPreset: "Randomizer-Einstellungen", pNone: "Keine, jeder würfelt selbst", pOwn: "Meine eigene Einstellungsdatei (.rnqs)", pOwnMissing: "Wähle zuerst deine .rnqs unter Einstellungen › Neu anfangen.", pJoin: "Die Randomizer-Einstellungen kommen aus dem Run.",
     eRoll: "Wähle zuerst deine Original-ROM.", eEmu: "Wähle zuerst DeSmuME.", ePreset: "Die Randomizer-Einstellungen sind nicht lesbar.",
     rollNow: n => `Versuch ${n} hat begonnen`, rollNowSub: "Dein Spiel neu würfeln", runRando: "Einstellungen des Runs", candiesDue: n => `${n} Sonderbonbons kommen in dein Spiel, sobald DeSmuME geschlossen ist.`, runCandiesHint: "Für alle im Run, ab dem nächsten neuen Spiel.", runRandoHint: "Alle Spiele des Runs werden mit diesen Einstellungen gewürfelt, auch die Sonderbonbons kommen aus dem Run.", eName: "Trag deinen Namen ein.", eSave: "Wähle zuerst einen lesbaren Spielstand.", eCode: "Auf dem Server gibt es keinen Run mit diesem Code.",
-    sLive: "Live aus DeSmuME", sLua: "Lua für DeSmuME", sLuaState: { present: "bereit", installed: "eingerichtet, DeSmuME neu starten", missing: "DeSmuME nicht gefunden" }, sLiveOn: "verbunden", sLiveForeign: "verbunden, aber dein Team wurde noch nicht gefunden", sLiveOff: "Skript läuft nicht", sAuto: "Startet mit dem Spiel", sAutoState: { present: "ja", installed: "eingerichtet, DeSmuME neu starten", missing: "nein, Skript von Hand laden" }, sLiveHint: "Ohne das Skript aktualisiert sich das Dashboard, wenn du im Spiel speicherst. Mit ihm folgt es deinem Team und deinen Begegnungen sofort. DeSmuME startet es von selbst, wenn du das Spiel öffnest. Falls nicht: in DeSmuME Tools › Lua Scripting › New Lua Script Window öffnen, diese Datei auswählen und Run drücken.", sLiveScript: "Skript", sGame: "Dein Spiel", sRun: "Run", sSync: "Sync", sServer: "Server", sLocal: "dieser Rechner", sBuild: "App-Build", sDex: "Attacken aus der ROM", sDexOk: n => `${n} Attacken gelesen`, sDexBad: "nicht lesbar", startBusy: "Run wird gestartet…", startSlow: "Deine ROM und dein Spielstand werden gelesen. Das dauert ein paar Sekunden.", uNew: n => `Update ${n} ist da`, uDo: "Installieren", uBusy: "Update wird geladen…", uLoad: n => `Update wird geladen… ${n} %`, uMb: (d, s) => s ? `Update wird geladen… ${d} von ${s} MB` : `Update wird geladen… ${d} MB`, uStart: "Wird installiert…", uRestart: "Neue Version startet…", uFail: "Update fehlgeschlagen", uAgain: "Nochmal", fresh: "Neu anfangen", freshLead: "Run verloren? Ein Klick würfelt deine Original-ROM mit deinen Einstellungen neu, legt deinen Start-Spielstand bereit, startet den nächsten Versuch und öffnet das Spiel. Schließe DeSmuME vorher.", freshOriginal: "Original-ROM", freshRando: "Randomizer", freshPreset: "Randomizer-Einstellungen", freshSave: "Start-Spielstand", freshPick: "Wählen", freshKeep: "Aktuellen Spielstand nehmen", freshDrop: "Entfernen", freshKept: (n, k) => `${n}  ·  ${k} Pokémon`, freshSaveHint: "Noch keiner? Dann beginnt der erste Start ein neues Spiel. Spiel das Intro einmal durch, stell Textgeschwindigkeit und Kampfstil ein und speichere im Spiel: SoulSync merkt sich diesen Spielstand, jeder spätere Start beginnt genau dort.", freshAwait: "Warte auf deinen ersten Spielstand im neuen Spiel…", freshNone: "noch keiner", freshDo: "Neu würfeln und starten", freshSure: "Nochmal klicken: ROM und Spielstand werden ersetzt, nächster Versuch beginnt",
+    sLive: "Live aus DeSmuME", sLua: "Lua für DeSmuME", sLuaState: { present: "bereit", installed: "eingerichtet, DeSmuME neu starten", missing: "DeSmuME nicht gefunden" }, sLiveOn: "verbunden", sLiveForeign: "verbunden, aber dein Team wurde noch nicht gefunden", sLiveOff: "Skript läuft nicht", sAuto: "Startet mit dem Spiel", sAutoState: { present: "ja", installed: "eingerichtet, DeSmuME neu starten", missing: "nein, Skript von Hand laden" }, sLiveHint: "Ohne das Skript aktualisiert sich das Dashboard, wenn du im Spiel speicherst. Mit ihm folgt es deinem Team und deinen Begegnungen sofort. DeSmuME startet es von selbst, wenn du das Spiel öffnest. Falls nicht: in DeSmuME Tools › Lua Scripting › New Lua Script Window öffnen, diese Datei auswählen und Run drücken.", sLiveScript: "Skript", sGame: "Dein Spiel", sRun: "Run", sSync: "Sync", sServer: "Server", sLocal: "dieser Rechner", sBuild: "App-Build", sChannel: "Updates", sChannelHint: "Vorabversionen kommen mit jeder Änderung und können Fehler haben.", sStable: "Versionen", sPreview: "Vorabversionen", sDex: "Attacken aus der ROM", sDexOk: n => `${n} Attacken gelesen`, sDexBad: "nicht lesbar", sRead: "Was SoulSync liest", sReadLead: "Direkt aus deinem Spiel. Stimmt hier etwas nicht mit dem Spiel überein, melde unten ein Problem.", sReadAge: "Letzte Meldung des Skripts", sReadAgeV: n => n < 2 ? "gerade eben" : `vor ${n} s`, sTeam: "Team", sTeamV: (n, f) => `${n} Pokémon` + (f ? `, ${f} besiegt` : ""), sBattle: "Wildkampf", sBattleNone: "gerade keiner", sBalls: "Bälle im Beutel", sBallsNone: "nicht gelesen", sBallsEmpty: "keine", sEnc: "Erfasste Begegnungen", rep: "Problem melden", repLead: "Packt deine Logs, deinen Spielstand und die letzte Meldung des Skripts in eine ZIP-Datei und öffnet ihren Ordner. Hochgeladen wird nichts: Schick die Datei mit deiner Fehlermeldung mit.", repDump: "Kopie des Spielspeichers anhängen (4 MB, hilft am meisten bei falschen Werten im Kampf)", repDumpOff: "Die Speicherkopie braucht das laufende Skript in DeSmuME.", repDo: "Bericht erstellen", repBusy: "Bericht wird erstellt…", repBusyDump: "Spielspeicher wird kopiert… DeSmuME offen lassen", repDone: p => `Gespeichert als ${p}`, repNoDump: "Das Skript hat nicht geantwortet, der Bericht hat deshalb keine Speicherkopie.", repFail: "Der Bericht konnte nicht erstellt werden:", startBusy: "Run wird gestartet…", startSlow: "Deine ROM und dein Spielstand werden gelesen. Das dauert ein paar Sekunden.", uNew: n => `Update ${n} ist da`, uDo: "Installieren", uBusy: "Update wird geladen…", uLoad: n => `Update wird geladen… ${n} %`, uMb: (d, s) => s ? `Update wird geladen… ${d} von ${s} MB` : `Update wird geladen… ${d} MB`, uStart: "Wird installiert…", uRestart: "Neue Version startet…", uFail: "Update fehlgeschlagen", uAgain: "Nochmal", fresh: "Neu anfangen", freshLead: "Run verloren? Ein Klick würfelt deine Original-ROM mit deinen Einstellungen neu, legt deinen Start-Spielstand bereit, startet den nächsten Versuch und öffnet das Spiel. Schließe DeSmuME vorher.", freshOriginal: "Original-ROM", freshRando: "Randomizer", freshPreset: "Randomizer-Einstellungen", freshSave: "Start-Spielstand", freshPick: "Wählen", freshKeep: "Aktuellen Spielstand nehmen", freshDrop: "Entfernen", freshKept: (n, k) => `${n}  ·  ${k} Pokémon`, freshSaveHint: "Noch keiner? Dann beginnt der erste Start ein neues Spiel. Spiel das Intro einmal durch, stell Textgeschwindigkeit und Kampfstil ein und speichere im Spiel: SoulSync merkt sich diesen Spielstand, jeder spätere Start beginnt genau dort.", freshAwait: "Warte auf deinen ersten Spielstand im neuen Spiel…", freshNone: "noch keiner", freshDo: "Neu würfeln und starten", freshSure: "Nochmal klicken: ROM und Spielstand werden ersetzt, nächster Versuch beginnt",
     freshOptions: "Randomizer-Optionen", freshOptLead: "Hier geändert, zusätzlich zu deiner Einstellungsdatei. Die Datei selbst bleibt, wie sie ist.", fTm: "TM-Kompatibilität", fTutor: "Tutor-Kompatibilität", fHm: "VMs für alle", fCandies: "Sonderbonbons im Beutel", fCandiesHint: "0 = wie im Start-Spielstand",
     compat: { unchanged: "wie im Originalspiel", random_prefer_type: "zufällig, eigener Typ bevorzugt", random: "zufällig", full: "jedes Pokémon lernt jede" }, asFile: v => `wie in der Datei (${v})`, yes: "ja", no: "nein", tmMoves: "Die Attacken auf den TMs werden außerdem zufällig verteilt.", presetBad: "Einstellungsdatei nicht lesbar:", freshBusy: "Wird gewürfelt…", freshDone: "Fertig. Das Spiel startet.", freshNeed: "Wähle zuerst Original-ROM, Randomizer und Einstellungen aus.", freshWhy: { missing: "Eine Datei fehlt:", running: "DeSmuME ist noch offen. Schließe es und versuch es nochmal.", java: "Java ließ sich nicht starten.", download: "Randomizer oder Java ließen sich nicht laden. Prüf deine Internetverbindung und versuch es nochmal.", randomizer: "Der Randomizer hat keine ROM erzeugt.", preset: "Die Randomizer-Einstellungen sind nicht lesbar.", save: "Die Sonderbonbons ließen sich nicht in den Start-Spielstand legen.", write: "Eine Datei ließ sich nicht schreiben." }, sLeave: "Run pausieren", myRuns: "Meine Runs", runsLead: "Runs, in denen du warst. Pausierte Runs behalten alles und gehen dort weiter, wo ihr aufgehört habt.", runResume: "Fortsetzen", runSwitch: "Wechseln", runDrop: "Entfernen", runDropSure: "Nochmal klicken", runHere: "dieser Computer", runNow: "läuft", runMissing: "Diesen Run gibt es auf seinem Server nicht mehr, er wurde aus der Liste entfernt.", runOffline: "Der Server dieses Runs ist gerade nicht erreichbar. Versuch es gleich nochmal.", runLast: s => `gespielt ${s}`, sLeaveSure: "Zum Pausieren nochmal klicken", sLeaveHint: "Beendet den Sync und führt zurück zur Einrichtung. Der Run bleibt auf dem Server und unter Meine Runs, du kannst ihn jederzeit fortsetzen.",
     phase: { idle: "Läuft nicht", connecting: "Verbinde", waiting: "Warte auf dein erstes Speichern im Spiel", live: "Live, jedes Speichern im Spiel wird gesendet", error: "Gestoppt" },
@@ -1070,7 +1079,7 @@ function sidebarHtml() {
     <div class="grow"></div>
     ${codeFromPath ? `<button type="button" class="newrun" id="newrun">${ICON.plus}<span>${t().newRun}</span></button>` : ""}
     <nav class="slinks"><a href="https://github.com/hildlabs/SoulSync" target="_blank" rel="noopener">${ICON.github}${t().source}</a></nav>
-    <div class="ver">${build ? `Build ${build}  ·  ` : ""}GPL-3.0</div>`;
+    <div class="ver">${build ? `${local.update.version ? `v${esc(local.update.version)}  ·  ` : ""}Build ${build}  ·  ` : ""}GPL-3.0</div>`;
 }
 function bindSidebar() {
   const el = $("#sbar");
@@ -1130,7 +1139,7 @@ function showUpdate() {
   const step = p && p.step, pct = step === "download" && p.percent != null ? p.percent : null;
   const mb = n => (n / 1048576).toLocaleString(lang, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   const loading = step === "download" && p.done ? t().uMb(mb(p.done), p.size ? mb(p.size) : null) : pct != null ? t().uLoad(pct) : t().uBusy;
-  $("span", el).textContent = failed ? t().uFail : !busy ? t().uNew(u.latest) : step === "restart" ? t().uRestart : step === "start" ? t().uStart : loading;
+  $("span", el).textContent = failed ? t().uFail : !busy ? t().uNew(u.latest_version || u.latest) : step === "restart" ? t().uRestart : step === "start" ? t().uStart : loading;
   const done = step === "start" || step === "restart";
   el.classList.toggle("wait", !!busy && !done && pct == null);
   el.style.setProperty("--pct", (done ? 100 : pct || 0) + "%");
@@ -1447,7 +1456,7 @@ function mount() {
   $app.innerHTML = frame(`
     <div class="view" data-view="links">
       <div class="hero">
-        <div class="htitle"><div class="chipsrow"><div class="chips" id="chips"></div><button type="button" class="laybtn" id="laybtn"></button><button type="button" class="laybtn ghost" id="layreset" hidden>${t().layReset}</button></div><p class="layhint" id="layhint" hidden>${t().layHint}</p><h1 id="title"></h1><p class="sum" id="sum"></p><div class="actions" id="actions" hidden></div></div>
+        <div class="htitle"><div class="chipsrow"><div class="chips" id="chips"></div><button type="button" class="laybtn" id="laybtn"></button><button type="button" class="laybtn ghost" id="layreset" hidden>${t().layReset}</button></div><p class="layhint" id="layhint" hidden>${t().layHint}</p><h1 id="title"></h1><p class="sum" id="sum"></p><div class="breaks" id="breaks" role="status" hidden></div><div class="actions" id="actions" hidden></div></div>
         <div class="orden glass blk" data-b="orden">${layBar("orden")}<div id="orden"></div></div>
       </div>
       <div class="hpanel glass">
@@ -1595,14 +1604,25 @@ function evIcon(e) {
   const ty = e.event.type;
   return ({ caught: ["+", "var(--ok)"], fainted: ["×", "var(--danger)"], evolved: ["★", "var(--p4)"], level_up: ["↑", "var(--b)"], moved: ["⇄", "var(--muted)"], gone: ["–", "var(--faint)"], encountered: ["!", "var(--a)"], badges: ["◆", "var(--warn)"] })[ty] || ["·", "var(--muted)"];
 }
+// An encounter the player removed as recorded by mistake leaves the
+// history too. Until a player's game has been seen, all of theirs stay.
+function shownLog() {
+  return state.log.filter(e => {
+    if (e.event.type !== "encountered") return true;
+    const pl = state.players.find(x => x.name === e.player), snap = pl && pl.snapshot;
+    return !snap || !snap.encounters || snap.encounters.some(w => w.pid === e.event.pokemon.pid);
+  });
+}
+
 function updateTimeline() {
+  const log = shownLog();
   const idx = Object.fromEntries(state.players.map((p, i) => [p.name, i]));
   const two = n => String(n).padStart(2, "0");
-  const sig = [lang, state.log.length, state.log.length && state.log[state.log.length - 1].at, state.players.map(p => p.name).join()].join("|"), el = $("#tl");
+  const sig = [lang, log.length, log.length && log[log.length - 1].at, state.players.map(p => p.name).join()].join("|"), el = $("#tl");
   if (el._sig === sig) return;
   el._sig = sig;
   let day = "";
-  el.innerHTML = state.log.length ? state.log.map((e, k) => {
+  el.innerHTML = log.length ? log.map((e, k) => {
     const d = new Date(e.at), dk = d.toLocaleDateString(lang, { weekday: "long", day: "numeric", month: "long" });
     const sep = dk !== day ? `<div class="tday">${esc(dk)}</div>` : "";
     day = dk;
@@ -1647,10 +1667,32 @@ function confirmButton(btn, label, sure, act) {
 }
 let armFor = "";
 
+// The last problem report: whether one is being made and where it went.
+const reportUi = { want: false, busy: false, dump: false, dumped: false, path: null, error: null };
+
+// What the dashboard has from the player's own game, row by row, so that a
+// wrong value is easy to spot.
+function readRows(snap) {
+  const x = t(), w = snap.wild, age = local.live.age;
+  const fainted = snap.party.filter(p => p.battle && p.battle.hp === 0).length;
+  const ballName = item => { const k = BALL_ITEMS.indexOf(item); return k >= 0 ? x.balls[k][0] : `#${item}`; };
+  const balls = !Array.isArray(snap.balls) ? x.sBallsNone : snap.balls.length ? snap.balls.map(([it, n]) => `${esc(ballName(it))} ×${n}`).join(", ") : x.sBallsEmpty;
+  const battle = !w ? x.sBattleNone : `${esc(species(w))}  ·  ${x.lv} ${w.battle ? w.battle.level : "?"}${w.battle && w.battle.max_hp ? `  ·  ${w.battle.hp}/${w.battle.max_hp} ${x.mon.hp}` : ""}${w.ailment ? `  ·  ${esc(x.ail[w.ailment])}` : ""}`;
+  return [
+    [x.sReadAge, age == null ? "–" : x.sReadAgeV(age)],
+    [x.sTeam, x.sTeamV(snap.party.length, fainted)],
+    [x.sBattle, battle],
+    [x.sBalls, balls],
+    [x.sEnc, String((snap.encounters || []).length)],
+  ];
+}
+
 function updateSettings() {
   const el = $("#settings");
   const runCandies = state.settings && state.settings.randomizer ? state.settings.randomizer.candies : null;
-  const sig = [lang, state.code, state.attempt, runCandies, JSON.stringify(local)].join("|");
+  const mine = local && state.players.find(p => p.name === local.name), snap = mine && mine.snapshot;
+  const seen = snap ? JSON.stringify([snap.party.map(p => p.battle && p.battle.hp), snap.wild && [snap.wild.pid, snap.wild.battle && snap.wild.battle.hp, snap.wild.ailment], snap.balls, (snap.encounters || []).length]) : "";
+  const sig = [lang, state.code, state.attempt, runCandies, JSON.stringify(local), seen, JSON.stringify(reportUi)].join("|");
   if (el._sig === sig) return;
   el._sig = sig;
   const kv = rows => rows.map(([k, v]) => `<div class="kv"><span>${k}</span><b>${v}</b></div>`).join("");
@@ -1671,7 +1713,8 @@ function updateSettings() {
       [t().code, `<span class="mono">${esc(state.code)}</span>`],
       [t().sSync, `<i class="dot ${local.phase}"></i>${t().phase[local.phase] || local.phase}${local.message ? `  ·  ${esc(local.message)}` : ""}`],
       [t().sServer, local.server ? esc(local.server) : t().sLocal],
-      [t().sBuild, local.update && local.update.build ? local.update.build : "–"],
+      [t().sBuild, local.update && local.update.build ? `${local.update.version ? `${esc(local.update.version)}  ·  ` : ""}Build ${local.update.build}` : "–"],
+      ...(local.update && local.update.build ? [[`${t().sChannel}<br><small>${t().sChannelHint}</small>`, `<span class="pair" id="channel"><button type="button" data-p="0" aria-pressed="${!local.update.preview}">${t().sStable}</button><button type="button" data-p="1" aria-pressed="${!!local.update.preview}">${t().sPreview}</button></span>`]] : []),
       [t().sDex, !local.dex ? "–" : local.dex.error ? `<span class="bad" title="${esc(local.dex.error)}">${t().sDexBad}: ${esc(local.dex.error)}</span>` : t().sDexOk(local.dex.moves)],
     ])}</div><p>${t().sLeaveHint}</p><button type="button" class="btn2" id="leave">${t().sLeave}</button></section>`;
     if (runsHtml(false)) html += `<section class="rblock glass" id="myruns">${runsHtml(false)}</section>`;
@@ -1681,6 +1724,10 @@ function updateSettings() {
       [t().sAuto, t().sAutoState[local.live.auto] || "–"],
       ...(local.live.active ? [[t().sPlace, local.live.place ? esc(local.live.place[lang]) : t().sPlaceNone]] : []),
     ])}</div><p>${t().sLiveHint}</p><div class="cmd" id="liveScript"><code>${esc(local.live.script)}</code><button type="button">${t().copy}</button></div></section>`;
+    if (local.live && local.live.active && snap) html += `<section class="rblock glass" id="readsec"><h2>${t().sRead}</h2><p>${t().sReadLead}</p><div style="margin-top:6px">${kv(readRows(snap))}</div></section>`;
+    const canDump = !!(local.live && local.live.active), r = reportUi;
+    const repNote = r.busy ? `<p>${r.dump ? t().repBusyDump : t().repBusy}</p>` : r.error ? `<p class="bad">${t().repFail} ${esc(r.error)}</p>` : r.path ? `<p>${t().repDone(`<span class="mono">${esc(r.path)}</span>`)}</p>${r.dump && !r.dumped ? `<p class="bad">${t().repNoDump}</p>` : ""}` : "";
+    html += `<section class="rblock glass" id="repsec"><h2>${t().rep}</h2><p>${t().repLead}</p><label class="check"><input type="checkbox" id="repDump"${canDump ? "" : " disabled"}${canDump && r.want ? " checked" : ""}> ${t().repDump}</label>${canDump ? "" : `<p><small>${t().repDumpOff}</small></p>`}${repNote}<button type="button" class="btn2" id="report"${r.busy ? " disabled" : ""}>${r.busy ? t().repBusy : t().repDo}</button></section>`;
   }
   html += `<section class="rblock glass"><h2>${t().attempt(state.attempt || 1)}</h2><p>${t().rRetry}</p><button type="button" class="btn2" id="retry">${t().retry}</button></section>`;
   if (local && local.fresh) {
@@ -1715,6 +1762,23 @@ function updateSettings() {
   if (cmd) cmd.onclick = e => copyText(syncCmd(), e.currentTarget);
   const script = $("#liveScript button", el);
   if (script) script.onclick = e => copyText(local.live.script, e.currentTarget);
+  const channel = $("#channel", el);
+  if (channel) channel.onclick = async e => {
+    const b = e.target.closest("button");
+    if (b && (b.dataset.p === "1") !== !!local.update.preview) await takeLocal(await localPost("set", { preview: b.dataset.p === "1" }).catch(() => null));
+  };
+  const repDump = $("#repDump", el);
+  if (repDump) repDump.onchange = () => { reportUi.want = repDump.checked; };
+  const rep = $("#report", el);
+  if (rep) rep.onclick = async () => {
+    const dump = !!(repDump && repDump.checked && !repDump.disabled);
+    Object.assign(reportUi, { busy: true, dump, path: null, error: null, dumped: false });
+    updateSettings();
+    const res = await localPost("report", { dump }).catch(e => ({ ok: false, text: async () => String(e) }));
+    if (res.ok) { const j = await res.json(); Object.assign(reportUi, { busy: false, path: j.path, dumped: j.dump }); }
+    else Object.assign(reportUi, { busy: false, error: await res.text() });
+    updateSettings();
+  };
   confirmButton($("#retry"), t().retry, t().retrySure, btn => {
     btn.disabled = true;
     if (window.SoulSyncDemoRestart) { window.SoulSyncDemoRestart(); btn.disabled = false; btn.classList.remove("arm"); btn.textContent = t().retry; }
@@ -2049,7 +2113,47 @@ document.addEventListener("keydown", e => {
 });
 
 // Full rows where stats matter (open, team); compact tiles for box and lost.
+// The run's rules the teams break right now, as one line each: partners
+// split between team and box, a Pokémon kept whose link is dead, and
+// Pokémon above the level cap. Only rules the run plays with count.
+function ruleBreaks() {
+  const x = t(), on = id => (state.settings && state.settings.rules && state.settings.rules.length ? state.settings.rules : RULES_DEFAULT).includes(id);
+  const who = i => x.brWho(esc(seatName(i)));
+  const out = [];
+  for (const m of model()) {
+    const kept = m.sides.map((s, i) => s && s.status === "party" ? i : -1).filter(i => i >= 0);
+    if (!kept.length) continue;
+    if (m.dead) {
+      const gone = m.sides.findIndex(s => s && s.status === "fainted");
+      for (const i of kept) {
+        if (gone >= 0 && on("fate")) out.push([x.brFate(esc(label(m.sides[i].pokemon)), esc(label(m.sides[gone].pokemon))), who(i)]);
+        else if (gone < 0 && on("failed")) out.push([x.brFailed(esc(label(m.sides[i].pokemon))), who(i)]);
+      }
+    } else if (on("together") && m.sides.every(Boolean)) {
+      const boxed = m.sides.findIndex(s => s.status === "boxed");
+      if (boxed >= 0) for (const i of kept) out.push([x.brTogether(esc(label(m.sides[i].pokemon)), esc(label(m.sides[boxed].pokemon))), `${who(i)} · ${who(boxed)}`]);
+    }
+  }
+  const cap = on("cap") ? capNow() : null;
+  if (cap) state.players.forEach((pl, i) => {
+    for (const p of pl.snapshot ? pl.snapshot.party : []) {
+      const lv = p.battle && p.battle.level;
+      if (lv > cap && !p.is_egg) out.push([x.brCap(esc(label(p)), lv, cap), who(i)]);
+    }
+  });
+  return out;
+}
+
+function updateBreaks() {
+  const el = $("#breaks");
+  if (!el) return;
+  const list = ruleBreaks(), html = list.map(([text, whom]) => `<p><i aria-hidden="true">!</i><span>${text}<small>${whom}</small></span></p>`).join("");
+  if (el._html === html) return;
+  el._html = html; el.innerHTML = html; el.hidden = !list.length;
+}
+
 function updateLinks() {
+  updateBreaks();
   const ms = model();
   const before = new Map();
   rows.forEach((el, k) => before.set(k, el.getBoundingClientRect()));
@@ -2407,20 +2511,21 @@ function eventHtml(e) {
 }
 
 function updateFeed() {
+  const log = shownLog();
   const box = $("#feed"), first = feed.size === 0;
-  const keys = state.log.map(e => [e.at, e.player, e.event.type, e.event.pokemon ? e.event.pokemon.pid : e.event.count].join("|"));
+  const keys = log.map(e => [e.at, e.player, e.event.type, e.event.pokemon ? e.event.pokemon.pid : e.event.count].join("|"));
   const want = new Set(keys);
   feed.forEach((el, k) => { if (!want.has(k)) { feed.delete(k); el.remove(); } });
-  for (let i = state.log.length - 1; i >= 0; i--) {
+  for (let i = log.length - 1; i >= 0; i--) {
     const k = keys[i];
     if (feed.has(k)) continue;
-    const el = document.createElement("div"), [g, c] = evIcon(state.log[i]);
+    const el = document.createElement("div"), [g, c] = evIcon(log[i]);
     el.className = "ev" + (first ? "" : " new");
-    el.innerHTML = `<div><i class="evi" style="--c:${c}">${g}</i><p>${eventHtml(state.log[i])}<time data-at="${state.log[i].at}"></time></p></div>`;
+    el.innerHTML = `<div><i class="evi" style="--c:${c}">${g}</i><p>${eventHtml(log[i])}<time data-at="${log[i].at}"></time></p></div>`;
     box.prepend(el); feed.set(k, el);
     if (!first) nextFrame(() => el.classList.remove("new"));
   }
-  $("#nofeed").hidden = state.log.length > 0;
+  $("#nofeed").hidden = log.length > 0;
   tick();
 }
 

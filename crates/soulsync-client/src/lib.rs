@@ -184,7 +184,7 @@ impl Live {
         } else if !seen {
             "waiting: the location is unknown"
         } else if !wild {
-            "not counted: a trainer's Pokémon, an egg or unreadable"
+            "not counted: a trainer's Pokémon, one of a battle the player only watches, an egg or unreadable"
         } else {
             "not counted: the location already has an encounter or a Pokémon"
         };

@@ -308,7 +308,7 @@ impl Encounters {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::pk5::{build_raw, build_raw_ivs, BattleStats, Place};
+    use crate::pk5::{build_raw, build_raw_ivs, build_raw_ot, BattleStats, Place};
 
     const STATS: BattleStats = BattleStats {
         level: 4,
@@ -416,6 +416,22 @@ mod tests {
         assert_eq!(r.map(&other), None);
         assert_eq!(LiveReport::parse(&data[..data.len() - 1]), None);
         assert_eq!(LiveReport::parse(&data[4..]), None);
+    }
+
+    #[test]
+    fn the_catching_lesson_is_no_encounter() {
+        let snap = snapshot(vec![]);
+        // Bell's Pokémon and the one she catches carry no trainer ID.
+        let hers = build_raw_ot(20, 506, "", 0, 0, Some(&STATS), WILD, 0);
+        let caught = build_raw_ot(21, 509, "", 0, 0, Some(&STATS), WILD, 0);
+        assert!(pk5::parse_wild(&hers).is_none());
+        let mut e = Encounters::default();
+        e.observe(&snap, &[&hers, &caught], Some(14));
+        assert!(e.of(&trainer()).is_empty());
+        // The first real wild one there still counts.
+        let wild = build_raw_ivs(22, 504, "", 0, 0, Some(&STATS), WILD);
+        assert!(e.observe(&snap, &[&wild], Some(14)));
+        assert_eq!(e.of(&trainer()).len(), 1);
     }
 
     #[test]

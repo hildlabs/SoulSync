@@ -5,19 +5,25 @@
 //! they are also written there as one JSON file each, a few seconds after
 //! they change, and read back on the next start.
 
+mod limits;
 mod run;
 
+pub use limits::Limits;
+
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{Path, Query, State};
+use axum::extract::{ConnectInfo, Path, Query, State};
+use axum::http::HeaderMap;
 use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, post};
+use axum::Extension;
 use axum::{Json, Router};
 use rand::Rng;
 use run::Run;
 use serde::Deserialize;
 use soulsync_core::protocol::{ClientMsg, NewRun, RunSettings, ServerMsg};
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::path::{Path as FsPath, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -56,6 +62,7 @@ pub struct AppState {
     sprites: Option<String>,
     /// Where runs are kept across restarts, if anywhere.
     store: Option<Arc<PathBuf>>,
+    limits: Arc<Limits>,
 }
 
 impl AppState {
@@ -65,6 +72,7 @@ impl AppState {
         let mut runs = self.runs.lock().unwrap();
         if let Some(e) = runs.get_mut(code) {
             e.dirty = true;
+            e.run.touched = now_ms();
             let _ = e.tx.send(state_json(&e.run));
         }
     }
@@ -174,7 +182,31 @@ async fn config(State(app): State<AppState>) -> Json<serde_json::Value> {
     Json(serde_json::json!({ "sprites": app.sprites }))
 }
 
-async fn create_run(State(app): State<AppState>, body: axum::body::Bytes) -> Response {
+/// The address of the player behind a request, where the server knows it.
+type Peer = Option<Extension<ConnectInfo<SocketAddr>>>;
+
+async fn create_run(
+    State(app): State<AppState>,
+    peer: Peer,
+    headers: HeaderMap,
+    body: axum::body::Bytes,
+) -> Response {
+    let ip = app.limits.client(peer.map(|p| p.0 .0), &headers);
+    let max = app.limits.max_runs;
+    if max > 0 && app.runs.lock().unwrap().len() >= max {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            "this server has as many runs as it keeps; try again later or use another server",
+        )
+            .into_response();
+    }
+    if !app.limits.may_create(ip, now_ms()) {
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            "too many new runs from your address; try again in an hour",
+        )
+            .into_response();
+    }
     let settings: RunSettings = if body.iter().all(u8::is_ascii_whitespace) {
         RunSettings::default()
     } else {
@@ -349,15 +381,28 @@ async fn ws(
     State(app): State<AppState>,
     Path(code): Path<String>,
     Query(q): Query<WsQuery>,
+    peer: Peer,
+    headers: HeaderMap,
     upgrade: WebSocketUpgrade,
 ) -> Response {
     let code = normalize(&code);
     if !app.runs.lock().unwrap().contains_key(&code) {
         return (StatusCode::NOT_FOUND, "run not found").into_response();
     }
+    let ip = app.limits.client(peer.map(|p| p.0 .0), &headers);
+    let Some(connection) = app.limits.connect(ip) else {
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            "too many connections from your address",
+        )
+            .into_response();
+    };
     upgrade
         .max_message_size(MAX_MESSAGE)
-        .on_upgrade(move |socket| session(app, code, q.player, socket))
+        .on_upgrade(move |socket| async move {
+            session(app, code, q.player, socket).await;
+            drop(connection);
+        })
 }
 
 async fn send(socket: &mut WebSocket, msg: &ServerMsg) -> bool {
@@ -472,6 +517,41 @@ impl AppState {
         }
     }
 
+    /// Applies limits for a public server; see [`Limits::from_env`].
+    pub fn with_limits(mut self, limits: Limits) -> Self {
+        self.limits = Arc::new(limits);
+        self
+    }
+
+    /// Removes runs nobody changed for as long as the limits allow, unless
+    /// someone is watching them right now, from memory and from the store.
+    /// Returns how many went.
+    pub fn prune(&self, now: u64) -> usize {
+        let gone: Vec<String> = {
+            let mut runs = self.runs.lock().unwrap();
+            let idle: Vec<String> = runs
+                .iter()
+                .filter(|(_, e)| {
+                    e.tx.receiver_count() == 0 && self.limits.is_idle(e.run.touched, now)
+                })
+                .map(|(code, _)| code.clone())
+                .collect();
+            for code in &idle {
+                runs.remove(code);
+            }
+            idle
+        };
+        if let Some(dir) = &self.store {
+            for code in &gone {
+                let _ = std::fs::remove_file(dir.join(format!("{code}.json")));
+            }
+        }
+        for code in &gone {
+            tracing::info!(%code, "idle run removed");
+        }
+        gone.len()
+    }
+
     /// Reads `SOULSYNC_SPRITES`: a URL with `{id}`, or `off`.
     pub fn from_env() -> Self {
         Self::new(match std::env::var("SOULSYNC_SPRITES") {
@@ -497,7 +577,11 @@ impl AppState {
                 .map_err(|e| e.to_string())
                 .and_then(|b| serde_json::from_slice::<Run>(&b).map_err(|e| e.to_string()));
             match run {
-                Ok(run) => {
+                Ok(mut run) => {
+                    // Stored before runs kept the time: counted from now.
+                    if run.touched == 0 {
+                        run.touched = now_ms();
+                    }
                     let mut entry = Entry::new(run);
                     entry.dirty = false;
                     runs.insert(entry.run.code.clone(), entry);
@@ -551,10 +635,9 @@ impl AppState {
         let code = new_code(&runs);
         // 53 bits: exact as a JavaScript number.
         let seed = rand::rng().random::<u64>() >> 11;
-        runs.insert(
-            code.clone(),
-            Entry::new(Run::new(code.clone(), seed, settings)),
-        );
+        let mut run = Run::new(code.clone(), seed, settings);
+        run.touched = now_ms();
+        runs.insert(code.clone(), Entry::new(run));
         tracing::info!(%code, "run created");
         Ok(NewRun { code, seed })
     }
@@ -766,6 +849,64 @@ mod tests {
         assert!(!state.players[0].connected);
         assert_eq!(state.log.len(), 1);
         assert!(state.players[0].snapshot.is_some());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn a_public_server_limits_new_runs() {
+        let state = AppState::default().with_limits(Limits {
+            runs_per_hour: 2,
+            max_runs: 3,
+            ..Limits::default()
+        });
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let service = app(state.clone()).into_make_service_with_connect_info::<SocketAddr>();
+        tokio::spawn(async move { axum::serve(listener, service).await.unwrap() });
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let post = || async move {
+            let mut tcp = tokio::net::TcpStream::connect(addr).await.unwrap();
+            let req = "POST /api/runs HTTP/1.1\r\nHost: x\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+            tcp.write_all(req.as_bytes()).await.unwrap();
+            let mut resp = String::new();
+            tcp.read_to_string(&mut resp).await.unwrap();
+            resp
+        };
+        for _ in 0..2 {
+            let resp = post().await;
+            assert!(resp.starts_with("HTTP/1.1 200"), "{resp}");
+        }
+        let resp = post().await;
+        assert!(resp.starts_with("HTTP/1.1 429"), "{resp}");
+        // Someone else filled the server.
+        state.create(RunSettings::default()).unwrap();
+        let resp = post().await;
+        assert!(resp.starts_with("HTTP/1.1 503"), "{resp}");
+    }
+
+    #[test]
+    fn idle_runs_go_unless_someone_watches() {
+        let dir = std::env::temp_dir().join(format!("soulsync-prune-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let state = AppState::default()
+            .with_limits(Limits {
+                idle_days: 1,
+                ..Limits::default()
+            })
+            .with_store(&dir)
+            .unwrap();
+        let idle = state.create(RunSettings::default()).unwrap().code;
+        let watched = state.create(RunSettings::default()).unwrap().code;
+        assert_eq!(state.save(), 2);
+        let _rx = state.runs.lock().unwrap()[&watched].tx.subscribe();
+        let now = now_ms();
+        assert_eq!(state.prune(now), 0, "not idle yet");
+        assert_eq!(state.prune(now + 2 * 24 * 60 * 60 * 1000), 1);
+        let runs = state.runs.lock().unwrap();
+        assert!(!runs.contains_key(&idle) && runs.contains_key(&watched));
+        assert!(!dir.join(format!("{idle}.json")).exists());
+        assert!(dir.join(format!("{watched}.json")).exists());
+        drop(runs);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

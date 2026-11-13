@@ -10,14 +10,14 @@ SoulSync reads the game state of two to four players and shows it on one shared 
 
 ## The app
 
-Get `SoulSync.exe` for Windows from the [latest release](https://github.com/hildlabs/SoulSync/releases/latest). Later builds are offered in the app's top bar and install with one click. Start `SoulSync`; it opens in its own window, and closing the window quits it:
+Get `SoulSync.exe` for Windows from the [latest release](https://github.com/hildlabs/SoulSync/releases/latest). Later versions are offered in the app's top bar and install with one click. Under *Settings › Run › Updates* you can also get preview builds, made from every change and not yet released. Start `SoulSync`; it opens in its own window, and closing the window quits it:
 
 1. Enter your name and pick your ROM and your save. For DeSmuME the save is the `.dsv` in its `Battery` folder; SoulSync finds it next to the ROM if it can.
 2. Start a new run, choose how many players it has (two to four) and your rules, or join your partner's run with their code.
 3. Play. Every in-game save updates the dashboard for both of you. The run begins with your first catch: if your starter faints before it, as in the first fight against your rival, the link is not lost.
 4. For updates without saving, DeSmuME runs SoulSync's Lua script. When SoulSync finds DeSmuME next to your save, it sets this up by itself: it puts `lua51.dll` next to the `.exe`, a copy of the script named like your ROM into DeSmuME's Lua folder, and `AutoLoad=1` under `[Scripting]` in `desmume.ini`, so the script starts whenever you open the game (restart DeSmuME once afterwards). *Settings › Live from DeSmuME* shows whether that worked. If not, load the script by hand: *Tools › Lua Scripting › New Lua Script Window*, choose the file shown there and press *Run*. Catches, faints and level-ups in your party then show up within a second or two, and so does the first wild Pokémon you meet in a location: if you do not catch it, the location counts as used up for both players. What happens in the PC boxes still arrives with the next save, so a catch that went straight to a box shows as not caught until you save. The script only trusts a party that has your own trainer behind it in memory, so an opponent's team is never mistaken for yours. If an encounter was recorded by mistake, remove it in the app under *Encounters* with *Remove* next to your entry.
 
-To play together, both players enter the same run server under *Server*. Without one, the run stays on your computer. Your ROM and your save never leave your machine.
+To play together, share the run code: the app starts out with the public SoulSync server under *Server*, so nothing else needs setting up. You can enter your own server there instead, or leave it empty to keep the run on your computer. Your ROM and your save never leave your machine; the server only gets what the dashboard shows. On the public server, a run nobody played for 60 days is removed.
 
 The window uses the web view that comes with Windows 11 and macOS. On Windows 10 it needs Microsoft's WebView2 runtime, which most computers already have; without it SoulSync opens in your browser instead. On Linux it always opens in the browser.
 
@@ -37,6 +37,22 @@ The host name your provider gave the machine works as the domain too. Many custo
 For a quick test without HTTPS, `SOULSYNC_DOMAIN=:80` serves plain HTTP; players then enter `http://` and the machine's address as the server.
 
 If the machine already runs a reverse proxy, start only the server with `docker compose up -d --build` and point the proxy at `127.0.0.1:3000`, passing WebSocket upgrades through. Runs are kept in memory.
+
+A server that anyone can reach keeps itself usable with limits, each set by an environment variable (in `deploy/.env` with Docker):
+
+| Variable | Default | What it limits |
+| --- | --- | --- |
+| `SOULSYNC_RUNS_PER_HOUR` | 10 | New runs one address may create per hour |
+| `SOULSYNC_CONNECTIONS` | 20 | Connections one address may hold at once |
+| `SOULSYNC_MAX_RUNS` | 2000 | Runs the server keeps at most |
+| `SOULSYNC_IDLE_DAYS` | 60 | Days after which a run nobody changed is removed |
+| `SOULSYNC_TRUST_PROXY` | off | `1` takes the address from `X-Forwarded-For`; only behind a proxy nobody can bypass |
+
+`0` turns a limit off. The Docker setup sets `SOULSYNC_TRUST_PROXY=1`, since only the proxy reaches the server's port. A build of the app made with `SOULSYNC_SERVER=https://…` starts out with that server instead of the public one.
+
+## Releasing
+
+Every push to `main` publishes a preview build (a GitHub pre-release `build-<n>`). To release a version, open *Actions › CI › Run workflow* on `main` and enter the version, such as `0.1.0`: it builds `main`, publishes it as the release *SoulSync 0.1.0* and tags the commit `v0.1.0`. Apps on the default channel only update to such releases, and a server run with `SOULSYNC_TRACK=releases deploy/update.sh` only to their tags.
 
 ## Command line
 
