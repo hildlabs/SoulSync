@@ -10,7 +10,8 @@
 //! `statsrandom`, `statsevo`, `statsgrow`, `ptypes`, `ptypesevo`,
 //! `twotypes`, `abilities`, `abilitiesevo` and `wonderguard` for what the
 //! species are like; `movepower`, `moveaccuracy`, `movepp` and `movetypes`
-//! for the moves.
+//! for the moves; `movesets`, `movesetstype`, `fourmoves`, `goodattacks`
+//! (40 percent), `nobroken` and `moveorder` for what the species learn.
 use soulsync_core::rando::gen5;
 
 fn main() {
@@ -41,11 +42,32 @@ fn main() {
             gen5::Change::Unchanged
         }
     };
-    let options = gen5::Options {
+    // `preset=<file>` takes everything from a settings file instead.
+    let preset = flags.iter().find_map(|f| f.strip_prefix("preset="));
+    let preset = preset.map(|path| {
+        let file = std::fs::read(path).expect("reading the settings file");
+        let preset = soulsync_core::rnqs::Preset::read(&file).expect("a settings file");
+        preset.native().unwrap_or_else(|| {
+            eprintln!("these settings are not built yet");
+            std::process::exit(3);
+        })
+    });
+    let options = preset.unwrap_or(gen5::Options {
         random_move_powers: on("movepower"),
         random_move_accuracies: on("moveaccuracy"),
         random_move_pps: on("movepp"),
         random_move_types: on("movetypes"),
+        movesets: if on("movesets") {
+            gen5::Movesets::Random
+        } else if on("movesetstype") {
+            gen5::Movesets::PreferType
+        } else {
+            gen5::Movesets::Unchanged
+        },
+        moves_at_start: if on("fourmoves") { 4 } else { 0 },
+        good_attacks: if on("goodattacks") { 40 } else { 0 },
+        no_broken_moves: on("nobroken"),
+        order_moves_by_damage: on("moveorder"),
         stats: if on("statsshuffle") {
             gen5::Stats::Shuffle
         } else if on("statsrandom") {
@@ -92,7 +114,7 @@ fn main() {
         random_trade_nicknames: on("tradeall"),
         random_trade_ivs: on("tradeall"),
         random_trade_items: on("tradeall"),
-    };
+    });
     let rom = std::fs::read(from).expect("the ROM is readable");
     let seed = seed.parse().expect("the seed is a number");
     let out = gen5::randomize(&rom, &options, seed).expect("the ROM is Black 2 or White 2");

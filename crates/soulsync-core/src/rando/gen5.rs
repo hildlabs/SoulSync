@@ -9,6 +9,7 @@
 mod items;
 mod machines;
 mod moves;
+mod movesets;
 mod statics;
 mod tables;
 mod trades;
@@ -16,6 +17,7 @@ mod trainers;
 mod traits;
 mod wild;
 
+pub use movesets::Movesets;
 pub use traits::{Change, Stats};
 
 use super::random::JavaRandom;
@@ -96,6 +98,8 @@ mod method {
     pub const BEAUTY: u16 = 16;
     pub const LEVEL_ITEM_DAY: u16 = 19;
     pub const LEVEL_ITEM_NIGHT: u16 = 20;
+    /// While it knows a certain move.
+    pub const LEVEL_WITH_MOVE: u16 = 21;
     pub const LEVEL_WITH_OTHER: u16 = 22;
     /// Those that happen at a level.
     pub const AT_LEVEL: [u16; 10] = [LEVEL, 9, 10, 11, 12, 13, 14, 15, 23, 24];
@@ -327,6 +331,16 @@ pub struct Options {
     pub random_move_accuracies: bool,
     pub random_move_pps: bool,
     pub random_move_types: bool,
+    /// The moves every species learns by level and hatches with. With
+    /// `moves_at_start` it knows that many at level 1 at least (0 for as
+    /// it was); `good_attacks` percent of its moves are good attacks;
+    /// `no_broken_moves` leaves out moves of fixed damage.
+    pub movesets: Movesets,
+    pub moves_at_start: u8,
+    pub good_attacks: u8,
+    pub no_broken_moves: bool,
+    /// Every species learns its weaker attacks first.
+    pub order_moves_by_damage: bool,
     /// The TMs hold random moves.
     pub random_tm_moves: bool,
     /// Which Pokémon learn the moves of the TMs and HMs, and which those
@@ -544,10 +558,14 @@ pub struct Species {
 }
 
 /// Evolutions that need a trade become possible alone.
-fn remove_impossible(all: &mut [Species]) {
+fn remove_impossible(all: &mut [Species], learnt_at: Option<&dyn Fn(usize, u16) -> u16>) {
     for (number, species) in all.iter_mut().enumerate() {
         let mut extra = Vec::new();
         for evolution in &mut species.evolutions {
+            if let (method::LEVEL_WITH_MOVE, Some(learnt_at)) = (evolution.method, learnt_at) {
+                evolution.method = method::LEVEL;
+                evolution.extra = learnt_at(number, evolution.extra);
+            }
             match evolution.method {
                 method::TRADE => {
                     evolution.method = method::LEVEL;
@@ -842,9 +860,21 @@ impl<'a> Game<'a> {
         random_held_items(&mut self.species, items, &mut self.random);
     }
 
-    /// Evolutions that need a trade become possible alone.
-    pub fn remove_impossible_evolutions(&mut self) {
-        remove_impossible(&mut self.species);
+    /// Evolutions by trade become ones a single player can reach. With
+    /// `new_movesets` an evolution that needs a certain move, which the
+    /// species may never learn then, comes at the level it learnt it.
+    pub fn remove_impossible_evolutions(&mut self, new_movesets: bool) -> Result<(), RomError> {
+        let learnsets = Self::narc(&self.nds, movesets::LEARNSETS)?;
+        let learnt_at = |species: usize, wanted: u16| {
+            let entries = learnsets.get(species).map_or(&[][..], Vec::as_slice);
+            let mut entries = entries.chunks_exact(4).map(|e| (word(e, 0), word(e, 2)));
+            let found = entries.find(|&(learnt, _)| learnt == wanted);
+            // Known from the start means relearnt, which is late.
+            found.map_or(45, |(_, level)| if level == 1 { 45 } else { level })
+        };
+        let learnt_at: &dyn Fn(usize, u16) -> u16 = &learnt_at;
+        remove_impossible(&mut self.species, new_movesets.then_some(learnt_at));
+        Ok(())
     }
 
     /// Lower levels and less happiness for evolutions.
@@ -1146,7 +1176,7 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
     }
     game.randomize_abilities(options.abilities, options.wonder_guard);
     if options.change_impossible_evolutions {
-        game.remove_impossible_evolutions();
+        game.remove_impossible_evolutions(options.movesets != Movesets::Unchanged)?;
     }
     if options.easier_evolutions {
         game.make_evolutions_easier(options.random_wild);
@@ -1156,6 +1186,17 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
     }
     if options.random_starters {
         game.randomize_starters()?;
+    }
+    if options.movesets != Movesets::Unchanged {
+        game.randomize_movesets(
+            options.movesets == Movesets::PreferType,
+            usize::from(options.moves_at_start),
+            options.good_attacks,
+            options.no_broken_moves,
+        )?;
+    }
+    if options.order_moves_by_damage {
+        game.order_moves_by_damage()?;
     }
     if options.random_tm_moves {
         game.randomize_tm_moves()?;
@@ -1319,7 +1360,7 @@ mod tests {
             (588, &[(method::TRADE_SPECIAL, 0, 589)]),
             (616, &[(method::TRADE_SPECIAL, 0, 617)]),
         ]);
-        remove_impossible(&mut all);
+        remove_impossible(&mut all, None);
         assert_eq!(of(&all, 64), [(method::LEVEL, 37, 65)]);
         assert_eq!(of(&all, SLOWPOKE)[1], (method::STONE, WATER_STONE, 199));
         // Holding the item by day, and a twin for the night.
