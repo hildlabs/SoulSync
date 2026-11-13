@@ -17,6 +17,7 @@ pub mod live;
 pub mod nds;
 pub mod pk5;
 pub mod protocol;
+pub mod rando;
 pub mod rnqs;
 pub mod rom;
 pub mod save;
