@@ -430,7 +430,6 @@ impl Preset {
             && d[40] == 0
             && d[41] & 0xC7 == 0
             && d[48] & 7 == 0
-            && d[50] & 7 == 0
             && d[0] & !(1 | 1 << 3 | 1 << 5 | 1 << 6) == 0
             && d[16] & !(1 << 3 | 1 << 4) == 0
             && d[39] & (1 << 4 | 1 << 5) == 0
@@ -463,6 +462,7 @@ impl Preset {
             } else {
                 0
             },
+            elite_unique: d[50] & 7,
         };
         // What the species evolve into; a new one at every level is not
         // built, and other forms the game cannot evolve into.
@@ -819,6 +819,8 @@ mod tests {
         );
         themed.data[27] |= 1 << 2;
         assert!(themed.native().unwrap().trainer_rules.type_weights);
+        themed.data[50] |= 3;
+        assert_eq!(themed.native().unwrap().trainer_rules.elite_unique, 3);
 
         let mut evolving = Overrides::default();
         evolving.set("evolutions", Value::Choice("random".into()));

@@ -79,6 +79,8 @@ pub enum Spread {
 
 /// Forms that turn back by themselves.
 const NOT_KEPT: [usize; 2] = [655, 656];
+/// The four of the elite and the champion.
+const ELITE: [usize; 5] = [38, 39, 40, 41, 341];
 /// The types of the game in the order the original randomizer lists them.
 const TYPES_IN_ORDER: [u8; 17] = [0, 1, 2, 11, 10, 9, 5, 4, 13, 6, 15, 12, 7, 3, 14, 8, 16];
 
@@ -106,6 +108,9 @@ pub struct TrainerRules {
     pub no_early_wonder_guard: bool,
     /// The levels rise or fall by so many percent.
     pub levels: i8,
+    /// So many of the strongest Pokémon of each of the elite nobody
+    /// else has.
+    pub elite_unique: u8,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -414,6 +419,19 @@ impl<'a> Game<'a> {
         list[self.random.index(list.len())]
     }
 
+    /// The three Pokémon the game hands out at the start.
+    fn current_starters(&self) -> Result<[usize; 3], RomError> {
+        let script = self.scripts.get(STARTER_SCRIPT).ok_or(layout("script"))?;
+        if script.len() < STARTER_PLACES[2][0] + 2 {
+            return Err(layout("script"));
+        }
+        let starters = STARTER_PLACES.map(|places| usize::from(word(script, places[0])));
+        if starters.iter().any(|s| !(1..=SPECIES).contains(s)) {
+            return Err(layout("starters"));
+        }
+        Ok(starters)
+    }
+
     /// A random type for themed trainers: every type alike, or with
     /// `weights` as often as the Pokémon of the pool have it.
     fn theme(&mut self, weights: Option<&[(u8, usize)]>) -> u8 {
@@ -440,6 +458,7 @@ impl<'a> Game<'a> {
         forms: bool,
         how: &TrainerRules,
         evolved_from: u16,
+        rival_keeps_starter: bool,
     ) -> Result<(), RomError> {
         let last = if forms { SPECIES + FORMS } else { SPECIES };
         let usable = |game: &Self, n: usize| {
@@ -515,6 +534,60 @@ impl<'a> Game<'a> {
         let mut order: Vec<usize> = (0..all.len()).collect();
         self.random.shuffle(&mut order);
         let mut used = vec![0u32; SPECIES + FORMS + 1];
+
+        // The elite's strongest Pokémon are theirs alone: nobody else has
+        // them, nor what they evolve from or into where that matters.
+        let elite = |place: usize| how.elite_unique > 0 && ELITE.contains(&(place + 1));
+        let mut before: Vec<Vec<usize>> = vec![Vec::new(); SPECIES + FORMS + 1];
+        for (from, species) in self.species.iter().enumerate().take(SPECIES + 1).skip(1) {
+            for evolution in &species.evolutions {
+                before[usize::from(evolution.to)].push(from);
+            }
+        }
+        let after: Vec<Vec<usize>> = (self.species.iter())
+            .map(|s| s.evolutions.iter().map(|e| usize::from(e.to)).collect())
+            .collect();
+        // A species' whole line: what it evolves from and, with `on`,
+        // into.
+        fn line(
+            (before, after): (&[Vec<usize>], &[Vec<usize>]),
+            species: usize,
+            on: bool,
+            list: &mut Vec<usize>,
+        ) {
+            fn walk(next: &[Vec<usize>], species: usize, list: &mut Vec<usize>) {
+                for &other in &next[species] {
+                    list.push(other);
+                    walk(next, other, list);
+                }
+            }
+            walk(before, species, list);
+            if on {
+                walk(after, species, list);
+            }
+        }
+        fn last_stages(after: &[Vec<usize>], species: usize, list: &mut Vec<usize>) {
+            if after[species].is_empty() {
+                list.push(species);
+            }
+            for &other in &after[species] {
+                last_stages(after, other, list);
+            }
+        }
+        let lines = (before.as_slice(), after.as_slice());
+        let mut unique: Vec<usize> = Vec::new();
+        let mut not_if_evolved: Vec<usize> = Vec::new();
+        let mut not_unique: Vec<usize> = Vec::new();
+        if how.elite_unique > 0 {
+            // Stable, so the others keep their random order.
+            order.sort_by_key(|&place| !elite(place));
+            if rival_keeps_starter {
+                for starter in self.current_starters()? {
+                    not_unique.push(starter);
+                    line(lines, starter, true, &mut not_unique);
+                }
+            }
+        }
         let mut typed: BTreeMap<u8, Vec<usize>> = BTreeMap::new();
         for trainer in order {
             Self::change_levels(&mut all[trainer], how.levels);
@@ -555,25 +628,57 @@ impl<'a> Game<'a> {
                 });
             }
             let themed = kind.and_then(|kind| typed.get(&kind)).filter(|_| !evenly);
-            for pokemon in &mut all[trainer].team {
+            // The elite's Pokémon from the last to the first, the
+            // strongest ahead; only for choosing.
+            let tracked = how.elite_unique > 0 && ELITE.contains(&index);
+            let mut team: Vec<usize> = (0..all[trainer].team.len()).collect();
+            if tracked {
+                team.reverse();
+                team.sort_by_key(|&i| std::cmp::Reverse(all[trainer].team[i].level));
+            }
+            for (turn, member) in team.into_iter().enumerate() {
+                let pokemon = &mut all[trainer].team[member];
                 let current = self.form_of(pokemon.species, pokemon.form);
                 let wonder_guard = !how.no_early_wonder_guard || pokemon.level >= 20;
                 let used_so_far = evenly.then_some(used.as_slice());
                 let evolves = evolved_from > 0 && pokemon.level >= evolved_from;
+                let alone = tracked && usize::from(how.elite_unique) > turn;
+                let banned = |n: &usize| {
+                    unique.contains(n)
+                        || (evolves && (not_if_evolved.contains(n) || leaving.contains(n)))
+                        || (alone && not_unique.contains(n))
+                };
                 let mut list: &[usize] = themed.map_or(&pool, Vec::as_slice);
-                let staying: Vec<usize>;
-                if evolves && !leaving.is_empty() {
-                    staying = (list.iter().copied())
-                        .filter(|n| !leaving.contains(n))
-                        .collect();
-                    if !staying.is_empty() {
-                        list = &staying;
-                    }
+                let left: Vec<usize> = list.iter().copied().filter(|n| !banned(n)).collect();
+                if !left.is_empty() {
+                    list = &left;
                 }
                 let chosen = self.trainer_pokemon(list, current, how, wonder_guard, used_so_far);
                 if evenly {
                     used[chosen] += 1;
                 }
+                let chains = evolved_from > 0;
+                if alone {
+                    let mut actual = Vec::new();
+                    if evolves {
+                        last_stages(&after, chosen, &mut actual);
+                    } else {
+                        actual.push(chosen);
+                    }
+                    for species in actual {
+                        unique.push(species);
+                        if chains {
+                            line(lines, species, evolves, &mut not_if_evolved);
+                        }
+                    }
+                }
+                if tracked {
+                    not_unique.push(chosen);
+                    if chains {
+                        line(lines, chosen, evolves, &mut not_unique);
+                    }
+                }
+                let pokemon = &mut all[trainer].team[member];
                 self.become_form(pokemon, chosen);
                 pokemon.ability = self.random_ability(chosen);
                 pokemon.reset_moves = true;
@@ -651,14 +756,7 @@ impl<'a> Game<'a> {
         battles: &[(u8, usize)],
         shift: usize,
     ) -> Result<(), RomError> {
-        let script = self.scripts.get(STARTER_SCRIPT).ok_or(layout("script"))?;
-        if script.len() < STARTER_PLACES[2][0] + 2 {
-            return Err(layout("script"));
-        }
-        let starters = STARTER_PLACES.map(|places| usize::from(word(script, places[0])));
-        if starters.iter().any(|s| !(1..=SPECIES).contains(s)) {
-            return Err(layout("starters"));
-        }
+        let starters = self.current_starters()?;
         let last = battles.iter().map(|b| b.0).max().unwrap_or(0);
         let level = |all: &[Trainer], tag: Tag| {
             let found = all.iter().find(|t| tagged(battles, t) == Some(tag));

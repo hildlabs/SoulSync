@@ -1238,6 +1238,7 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
             options.trainer_forms,
             &options.trainer_rules,
             options.trainers_fully_evolved_from,
+            options.rival_carries_starter,
         )?;
     } else if options.trainer_rules.levels != 0 {
         game.change_trainer_levels(options.trainer_rules.levels)?;
