@@ -3,6 +3,7 @@
 
 use super::tables::LEGENDARIES;
 use super::*;
+use std::collections::BTreeMap;
 
 const WILD: &str = "a/1/2/7";
 const DEX_AREAS: &str = "a/1/7/6";
@@ -42,6 +43,80 @@ struct Slot {
     /// The species or form, as a number.
     pokemon: usize,
     form: u16,
+    /// The lowest and the highest level.
+    levels: [u8; 2],
+}
+
+/// One kind of encounter in one place: where its slots stand in which
+/// file, and what is in them.
+struct Area {
+    file: usize,
+    at: usize,
+    shaking: bool,
+    slots: Vec<Slot>,
+}
+
+/// The Pokémon to choose from: all of them, and those that are not
+/// legendary.
+struct Pools {
+    all: Vec<usize>,
+    ordinary: Vec<usize>,
+}
+
+/// How far the new wild Pokémon reach.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Wild {
+    /// Each species of an area becomes one other.
+    #[default]
+    Areas,
+    /// Every slot of every area on its own.
+    Slots,
+    /// Each species becomes one other, all over the game.
+    Everywhere,
+}
+
+/// What the new wild Pokémon have to be like.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum WildRule {
+    #[default]
+    None,
+    /// About as strong as the old ones.
+    SimilarStrength,
+    /// Every species comes up before one comes up twice.
+    CatchThemAll,
+    /// One type for each area.
+    TypeThemes,
+}
+
+/// How wild Pokémon are made random; the levels in it change without
+/// random ones too.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct WildRules {
+    pub mode: Wild,
+    pub rule: WildRule,
+    /// The seasons keep wild Pokémon of their own.
+    pub seasons: bool,
+    pub no_legendaries: bool,
+    /// In shaking grass a Pokémon is no stronger than suits its level.
+    pub balance_shaking_grass: bool,
+    /// Per cent by which the levels rise or fall.
+    pub levels: i8,
+}
+
+const SHAKING_GRASS: usize = 2;
+
+/// The levels of all wild Pokémon rise or fall by `percent`.
+fn change_wild_levels(areas: &mut [Area], percent: i8) {
+    if percent != 0 {
+        for level in areas
+            .iter_mut()
+            .flat_map(|a| &mut a.slots)
+            .flat_map(|s| &mut s.levels)
+        {
+            let changed = f64::from(*level) * (1.0 + f64::from(percent) / 100.0);
+            *level = traits::round(changed).min(100.0) as u8;
+        }
+    }
 }
 
 /// The kinds of encounter of one part of a file that take place at all,
@@ -125,109 +200,78 @@ impl<'a> Game<'a> {
         dex
     }
 
-    /// Each area gets other wild Pokémon: every species of an area
-    /// becomes one random other, with `forms` also other forms.
-    pub fn randomize_wild(&mut self, forms: bool) -> Result<(), RomError> {
-        let mut files = Self::narc(&self.nds, WILD)?;
-        // The areas in the order of the files, as places of their slots.
-        let mut areas: Vec<(usize, usize, usize)> = Vec::new();
-        for (number, file) in files.iter().enumerate() {
-            if file.len() < SEASON {
+    /// The wild Pokémon of all areas as they are in `files`: for each
+    /// kind of encounter of a file one area, with `seasons` one for
+    /// each season too.
+    fn wild_areas(&self, files: &[Vec<u8>], seasons: bool) -> Result<Vec<Area>, RomError> {
+        let mut areas = Vec::new();
+        for (file, data) in files.iter().enumerate() {
+            if data.len() < SEASON {
                 return Err(layout(WILD));
             }
-            areas.extend(
-                kinds(file)
-                    .into_iter()
-                    .map(|(_, at, slots)| (number, at, slots)),
-            );
-        }
-        let read = |files: &[Vec<u8>], (file, at, slots): (usize, usize, usize)| {
-            let mut list = Vec::with_capacity(slots);
-            for slot in 0..slots {
-                let both = word(&files[file], at + slot * 4);
-                let (species, form) = (usize::from(both & 0x7FF), both >> 11);
-                if !(1..=SPECIES).contains(&species) {
-                    return Err(layout(WILD));
-                }
-                let looks = u16::from(self.species[species].looks);
-                let pokemon = if form <= looks || form >= 30 {
-                    species
-                } else {
-                    self.form_of(species, form)
-                };
-                list.push(Slot { pokemon, form });
-            }
-            Ok(list)
-        };
-        let mut slots = Vec::with_capacity(areas.len());
-        for &area in &areas {
-            slots.push(read(&files, area)?);
-        }
-
-        let legendary = |n: usize| {
-            let species = match self.species[n].base {
-                0 => n,
-                base => base,
+            let parts = if seasons && data.len() >= SEASON * 4 {
+                4
+            } else {
+                1
             };
-            LEGENDARIES.contains(&(species as u16))
-        };
-        let last = if forms { SPECIES + FORMS } else { SPECIES };
-        // The original draws from the non-legendary ones too, and then
-        // does not use that draw.
-        let others = (1..=last).filter(|&n| !legendary(n)).count();
-        let mut order: Vec<usize> = (0..areas.len()).collect();
-        self.random.shuffle(&mut order);
-        for area in order {
-            let mut old: Vec<usize> = slots[area].iter().map(|s| s.pokemon).collect();
-            old.sort_unstable();
-            old.dedup();
-            let mut new: Vec<usize> = Vec::with_capacity(old.len());
-            for _ in &old {
-                let picked = loop {
-                    self.random.index(others);
-                    let picked = 1 + self.random.index(last);
-                    let fits = !self.species[picked].looks_only
-                        && !NOT_WILD.contains(&picked)
-                        && (self.abilities_changed || !BY_ABILITY.contains(&picked));
-                    if fits && !new.contains(&picked) {
-                        break picked;
+            for start in (0..parts).map(|part| part * SEASON) {
+                for (kind, at, count) in kinds(&data[start..]) {
+                    let mut slots = Vec::with_capacity(count);
+                    for slot in (0..count).map(|slot| start + at + slot * 4) {
+                        let both = word(data, slot);
+                        let (species, form) = (usize::from(both & 0x7FF), both >> 11);
+                        if !(1..=SPECIES).contains(&species) {
+                            return Err(layout(WILD));
+                        }
+                        let looks = u16::from(self.species[species].looks);
+                        let pokemon = if form <= looks || form >= 30 {
+                            species
+                        } else {
+                            self.form_of(species, form)
+                        };
+                        slots.push(Slot {
+                            pokemon,
+                            form,
+                            levels: [data[slot + 2], data[slot + 3]],
+                        });
                     }
-                };
-                new.push(picked);
-            }
-            for slot in &mut slots[area] {
-                let at = old.binary_search(&slot.pokemon).map_err(|_| layout(WILD))?;
-                let entry = &self.species[new[at]];
-                *slot = if entry.form > 0 {
-                    Slot {
-                        pokemon: entry.base,
-                        form: entry.form,
-                    }
-                } else if entry.looks > 0 {
-                    let form = self.random.index(usize::from(entry.looks)) as u16;
-                    Slot {
-                        pokemon: new[at],
-                        form,
-                    }
-                } else {
-                    Slot {
-                        pokemon: new[at],
-                        form: 0,
-                    }
-                };
+                    areas.push(Area {
+                        file,
+                        at: start + at,
+                        shaking: kind == SHAKING_GRASS,
+                        slots,
+                    });
+                }
             }
         }
+        Ok(areas)
+    }
 
-        for (&(file, at, _), list) in areas.iter().zip(&slots) {
-            for (i, slot) in list.iter().enumerate() {
+    /// Writes the wild Pokémon and tells the Pokédex where they live.
+    /// Without `seasons`, every season is like spring.
+    fn set_wild_areas(
+        &mut self,
+        mut files: Vec<Vec<u8>>,
+        areas: &[Area],
+        seasons: bool,
+    ) -> Result<(), RomError> {
+        for area in areas {
+            for (i, slot) in area.slots.iter().enumerate() {
+                let at = area.at + i * 4;
+                // A form that was left alone is written as its species.
+                let species = match self.species[slot.pokemon].base {
+                    0 => slot.pokemon,
+                    base => base,
+                };
                 set_word(
-                    &mut files[file],
-                    at + i * 4,
-                    (slot.form << 11) + slot.pokemon as u16,
+                    &mut files[area.file],
+                    at,
+                    (slot.form << 11) + species as u16,
                 );
+                files[area.file][at + 2..at + 4].copy_from_slice(&slot.levels);
             }
         }
-        for file in &mut files {
+        for file in files.iter_mut().filter(|_| !seasons) {
             if file.len() >= SEASON * 4 {
                 let (spring, rest) = file.split_at_mut(SEASON);
                 for season in rest.chunks_exact_mut(SEASON).take(3) {
@@ -245,6 +289,251 @@ impl<'a> Game<'a> {
             *old = new;
         }
         self.put_narc(DEX_AREAS, &dex)
+    }
+
+    /// Puts the Pokémon `picked` into a slot: a form as its species with
+    /// the form beside it, a species whose forms only look different in
+    /// one of them at random.
+    fn fill_slot(&mut self, slot: &mut Slot, picked: usize) {
+        let entry = &self.species[picked];
+        if entry.form > 0 {
+            slot.pokemon = entry.base;
+            slot.form = entry.form;
+        } else {
+            slot.pokemon = picked;
+            slot.form = match entry.looks {
+                0 => 0,
+                looks => self.random.index(usize::from(looks)) as u16,
+            };
+        }
+    }
+
+    /// One of `pool` that is about as strong as `like`, which counts as
+    /// no stronger than a Pokémon of level `level` should be. Not
+    /// `like` itself with `other`, and none of `used`.
+    fn similar_wild(
+        &mut self,
+        pool: &[usize],
+        like: usize,
+        other: bool,
+        used: &[usize],
+        level: i32,
+    ) -> usize {
+        let strength = self.strength(like).min(level * 10 + 250);
+        let (mut least, mut most) = (strength - strength / 10, strength + strength / 10);
+        let mut fit: Vec<usize> = Vec::new();
+        let mut rounds = 0;
+        while fit.is_empty() || (fit.len() < 3 && rounds < 3) {
+            for &pokemon in pool {
+                if (least..=most).contains(&self.strength(pokemon))
+                    && !(other && pokemon == like)
+                    && !used.contains(&pokemon)
+                    && !fit.contains(&pokemon)
+                {
+                    fit.push(pokemon);
+                }
+            }
+            least -= strength / 20;
+            most += strength / 20;
+            rounds += 1;
+        }
+        fit[self.random.index(fit.len())]
+    }
+
+    /// Any Pokémon of `pools` that may live in the wild. The original
+    /// draws from both pools and uses one of the draws.
+    fn any_wild(&mut self, pools: &Pools, banned: &[usize], no_legendaries: bool) -> usize {
+        loop {
+            let ordinary = pools.ordinary[self.random.index(pools.ordinary.len())];
+            let any = pools.all[self.random.index(pools.all.len())];
+            let picked = if no_legendaries { ordinary } else { any };
+            if !self.species[picked].looks_only && !banned.contains(&picked) {
+                return picked;
+            }
+        }
+    }
+
+    /// The areas get other wild Pokémon, as `how` says, with `forms`
+    /// also other forms.
+    pub fn randomize_wild(&mut self, forms: bool, how: &WildRules) -> Result<(), RomError> {
+        let files = Self::narc(&self.nds, WILD)?;
+        let legendary = |n: usize| {
+            let species = match self.species[n].base {
+                0 => n,
+                base => base,
+            };
+            LEGENDARIES.contains(&(species as u16))
+        };
+        let last = if forms { SPECIES + FORMS } else { SPECIES };
+        let pools = Pools {
+            all: (1..=last).collect(),
+            ordinary: (1..=last).filter(|&n| !legendary(n)).collect(),
+        };
+        let mut banned = NOT_WILD.to_vec();
+        if !self.abilities_changed {
+            banned.extend(BY_ABILITY);
+        }
+        // All that can be chosen where the choice is not just any.
+        let wanted = if how.no_legendaries {
+            &pools.ordinary
+        } else {
+            &pools.all
+        };
+        let usable: Vec<usize> = (wanted.iter().copied())
+            .filter(|n| !banned.contains(n))
+            .collect();
+        let real: Vec<usize> = (usable.iter().copied())
+            .filter(|&n| !self.species[n].looks_only)
+            .collect();
+        let of_type = |game: &Self, kind: u8| -> Vec<usize> {
+            let has = |&n: &usize| {
+                let stats = &game.stats[Self::stats_file(n)];
+                stats[FIRST_TYPE] == kind || stats[FIRST_TYPE + 1] == kind
+            };
+            real.iter().copied().filter(has).collect()
+        };
+
+        let mut areas;
+        if how.mode == Wild::Everywhere {
+            // One new Pokémon for each old one, all over the game.
+            let mut left: Vec<usize> = (1..=SPECIES + FORMS)
+                .filter(|&n| !self.species[n].looks_only && !banned.contains(&n))
+                .collect();
+            let mut right = real.clone();
+            let mut becomes: Vec<usize> = (0..=SPECIES + FORMS).collect();
+            while !left.is_empty() {
+                let old = left.remove(self.random.index(left.len()));
+                let new = if how.rule == WildRule::SimilarStrength {
+                    let new = match right[..] {
+                        [only] => only,
+                        _ => self.similar_wild(&right, old, true, &[], 100),
+                    };
+                    right.retain(|&n| n != new);
+                    new
+                } else {
+                    let mut at = self.random.index(right.len());
+                    // Drawn before the old one in the original.
+                    while right[at] == old && right.len() != 1 {
+                        at = self.random.index(right.len());
+                    }
+                    right.remove(at)
+                };
+                becomes[old] = new;
+                if right.is_empty() {
+                    right = real.clone();
+                }
+            }
+            areas = self.wild_areas(&files, how.seasons)?;
+            for slot in areas.iter_mut().flat_map(|area| &mut area.slots) {
+                let new = becomes[slot.pokemon];
+                self.fill_slot(slot, new);
+            }
+        } else {
+            areas = self.wild_areas(&files, how.seasons)?;
+            let each = how.mode == Wild::Slots;
+            let mut order: Vec<usize> = (0..areas.len()).collect();
+            self.random.shuffle(&mut order);
+            let mut left = real.clone();
+            let mut typed: BTreeMap<u8, Vec<usize>> = BTreeMap::new();
+            for area in order {
+                let shaking = areas[area].shaking;
+                // What to replace: every slot, or every species once.
+                let mut old: Vec<usize> = areas[area].slots.iter().map(|s| s.pokemon).collect();
+                if !each {
+                    old.sort_unstable();
+                    old.dedup();
+                }
+                // In an area of slots each is filled at once; else the
+                // new species are chosen first, one for each old one.
+                let mut new: Vec<Option<usize>> = Vec::with_capacity(old.len());
+                let put = |game: &mut Self, areas: &mut [Area], slot: usize, picked: usize| {
+                    let mut filled = areas[area].slots[slot];
+                    game.fill_slot(&mut filled, picked);
+                    areas[area].slots[slot] = filled;
+                };
+                let mut choice = Vec::new();
+                if how.rule == WildRule::TypeThemes {
+                    let least = if each { 1 } else { old.len() };
+                    for _ in 0..10000 {
+                        let theme = self.random_type();
+                        let list = typed.entry(theme).or_insert_with(|| of_type(self, theme));
+                        if list.len() >= least {
+                            choice = list.clone();
+                            break;
+                        }
+                    }
+                    if choice.is_empty() {
+                        return Err(layout("wild Pokémon of one type"));
+                    }
+                }
+                let mut used = Vec::new();
+                for (slot, &was) in old.iter().enumerate() {
+                    let picked = match how.rule {
+                        WildRule::CatchThemAll if each && banned.contains(&was) => None,
+                        WildRule::CatchThemAll => {
+                            let picked = left.remove(self.random.index(left.len()));
+                            if left.is_empty() {
+                                left = real.clone();
+                            }
+                            (!banned.contains(&was)).then_some(picked)
+                        }
+                        WildRule::TypeThemes => {
+                            let at = self.random.index(choice.len());
+                            Some(if each { choice[at] } else { choice.remove(at) })
+                        }
+                        WildRule::SimilarStrength => {
+                            let levels = areas[area].slots[slot].levels.map(i32::from);
+                            let level = if each && how.balance_shaking_grass && shaking {
+                                (levels[0] + levels[1]) / 2
+                            } else {
+                                100
+                            };
+                            let mut picked = self.similar_wild(&usable, was, false, &used, level);
+                            while self.species[picked].looks_only {
+                                // Slot by slot, the original's next try
+                                // is as strong as this one.
+                                let like = if each { picked } else { was };
+                                picked = self.similar_wild(&usable, like, false, &used, level);
+                            }
+                            if !each {
+                                used.push(picked);
+                            }
+                            Some(picked)
+                        }
+                        WildRule::None => {
+                            let mut picked = self.any_wild(&pools, &banned, how.no_legendaries);
+                            while !each && new.contains(&Some(picked)) {
+                                picked = self.any_wild(&pools, &banned, how.no_legendaries);
+                            }
+                            Some(picked)
+                        }
+                    };
+                    match picked {
+                        Some(picked) if each => put(self, &mut areas, slot, picked),
+                        _ => new.push(picked),
+                    }
+                }
+                if !each {
+                    for slot in 0..areas[area].slots.len() {
+                        let was = areas[area].slots[slot].pokemon;
+                        let at = old.binary_search(&was).map_err(|_| layout(WILD))?;
+                        if let Some(picked) = new[at] {
+                            put(self, &mut areas, slot, picked);
+                        }
+                    }
+                }
+            }
+        }
+        change_wild_levels(&mut areas, how.levels);
+        self.set_wild_areas(files, &areas, how.seasons)
+    }
+
+    /// Only the levels of the wild Pokémon change.
+    pub fn change_wild_levels(&mut self, percent: i8) -> Result<(), RomError> {
+        let files = Self::narc(&self.nds, WILD)?;
+        let mut areas = self.wild_areas(&files, true)?;
+        change_wild_levels(&mut areas, percent);
+        self.set_wild_areas(files, &areas, true)
     }
 }
 
