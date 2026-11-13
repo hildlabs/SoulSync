@@ -2,7 +2,8 @@
 //! built: `randomize in.nds out.nds <seed> [option ...]`, with options
 //! `dex`, `types`, `egg`, `held`, `goodheld`, `impossible`, `easier`,
 //! `time`, `wild`, `starters`, `hm`, `tutors`, `trainers`, `forms`,
-//! `rival`, `evolved` (from level 40), `names`, `statics` and `wildforms`.
+//! `rival`, `evolved` (from level 40), `names`, `statics`, `wildforms`, `trades` and `tradeall` (wanted
+//! Pokémon, nicknames, IVs and items of the trades).
 use soulsync_core::rando::gen5;
 
 fn main() {
@@ -32,6 +33,11 @@ fn main() {
         trainers_fully_evolved_from: if on("evolved") { 40 } else { 0 },
         random_trainer_names: on("names"),
         random_statics: on("statics"),
+        random_trades: on("trades") || on("tradeall"),
+        trades_want_random: on("tradeall"),
+        random_trade_nicknames: on("tradeall"),
+        random_trade_ivs: on("tradeall"),
+        random_trade_items: on("tradeall"),
     };
     let rom = std::fs::read(from).expect("the ROM is readable");
     let seed = seed.parse().expect("the seed is a number");

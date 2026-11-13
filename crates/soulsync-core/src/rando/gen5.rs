@@ -8,6 +8,7 @@
 
 mod statics;
 mod tables;
+mod trades;
 mod trainers;
 mod wild;
 
@@ -279,6 +280,13 @@ pub struct Options {
     pub trainers_fully_evolved_from: u16,
     /// Trainers get random names.
     pub random_trainer_names: bool,
+    /// Trades give random Pokémon; with `trades_want_random` they ask
+    /// for random ones too. Nicknames, IVs and held items as chosen.
+    pub random_trades: bool,
+    pub trades_want_random: bool,
+    pub random_trade_nicknames: bool,
+    pub random_trade_ivs: bool,
+    pub random_trade_items: bool,
     /// Pokémon at fixed spots are swapped, legendary for legendary.
     pub random_statics: bool,
     /// Every Pokémon can learn every HM.
@@ -1110,6 +1118,14 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
     }
     if options.random_wild {
         game.randomize_wild(options.wild_forms)?;
+    }
+    if options.random_trades {
+        game.randomize_trades(
+            options.trades_want_random,
+            options.random_trade_nicknames,
+            options.random_trade_ivs,
+            options.random_trade_items,
+        )?;
     }
     game.randomize_intro()?;
     game.save()
