@@ -182,17 +182,20 @@ const NORMAL: u8 = 4;
 const DOUBLE: u8 = 8;
 const FOURFOLD: u8 = 16;
 
+/// How hard a move of type `attack` hits a Pokémon of type `defence`,
+/// in halves. With `updated`, Ghost and Dark hit Steel normally.
+pub(super) fn hits_one(attack: usize, defence: usize, updated: bool) -> u8 {
+    if updated && defence == STEEL && (attack == GHOST || attack == DARK) {
+        2
+    } else {
+        HITS[attack][defence]
+    }
+}
+
 /// How hard a move of type `attack` hits a Pokémon of the types
-/// `first` and `second`, in quarters. With `updated`, Ghost and Dark
-/// hit Steel normally.
+/// `first` and `second`, in quarters.
 fn hits_on(attack: usize, first: usize, second: Option<usize>, updated: bool) -> u8 {
-    let single = |defence: usize| {
-        if updated && defence == STEEL && (attack == GHOST || attack == DARK) {
-            2
-        } else {
-            HITS[attack][defence]
-        }
-    };
+    let single = |defence: usize| hits_one(attack, defence, updated);
     single(first) * second.map_or(2, single)
 }
 
