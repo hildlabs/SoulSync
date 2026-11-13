@@ -112,6 +112,7 @@ fn main() {
         random_tutor_moves: on("tutors"),
         random_trainers: on("trainers"),
         random_trainer_class_names: on("classnames"),
+        double_battles: on("doubles"),
         better_trainer_moves: on("bettermoves"),
         trainer_items: gen5::TrainerItems {
             boss: on("itemsboss"),

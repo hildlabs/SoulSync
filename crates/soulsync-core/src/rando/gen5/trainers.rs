@@ -90,6 +90,30 @@ const PAIRS: [usize; 30] = [
 ];
 const PAIRS_BLACK: [usize; 4] = [521, 789, 520, 786];
 const PAIRS_WHITE: [usize; 4] = [514, 521, 519, 787];
+/// The first so many of `PAIRS` always fight together, as do the first
+/// two of Black 2's and the last two of White 2's.
+const ALWAYS_PAIRS: usize = 21;
+/// Where a trainer's data says what kind of battle it is, and flags
+/// for how it goes.
+const BATTLE_KIND: usize = 2;
+const DOUBLE_BATTLE: u8 = 1;
+const BATTLE_FLAGS: usize = 12;
+/// Which text box each trainer speaks in, and the boxes of a single
+/// trainer for those of the two of a pair.
+const TEXT_BOXES: &str = "a/0/8/9";
+const SINGLE_BOXES: [(u16, u16); 3] = [(3, 0), (5, 2), (6, 0x18)];
+/// The field's code, and what stands in it before the text boxes of a
+/// pair, before the check that the player has two Pokémon and before
+/// the look for a pair's partner.
+const FIELD_OVERLAY: usize = 36;
+const PAIR_BOXES: [u8; 8] = [0x00, 0x04, 0x00, 0x0C, 0x03, 0xD1, 0x03, 0x20];
+const PAIR_LIMIT: [u8; 8] = [0x02, 0x24, 0xE3, 0xE7, 0x01, 0x28, 0x17, 0xD1];
+const PAIR_POINTER: [u8; 8] = [0x0A, 0x99, 0x06, 0x98, 0x09, 0x04, 0x09, 0x0C];
+const NOP: u16 = 0x46C0;
+const BRANCH_TO_SINGLE: u16 = 0xD0C7;
+const COMPARE_WITH_ZERO: u16 = 0x2800;
+/// What stands in the ARM9 before the choice of a text box.
+const BOX_CHOICE: [u8; 8] = [0x60, 0x88, 0xA8, 0x42, 0x0A, 0xD1, 0xA0, 0x88];
 /// Forms that turn back by themselves.
 const NOT_KEPT: [usize; 2] = [655, 656];
 /// The four of the elite and the champion.
@@ -321,14 +345,31 @@ impl<'a> Game<'a> {
     }
 
     pub fn set_trainers(&mut self, all: &[Trainer]) -> Result<(), RomError> {
+        self.write_trainers(all, false)
+    }
+
+    /// Writes the trainers; with `doubles`, all but the first battles
+    /// with the rival become double battles.
+    fn write_trainers(&mut self, all: &[Trainer], doubles: bool) -> Result<(), RomError> {
         let mut trainers = Self::narc(&self.nds, TRAINERS)?;
         let learnsets = self.learnsets()?;
         let mut teams = vec![vec![0; 8]];
-        let mut list = all.iter();
-        for data in trainers.iter_mut().skip(1) {
-            let trainer = list.next().ok_or(layout(TRAINERS))?;
+        let mut list = all.iter().enumerate();
+        let tags = tags(all.len());
+        let mut were_doubles = Vec::new();
+        for (index, data) in trainers.iter_mut().enumerate().skip(1) {
+            let (place, trainer) = list.next().ok_or(layout(TRAINERS))?;
             data[0] = trainer.kind;
             data[3] = trainer.team.len() as u8;
+            if doubles && data.len() > BATTLE_FLAGS {
+                if data[BATTLE_KIND] == DOUBLE_BATTLE {
+                    were_doubles.push(index as u16);
+                } else if data[BATTLE_KIND] == 0 && rank(&tags, place, trainer).is_some() {
+                    data[BATTLE_KIND] = DOUBLE_BATTLE;
+                    // Or the trainer's Pokémon attack each other.
+                    data[BATTLE_FLAGS] |= 0x80;
+                }
+            }
             let mut team = Vec::new();
             for pokemon in &trainer.team {
                 let strength = (1 + pokemon.ivs * 255 / 31).min(255) as u8;
@@ -353,11 +394,14 @@ impl<'a> Game<'a> {
         }
         self.put_narc(TRAINERS, &trainers)?;
         self.put_narc(TEAMS, &teams)?;
+        if doubles {
+            self.prepare_double_battles(&were_doubles)?;
+        }
 
         let mut tournament = Self::narc(&self.nds, TOURNAMENT)?;
         let mut files = tournament.iter_mut().skip(1);
         for number in 0..TOURNAMENT_TRAINERS {
-            let trainer = list.next().ok_or(layout(TOURNAMENT))?;
+            let (_, trainer) = list.next().ok_or(layout(TOURNAMENT))?;
             // The tournament has room for a fixed number only.
             let room = if number < 2 { 3 } else { 6 };
             for pokemon in trainer.team.iter().take(room) {
@@ -375,6 +419,76 @@ impl<'a> Game<'a> {
             }
         }
         self.put_narc(TOURNAMENT, &tournament)
+    }
+
+    /// What the game needs so that every trainer can fight a double
+    /// battle: the text boxes of those who did before become those of
+    /// single trainers, and the game stops looking for a partner.
+    fn prepare_double_battles(&mut self, were_doubles: &[u16]) -> Result<(), RomError> {
+        let unsupported = || layout("double battles");
+        let mut boxes = Self::narc(&self.nds, TEXT_BOXES)?;
+        let first = boxes.first_mut().ok_or(layout(TEXT_BOXES))?;
+        for entry in first.chunks_exact_mut(4) {
+            if were_doubles.contains(&word(entry, 0)) {
+                let single = SINGLE_BOXES
+                    .iter()
+                    .find(|(pair, _)| *pair == word(entry, 2));
+                if let Some(&(_, single)) = single {
+                    set_word(entry, 2, single);
+                }
+            }
+        }
+        self.put_narc(TEXT_BOXES, &boxes)?;
+
+        let mut code = self.nds.overlay(FIELD_OVERLAY).ok_or(layout("overlay"))?;
+        let after = |code: &[u8], mark: &[u8]| {
+            (find(code, mark).map(|at| at + mark.len()))
+                .filter(|at| *at >= 2 && at + 0x12 <= code.len())
+        };
+        let at = after(&code, &PAIR_BOXES).ok_or_else(unsupported)?;
+        code[at - 2] = SINGLE_BOXES[0].1 as u8;
+        code[at] = SINGLE_BOXES[1].1 as u8;
+        code[at + 2] = SINGLE_BOXES[2].1 as u8;
+        // A pair sees the player with a single Pokémon too.
+        let at = after(&code, &PAIR_LIMIT).ok_or_else(unsupported)?;
+        set_word(&mut code, at, NOP);
+        set_word(&mut code, at + 2, NOP);
+        // Without a partner the game goes on as for a single trainer.
+        let at = after(&code, &PAIR_POINTER).ok_or_else(unsupported)?;
+        for to in [0x10, 0xE, 0xC] {
+            let moved = word(&code, at + to - 2);
+            set_word(&mut code, at + to, moved);
+        }
+        set_word(&mut code, at + 0xA, BRANCH_TO_SINGLE);
+        set_word(&mut code, at + 8, COMPARE_WITH_ZERO);
+        self.nds.set_overlay(FIELD_OVERLAY, &code);
+
+        // Only the trainer who saw the player is looked at for the text
+        // box, not every trainer of the game.
+        let at = find(&self.arm9, &BOX_CHOICE).ok_or_else(unsupported)?;
+        self.arm9[at + BOX_CHOICE.len() - 4] = 2;
+        Ok(())
+    }
+
+    /// Every trainer fights double battles: one with a single Pokémon
+    /// gets it twice. The first battles with the rival stay single.
+    pub fn double_battles(&mut self) -> Result<(), RomError> {
+        let mut all = self.trainers()?;
+        let tags = tags(all.len());
+        let black = self.code[..3] == *b"IRE";
+        let version: &[usize] = if black {
+            &PAIRS_BLACK[..2]
+        } else {
+            &PAIRS_WHITE[2..]
+        };
+        for (place, trainer) in all.iter_mut().enumerate() {
+            let pair =
+                PAIRS[..ALWAYS_PAIRS].contains(&(place + 1)) || version.contains(&(place + 1));
+            if trainer.team.len() == 1 && !pair && rank(&tags, place, trainer).is_some() {
+                trainer.team.push(trainer.team[0].clone());
+            }
+        }
+        self.write_trainers(&all, true)
     }
 
     /// Makes `pokemon` the species or form with number `chosen`; a species

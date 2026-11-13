@@ -427,7 +427,7 @@ impl Preset {
             && d[22] == 0
             && d[25] & 0xF0 == 0
             && d[27] & (1 << 5 | 1 << 6) == 0
-            && d[40] & 0x81 == 0
+            && d[40] & 0x80 == 0
             && d[41] & 0xC0 == 0
             && d[0] & !(1 | 1 << 3 | 1 << 4 | 1 << 5 | 1 << 6) == 0
             && d[16] & !(1 << 3 | 1 << 4) == 0
@@ -577,6 +577,7 @@ impl Preset {
             trainer_forms: bit(39, 6),
             rival_carries_starter: bit(27, 1),
             trainers_fully_evolved_from: fully_evolved,
+            double_battles: bit(40, 0),
             better_trainer_moves: bit(27, 7),
             trainer_items: TrainerItems {
                 boss: bit(48, 0),
@@ -845,6 +846,9 @@ mod tests {
         assert!(!themed.native().unwrap().better_trainer_moves);
         themed.data[27] |= 1 << 7;
         assert!(themed.native().unwrap().better_trainer_moves);
+        assert!(!themed.native().unwrap().double_battles);
+        themed.data[40] |= 1;
+        assert!(themed.native().unwrap().double_battles);
 
         let mut evolving = Overrides::default();
         evolving.set("evolutions", Value::Choice("random".into()));
