@@ -1,7 +1,8 @@
 //! Randomizes a ROM with SoulSync's own randomizer, as far as it is
 //! built: `randomize in.nds out.nds <seed> [option ...]`, with options
 //! `dex`, `types`, `egg`, `held`, `goodheld`, `impossible`, `easier`,
-//! `time`, `wild`, `starters`, `hm` and `tutors`.
+//! `time`, `wild`, `starters`, `hm`, `tutors`, `trainers`, `forms`,
+//! `rival` and `evolved` (from level 40).
 use soulsync_core::rando::gen5;
 
 fn main() {
@@ -24,6 +25,10 @@ fn main() {
         random_starters: on("starters"),
         full_hm: on("hm"),
         random_tutor_moves: on("tutors"),
+        random_trainers: on("trainers"),
+        trainer_forms: on("forms"),
+        rival_carries_starter: on("rival"),
+        trainers_fully_evolved_from: if on("evolved") { 40 } else { 0 },
     };
     let rom = std::fs::read(from).expect("the ROM is readable");
     let seed = seed.parse().expect("the seed is a number");

@@ -6,6 +6,8 @@
 //! held items and evolutions the randomizer has no use for are dropped,
 //! and the code it looked at is packed anew.
 
+mod trainers;
+
 use super::lz;
 use super::random::JavaRandom;
 use super::text::{chars, Text};
@@ -57,6 +59,13 @@ const FORM_COUNT: usize = 32;
 /// The one form the original randomizer treats as differing in looks
 /// only: Keldeo's Resolute form.
 const LOOKS_ONLY_FORM: usize = 670;
+/// Where the three abilities of a species stand in its stats.
+const ABILITIES: usize = 24;
+/// Species whose forms the original randomizer leaves alone although
+/// they only look different, and the one that has such a form with stats
+/// of its own.
+const NO_LOOKS: [usize; 4] = [421, 493, 585, 586];
+const KELDEO: usize = 647;
 
 const EVOLUTION_LEN: usize = 6;
 const EVOLUTION_SLOTS: usize = 7;
@@ -255,6 +264,14 @@ pub struct Options {
     pub random_starters: bool,
     /// The move tutors teach random moves.
     pub random_tutor_moves: bool,
+    /// Trainers have random Pokémon, with `trainer_forms` also other
+    /// forms of them.
+    pub random_trainers: bool,
+    pub trainer_forms: bool,
+    /// The rival fights with the starter the player left for them.
+    pub rival_carries_starter: bool,
+    /// Trainers' Pokémon from this level on are fully evolved; 0 for off.
+    pub trainers_fully_evolved_from: u16,
     /// Every Pokémon can learn every HM.
     pub full_hm: bool,
 }
@@ -456,6 +473,15 @@ impl Evolution {
 pub struct Species {
     pub items: HeldItems,
     pub evolutions: Vec<Evolution>,
+    pub abilities: [u8; 3],
+    /// For a form with stats of its own: its species and which of the
+    /// species' forms it is. Both are 0 for a species.
+    pub base: usize,
+    pub form: u16,
+    /// How many forms a species has that only look different.
+    pub looks: u8,
+    /// A form with stats of its own that still only looks different.
+    pub looks_only: bool,
 }
 
 /// Evolutions that need a trade become possible alone.
@@ -589,6 +615,9 @@ pub struct Game<'a> {
     /// The items random choices may give: all of them, and the good ones.
     items: Items,
     good_items: Items,
+    /// Decides between the ways a trainer's Pokémon may evolve; drawn
+    /// once when first needed.
+    evolution_turn: Option<usize>,
     /// The game code, which tells version and language.
     code: [u8; 4],
     pub random: JavaRandom,
@@ -635,10 +664,42 @@ impl<'a> Game<'a> {
                 return Err(layout("species data"));
             }
             let items = HeldItems::read(data);
+            let mut looks = 0;
+            let mut looks_only = false;
+            if data[FORM_COUNT] > 1 {
+                if word(data, FIRST_FORM) != 0 {
+                    if number == KELDEO {
+                        looks = data[FORM_COUNT];
+                    }
+                } else {
+                    if number < SPECIES && !NO_LOOKS.contains(&number) {
+                        looks = data[FORM_COUNT];
+                    }
+                    looks_only = number == LOOKS_ONLY_FORM;
+                }
+            }
             species.push(Species {
                 items,
                 evolutions: Vec::new(),
+                abilities: [data[ABILITIES], data[ABILITIES + 1], data[ABILITIES + 2]],
+                base: 0,
+                form: 0,
+                looks,
+                looks_only,
             });
+        }
+        for (number, data) in stats.iter().enumerate().take(SPECIES + 1).skip(1) {
+            let first = usize::from(word(data, FIRST_FORM));
+            if data[FORM_COUNT] > 1 && first != 0 {
+                for form in 1..data[FORM_COUNT] {
+                    let file = first + usize::from(form) - 1;
+                    let entry = file.checked_sub(FORM_OFFSET).filter(|n| *n > SPECIES);
+                    let entry = entry.and_then(|n| species.get_mut(n));
+                    let entry = entry.ok_or(layout("forms"))?;
+                    entry.base = number;
+                    entry.form = u16::from(form);
+                }
+            }
         }
         for number in 1..=SPECIES {
             let data = &evolutions[number];
@@ -658,6 +719,7 @@ impl<'a> Game<'a> {
             starters: None,
             items: Items::new(false),
             good_items: Items::new(true),
+            evolution_turn: None,
             code: [rom[12], rom[13], rom[14], rom[15]],
             random: JavaRandom::new(seed),
             nds,
@@ -1018,6 +1080,15 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
     if options.random_tutor_moves {
         game.randomize_tutor_moves()?;
     }
+    if options.random_trainers {
+        game.randomize_trainers(options.trainer_forms)?;
+    }
+    if options.rival_carries_starter && (options.random_trainers || options.random_starters) {
+        game.rival_carries_starter()?;
+    }
+    if options.trainers_fully_evolved_from > 0 {
+        game.force_fully_evolved(options.trainers_fully_evolved_from)?;
+    }
     game.randomize_intro()?;
     game.save()
 }
@@ -1091,6 +1162,11 @@ mod tests {
         let none = Species {
             items: HeldItems::read(&[0; 20]),
             evolutions: Vec::new(),
+            abilities: [1, 0, 0],
+            base: 0,
+            form: 0,
+            looks: 0,
+            looks_only: false,
         };
         let mut all = vec![none; SPECIES + FORMS + 1];
         for (number, evolutions) in list {
