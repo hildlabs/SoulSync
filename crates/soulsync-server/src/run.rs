@@ -41,6 +41,11 @@ pub struct Run {
     catch_rates: Option<Vec<u8>>,
     players: Vec<Player>,
     log: VecDeque<LogEntry>,
+    /// When the run last changed, in milliseconds since 1970; a run that
+    /// stays unchanged long enough is removed. 0 for runs stored before
+    /// this was kept.
+    #[serde(default)]
+    pub(crate) touched: u64,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -68,6 +73,7 @@ impl Run {
             catch_rates: None,
             players: Vec::new(),
             log: VecDeque::new(),
+            touched: 0,
         }
     }
 
