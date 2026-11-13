@@ -44,6 +44,19 @@ const COMMON_ITEM: usize = 12;
 const RARE_ITEM: usize = 14;
 const DARK_GRASS_ITEM: usize = 16;
 
+/// The moves a species learns from TMs and HMs: a bit each for 95 TMs,
+/// then 6 HMs.
+const MACHINES: usize = 40;
+const MACHINES_LEN: usize = 13;
+const TMS: usize = 95;
+const HMS: usize = 6;
+/// Where a species' other forms start, and how many forms it has.
+const FIRST_FORM: usize = 28;
+const FORM_COUNT: usize = 32;
+/// The one form the original randomizer treats as differing in looks
+/// only: Keldeo's Resolute form.
+const LOOKS_ONLY_FORM: usize = 670;
+
 const EVOLUTION_LEN: usize = 6;
 const EVOLUTION_SLOTS: usize = 7;
 const EVOLUTION_METHODS: u16 = 27;
@@ -110,6 +123,8 @@ pub struct Options {
     pub no_time_evolutions: bool,
     /// Wild Pokémon are randomized in some way.
     pub random_wild: bool,
+    /// Every Pokémon can learn every HM.
+    pub full_hm: bool,
 }
 
 fn word(d: &[u8], at: usize) -> u16 {
@@ -336,6 +351,20 @@ fn remove_time_based(all: &mut [Species]) {
     }
 }
 
+/// Lets a species learn every HM. Bits past the last HM are cleared, as
+/// the original randomizer's list of machines ends there.
+fn full_hms(stats: &mut [u8]) {
+    let machines = &mut stats[MACHINES..MACHINES + MACHINES_LEN];
+    for bit in 0..MACHINES_LEN * 8 {
+        let mask = 1 << (bit % 8);
+        if bit >= TMS + HMS {
+            machines[bit / 8] &= !mask;
+        } else if bit >= TMS {
+            machines[bit / 8] |= mask;
+        }
+    }
+}
+
 /// A ROM opened for randomizing.
 pub struct Game<'a> {
     nds: Nds<'a>,
@@ -387,7 +416,7 @@ impl<'a> Game<'a> {
                 number
             };
             let data = &stats[file];
-            if data.len() < DARK_GRASS_ITEM + 2 {
+            if data.len() < MACHINES + MACHINES_LEN || data.len() <= FORM_COUNT {
                 return Err(layout("species data"));
             }
             let items = HeldItems::read(data);
@@ -436,6 +465,38 @@ impl<'a> Game<'a> {
     /// Evolutions bound to day or night get a twin for the other half.
     pub fn remove_time_based_evolutions(&mut self) {
         remove_time_based(&mut self.species);
+    }
+
+    /// Every Pokémon can learn every HM.
+    pub fn full_hm_compatibility(&mut self) {
+        for number in 1..=SPECIES + FORMS {
+            full_hms(&mut self.stats[Self::stats_file(number)]);
+        }
+        // A form that only looks different learns what its species learns.
+        let file = Self::stats_file(LOOKS_ONLY_FORM);
+        let form = &self.stats[file];
+        if form[FORM_COUNT] > 1 && word(form, FIRST_FORM) == 0 {
+            let base = (1..=SPECIES).find(|&number| {
+                let stats = &self.stats[number];
+                let first = usize::from(word(stats, FIRST_FORM));
+                let forms = usize::from(stats[FORM_COUNT]);
+                first != 0 && (first..first + forms.saturating_sub(1)).contains(&file)
+            });
+            if let Some(base) = base {
+                let machines = MACHINES..MACHINES + MACHINES_LEN;
+                let learns = self.stats[base][machines.clone()].to_vec();
+                self.stats[file][machines].copy_from_slice(&learns);
+            }
+        }
+    }
+
+    /// The file with the stats of a species or form.
+    fn stats_file(number: usize) -> usize {
+        if number > SPECIES {
+            number + FORM_OFFSET
+        } else {
+            number
+        }
     }
 
     /// Writes `value` into overlay `overlay`, `skip` bytes after the first
@@ -520,6 +581,9 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
     }
     if options.no_time_evolutions {
         game.remove_time_based_evolutions();
+    }
+    if options.full_hm {
+        game.full_hm_compatibility();
     }
     game.randomize_intro()?;
     game.save()
@@ -707,6 +771,18 @@ mod tests {
         );
         // Both halves were there already.
         assert_eq!(of(&all, 366).len(), 2);
+    }
+
+    #[test]
+    fn every_hm_is_learnable_and_nothing_past_them() {
+        let mut stats = vec![0u8; 76];
+        stats[MACHINES] = 0b101;
+        stats[MACHINES + 12] = 0b1110_0000;
+        full_hms(&mut stats);
+        // TMs stay, HMs 1 to 6 are bits 95 to 100.
+        assert_eq!(stats[MACHINES], 0b101);
+        assert_eq!(stats[MACHINES + 11], 0b1000_0000);
+        assert_eq!(stats[MACHINES + 12], 0b0001_1111);
     }
 
     #[test]
