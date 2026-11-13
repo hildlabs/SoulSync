@@ -59,7 +59,7 @@ pub struct TrainerPokemon {
     pub item: u16,
     pub moves: [u16; 4],
     /// The moves are to be the ones it knows at its level.
-    reset_moves: bool,
+    pub(super) reset_moves: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

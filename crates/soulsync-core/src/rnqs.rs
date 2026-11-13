@@ -439,12 +439,12 @@ impl Preset {
         if !untouched {
             return None;
         }
-        // What the species learn: one way of three; only Metronome is
-        // not built.
+        // What the species learn: one way of four.
         let movesets = match d[11] & 0x0F {
-            0b001 => Movesets::Random,
-            0b010 => Movesets::PreferType,
-            0b100 => Movesets::Unchanged,
+            0b0001 => Movesets::Random,
+            0b0010 => Movesets::PreferType,
+            0b0100 => Movesets::Unchanged,
+            0b1000 => Movesets::Metronome,
             _ => return None,
         };
         // What the species are like. Updated stats, levelling alike, a
@@ -774,7 +774,6 @@ mod tests {
         for (id, value) in [
             ("evolutions", Value::Choice("random".into())),
             ("update_base_stats", Value::Flag(true)),
-            ("movesets", Value::Choice("metronome".into())),
             ("wild", Value::Choice("global_mapping".into())),
             ("wild_rule", Value::Choice("catch_em_all".into())),
             ("statics", Value::Choice("random".into())),

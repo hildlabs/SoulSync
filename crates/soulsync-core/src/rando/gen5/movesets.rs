@@ -9,6 +9,8 @@ pub(super) const LEARNSETS: &str = "a/0/1/8";
 const EGG_MOVES: &str = "a/1/2/4";
 const CATEGORY: usize = 2;
 const POWER: usize = 3;
+const PP: usize = 5;
+const METRONOME: u16 = 118;
 const ACCURACY: usize = 4;
 const PHYSICAL: u8 = 1;
 const SPECIAL: u8 = 2;
@@ -31,6 +33,8 @@ pub enum Movesets {
     Random,
     /// Random, but more often than not of the species' own types.
     PreferType,
+    /// Nobody knows or can be taught anything but Metronome.
+    Metronome,
 }
 /// The place of each type of the game in the original randomizer's list
 /// of types, which is the order it goes through them.
@@ -329,6 +333,35 @@ impl Game<'_> {
             }
         }
         self.put_narc(EGG_MOVES, &eggs)
+    }
+
+    /// Every species knows Metronome and nothing else, trainers' Pokémon
+    /// too; TMs and tutors teach it, and the HM moves cannot be used in
+    /// battle.
+    pub fn metronome_only(&mut self) -> Result<(), RomError> {
+        let mut files = Self::narc(&self.nds, LEARNSETS)?;
+        for number in 1..=SPECIES + FORMS {
+            let data = files
+                .get_mut(Self::stats_file(number))
+                .ok_or(layout(LEARNSETS))?;
+            if data.len() >= 4 && data[..4] != [0xFF; 4] {
+                *data = vec![METRONOME as u8, 0, 1, 0, 0xFF, 0xFF, 0xFF, 0xFF];
+            }
+        }
+        self.put_narc(LEARNSETS, &files)?;
+        let mut trainers = self.trainers()?;
+        for pokemon in trainers.iter_mut().flat_map(|t| &mut t.team) {
+            pokemon.reset_moves = true;
+        }
+        self.set_trainers(&trainers)?;
+        self.set_tm_moves(&[METRONOME; TMS])?;
+        self.set_tutor_moves(&[METRONOME; TUTORS])?;
+        let (_, hms) = self.machine_moves().ok_or(layout("moves of the TMs"))?;
+        self.moves[usize::from(METRONOME)][PP] = 40;
+        for hm in hms {
+            self.moves[usize::from(hm)][PP] = 0;
+        }
+        Ok(())
     }
 
     /// The attacks of every species change places among themselves, so

@@ -10,7 +10,7 @@
 //! `statsrandom`, `statsevo`, `statsgrow`, `ptypes`, `ptypesevo`,
 //! `twotypes`, `abilities`, `abilitiesevo` and `wonderguard` for what the
 //! species are like; `movepower`, `moveaccuracy`, `movepp` and `movetypes`
-//! for the moves; `movesets`, `movesetstype`, `fourmoves`, `goodattacks`
+//! for the moves; `movesets`, `movesetstype`, `metronome`, `fourmoves`, `goodattacks`
 //! (40 percent), `nobroken` and `moveorder` for what the species learn.
 use soulsync_core::rando::gen5;
 
@@ -61,6 +61,8 @@ fn main() {
             gen5::Movesets::Random
         } else if on("movesetstype") {
             gen5::Movesets::PreferType
+        } else if on("metronome") {
+            gen5::Movesets::Metronome
         } else {
             gen5::Movesets::Unchanged
         },

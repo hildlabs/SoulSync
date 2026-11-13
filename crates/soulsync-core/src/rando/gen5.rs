@@ -1019,12 +1019,6 @@ impl<'a> Game<'a> {
 
     /// The move tutors teach random moves no TM or HM teaches.
     pub fn randomize_tutor_moves(&mut self) -> Result<(), RomError> {
-        let place = TUTOR_PLACES.iter().find(|(code, _)| **code == self.code);
-        let &(_, place) = place.ok_or(layout("move tutors"))?;
-        let mut code = self.nds.overlay(TUTOR_OVERLAY).ok_or(layout("overlay"))?;
-        if code.len() < place + TUTORS * TUTOR_LEN {
-            return Err(layout("move tutors"));
-        }
         let (tms, hms) = self.machine_moves().unwrap_or_default();
         let mut usable: Vec<u16> = (1..=MOVES_COUNT as u16)
             .filter(|m| *m != STRUGGLE && !tms.contains(m) && !hms.contains(m))
@@ -1034,7 +1028,18 @@ impl<'a> Game<'a> {
             picked.push(usable.remove(self.random.index(usable.len())));
         }
         self.random.shuffle(&mut picked);
-        for (i, &chosen) in picked.iter().enumerate() {
+        self.set_tutor_moves(&picked)
+    }
+
+    /// Puts `picked` where the move tutors have their moves.
+    fn set_tutor_moves(&mut self, picked: &[u16]) -> Result<(), RomError> {
+        let place = TUTOR_PLACES.iter().find(|(code, _)| **code == self.code);
+        let &(_, place) = place.ok_or(layout("move tutors"))?;
+        let mut code = self.nds.overlay(TUTOR_OVERLAY).ok_or(layout("overlay"))?;
+        if code.len() < place + TUTORS * TUTOR_LEN {
+            return Err(layout("move tutors"));
+        }
+        for (i, &chosen) in picked.iter().take(TUTORS).enumerate() {
             set_word(&mut code, place + i * TUTOR_LEN, chosen);
         }
         self.nds.set_overlay(TUTOR_OVERLAY, &code);
@@ -1187,7 +1192,7 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
     if options.random_starters {
         game.randomize_starters()?;
     }
-    if options.movesets != Movesets::Unchanged {
+    if matches!(options.movesets, Movesets::Random | Movesets::PreferType) {
         game.randomize_movesets(
             options.movesets == Movesets::PreferType,
             usize::from(options.moves_at_start),
@@ -1198,7 +1203,7 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
     if options.order_moves_by_damage {
         game.order_moves_by_damage()?;
     }
-    if options.random_tm_moves {
+    if options.random_tm_moves && options.movesets != Movesets::Metronome {
         game.randomize_tm_moves()?;
     }
     if options.machines != Compat::Unchanged {
@@ -1207,7 +1212,7 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
     if options.full_hm {
         game.full_hm_compatibility();
     }
-    if options.random_tutor_moves {
+    if options.random_tutor_moves && options.movesets != Movesets::Metronome {
         game.randomize_tutor_moves()?;
     }
     if options.tutors != Compat::Unchanged {
@@ -1224,6 +1229,9 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
     }
     if options.random_trainer_names {
         game.randomize_trainer_names()?;
+    }
+    if options.movesets == Movesets::Metronome {
+        game.metronome_only()?;
     }
     if options.random_statics {
         game.randomize_statics()?;
