@@ -162,7 +162,7 @@ pub fn run(plan: &Plan) -> Result<(), Failure> {
 
     // The settings with SoulSync's options, in a file of their own: the
     // player's `.rnqs` stays as it is.
-    let preset = if plan.overrides == Overrides::default() {
+    let preset = if plan.overrides.is_empty() {
         None
     } else {
         let file = std::fs::read(&plan.preset).map_err(|e| (Why::Preset, Some(e.to_string())))?;
@@ -348,7 +348,10 @@ echo "$3|$6|$8" > "${10}"; echo log > "${10}.log""#,
         let (dir, mut plan) = plan("options");
         real_preset(&plan.preset);
         let mine = std::fs::read(&plan.preset).unwrap();
-        plan.overrides.tm = Some(Compat::RandomPreferType);
+        plan.overrides.set(
+            "tm",
+            soulsync_core::rnqs::Value::Choice("random_prefer_type".into()),
+        );
         plan.java = fake_java(&dir, r#"cp "$6" "${10}""#);
         run(&plan).unwrap();
         // What the randomizer was given is now the "ROM".
