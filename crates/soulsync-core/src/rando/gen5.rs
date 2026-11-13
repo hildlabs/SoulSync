@@ -47,8 +47,70 @@ const DARK_GRASS_ITEM: usize = 16;
 const EVOLUTION_LEN: usize = 6;
 const EVOLUTION_SLOTS: usize = 7;
 const EVOLUTION_METHODS: u16 = 27;
-/// Feebas' evolution by beauty, which generation 5 has no way to reach.
-const METHOD_BEAUTY: u16 = 16;
+
+/// The ways to evolve, as the game numbers them.
+mod method {
+    pub const HAPPINESS_DAY: u16 = 2;
+    pub const HAPPINESS_NIGHT: u16 = 3;
+    pub const LEVEL: u16 = 4;
+    pub const TRADE: u16 = 5;
+    pub const TRADE_ITEM: u16 = 6;
+    /// Karrablast and Shelmet, traded for each other.
+    pub const TRADE_SPECIAL: u16 = 7;
+    pub const STONE: u16 = 8;
+    /// Feebas' evolution by beauty, which generation 5 has no way to reach.
+    pub const BEAUTY: u16 = 16;
+    pub const LEVEL_ITEM_DAY: u16 = 19;
+    pub const LEVEL_ITEM_NIGHT: u16 = 20;
+    pub const LEVEL_WITH_OTHER: u16 = 22;
+    /// Those that happen at a level.
+    pub const AT_LEVEL: [u16; 10] = [LEVEL, 9, 10, 11, 12, 13, 14, 15, 23, 24];
+
+    /// The place of a method in the original randomizer's list of them,
+    /// which decides the order of evolutions it adds.
+    pub fn rank(method: u16) -> u32 {
+        const RANKS: [u32; 28] = [
+            0, 4, 5, 6, 0, 2, 3, 26, 1, 7, 9, 8, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+            22, 23, 24, 25,
+        ];
+        RANKS.get(usize::from(method)).copied().unwrap_or(0)
+    }
+}
+
+const SLOWPOKE: usize = 79;
+const EEVEE: usize = 133;
+const KARRABLAST: u16 = 588;
+const SHELMET: u16 = 616;
+const SUN_STONE: u16 = 80;
+const MOON_STONE: u16 = 81;
+const WATER_STONE: u16 = 84;
+/// Before the happiness an evolution needs, three times in the ARM9.
+const HAPPINESS_MARK: [u8; 4] = [0xDC, 0x28, 0x2F, 0xD3];
+
+/// Where `mark` stands in `data`, if it does exactly once and not at the
+/// very start.
+fn find(data: &[u8], mark: &[u8]) -> Option<usize> {
+    let mut places = data.windows(mark.len()).enumerate();
+    let mut found = places
+        .by_ref()
+        .filter(|(_, w)| *w == mark)
+        .map(|(at, _)| at);
+    let first = found.next()?;
+    (found.next().is_none() && first > 0).then_some(first)
+}
+
+/// What a randomization changes; everything is off by default.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Options {
+    /// Evolutions by trade become ones a single player can reach.
+    pub change_impossible_evolutions: bool,
+    /// Lower levels and less happiness for evolutions.
+    pub easier_evolutions: bool,
+    /// Evolutions bound to day or night work at any time.
+    pub no_time_evolutions: bool,
+    /// Wild Pokémon are randomized in some way.
+    pub random_wild: bool,
+}
 
 fn word(d: &[u8], at: usize) -> u16 {
     u16::from_le_bytes([d[at], d[at + 1]])
@@ -109,6 +171,22 @@ impl HeldItems {
     }
 }
 
+/// Adds `extra` to `list` in the order the original randomizer's hash set
+/// hands them out.
+fn add_evolutions(from: usize, list: &mut Vec<Evolution>, mut extra: Vec<Evolution>) {
+    let mut unique: Vec<Evolution> = Vec::new();
+    for e in extra.drain(..) {
+        if !unique.iter().any(|u| u.method == e.method && u.to == e.to) {
+            unique.push(e);
+        }
+    }
+    unique.sort_by_key(|e| {
+        let hash = 31 * (31 * (31 + from as u32) + u32::from(e.to)) + method::rank(e.method);
+        (hash ^ (hash >> 16)) & 15
+    });
+    list.extend(unique);
+}
+
 impl Evolution {
     /// The evolutions of a species the randomizer works with: those with
     /// a method it knows, each target once per method.
@@ -122,7 +200,7 @@ impl Evolution {
                 to: word(data, at + 4),
             };
             let known = (1..=EVOLUTION_METHODS).contains(&evolution.method)
-                && evolution.method != METHOD_BEAUTY
+                && evolution.method != method::BEAUTY
                 && evolution.to >= 1;
             let twice = list
                 .iter()
@@ -155,6 +233,107 @@ impl Evolution {
 pub struct Species {
     pub items: HeldItems,
     pub evolutions: Vec<Evolution>,
+}
+
+/// Evolutions that need a trade become possible alone.
+fn remove_impossible(all: &mut [Species]) {
+    for (number, species) in all.iter_mut().enumerate() {
+        let mut extra = Vec::new();
+        for evolution in &mut species.evolutions {
+            match evolution.method {
+                method::TRADE => {
+                    evolution.method = method::LEVEL;
+                    evolution.extra = 37;
+                }
+                method::TRADE_ITEM if number == SLOWPOKE => {
+                    evolution.method = method::STONE;
+                    evolution.extra = WATER_STONE;
+                }
+                method::TRADE_ITEM => {
+                    evolution.method = method::LEVEL_ITEM_DAY;
+                    extra.push(Evolution {
+                        method: method::LEVEL_ITEM_NIGHT,
+                        ..*evolution
+                    });
+                }
+                method::TRADE_SPECIAL => {
+                    evolution.method = method::LEVEL_WITH_OTHER;
+                    evolution.extra = if number == usize::from(KARRABLAST) {
+                        SHELMET
+                    } else {
+                        KARRABLAST
+                    };
+                }
+                _ => {}
+            }
+        }
+        add_evolutions(number, &mut species.evolutions, extra);
+    }
+}
+
+/// Evolutions at a high level happen earlier, and with wild Pokémon
+/// randomized none needs a certain other Pokémon in the party.
+fn condense_levels(all: &mut [Species], random_wild: bool) {
+    let later: Vec<bool> = (all.iter()).map(|s| !s.evolutions.is_empty()).collect();
+    for species in all.iter_mut().take(SPECIES + 1) {
+        for evolution in &mut species.evolutions {
+            if method::AT_LEVEL.contains(&evolution.method) {
+                let again = later.get(usize::from(evolution.to)) == Some(&true);
+                if evolution.extra > 30 && again {
+                    evolution.extra = 30;
+                } else if evolution.extra > 40 {
+                    evolution.extra = 40;
+                }
+            }
+        }
+    }
+    if random_wild {
+        // The partner may not be found in the wild any more.
+        for evolution in all.iter_mut().flat_map(|s| &mut s.evolutions) {
+            if evolution.method == method::LEVEL_WITH_OTHER {
+                evolution.method = method::LEVEL;
+                evolution.extra = 35;
+            }
+        }
+    }
+}
+
+/// Evolutions bound to day or night get a twin for the other half.
+fn remove_time_based(all: &mut [Species]) {
+    for (number, species) in all.iter_mut().enumerate() {
+        let mut extra = Vec::new();
+        let has = |list: &[Evolution], method: u16, item: u16| {
+            list.iter().any(|e| e.method == method && e.extra == item)
+        };
+        for i in 0..species.evolutions.len() {
+            let evolution = species.evolutions[i];
+            let (other, stone) = match evolution.method {
+                method::HAPPINESS_DAY => (method::HAPPINESS_NIGHT, SUN_STONE),
+                method::HAPPINESS_NIGHT => (method::HAPPINESS_DAY, MOON_STONE),
+                method::LEVEL_ITEM_DAY => (method::LEVEL_ITEM_NIGHT, 0),
+                method::LEVEL_ITEM_NIGHT => (method::LEVEL_ITEM_DAY, 0),
+                _ => continue,
+            };
+            if stone == 0 {
+                if !has(&species.evolutions, other, evolution.extra) {
+                    extra.push(Evolution {
+                        method: other,
+                        ..evolution
+                    });
+                }
+            } else if number == EEVEE {
+                species.evolutions[i].method = method::STONE;
+                species.evolutions[i].extra = stone;
+            } else {
+                extra.push(Evolution {
+                    method: other,
+                    extra: 0,
+                    to: evolution.to,
+                });
+            }
+        }
+        add_evolutions(number, &mut species.evolutions, extra);
+    }
 }
 
 /// A ROM opened for randomizing.
@@ -237,6 +416,28 @@ impl<'a> Game<'a> {
         })
     }
 
+    /// Evolutions that need a trade become possible alone.
+    pub fn remove_impossible_evolutions(&mut self) {
+        remove_impossible(&mut self.species);
+    }
+
+    /// Lower levels and less happiness for evolutions.
+    pub fn make_evolutions_easier(&mut self, random_wild: bool) {
+        condense_levels(&mut self.species, random_wild);
+        if let Some(at) = find(&self.arm9, &HAPPINESS_MARK) {
+            for place in [at, at + 20, at + 38] {
+                if self.arm9.get(place) == Some(&220) {
+                    self.arm9[place] = 160;
+                }
+            }
+        }
+    }
+
+    /// Evolutions bound to day or night get a twin for the other half.
+    pub fn remove_time_based_evolutions(&mut self) {
+        remove_time_based(&mut self.species);
+    }
+
     /// Writes `value` into overlay `overlay`, `skip` bytes after the first
     /// place where `mark` stands. An overlay without the mark stays as it is.
     fn patch_overlay(
@@ -247,10 +448,7 @@ impl<'a> Game<'a> {
         value: u16,
     ) -> Result<(), RomError> {
         let mut code = self.nds.overlay(overlay).ok_or(layout("overlay"))?;
-        let found = code
-            .windows(mark.len())
-            .position(|w| w == mark)
-            .filter(|&at| at > 0 && at + skip + 2 <= code.len());
+        let found = find(&code, mark).filter(|&at| at + skip + 2 <= code.len());
         if let Some(at) = found {
             set_word(&mut code, at + skip, value);
             self.nds.set_overlay(overlay, &code);
@@ -310,10 +508,19 @@ impl<'a> Game<'a> {
     }
 }
 
-/// Randomizes `rom` with `seed`. So far nothing but the Pokémon of the
-/// introduction is random.
-pub fn randomize(rom: &[u8], seed: i64) -> Result<Vec<u8>, RomError> {
+/// Randomizes `rom` with `seed`, in the original randomizer's order of
+/// steps. Only the steps of [`Options`] are built so far.
+pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, RomError> {
     let mut game = Game::load(rom, seed)?;
+    if options.change_impossible_evolutions {
+        game.remove_impossible_evolutions();
+    }
+    if options.easier_evolutions {
+        game.make_evolutions_easier(options.random_wild);
+    }
+    if options.no_time_evolutions {
+        game.remove_time_based_evolutions();
+    }
     game.randomize_intro()?;
     game.save()
 }
@@ -355,7 +562,7 @@ mod tests {
     fn unknown_and_doubled_evolutions_are_dropped() {
         let mut data = vec![0u8; EVOLUTION_LEN * EVOLUTION_SLOTS];
         let slots = [
-            (METHOD_BEAUTY, 170, 350),
+            (method::BEAUTY, 170, 350),
             (6, 537, 350),
             (6, 99, 350),
             (28, 1, 2),
@@ -378,6 +585,136 @@ mod tests {
         Evolution::write(&list, &mut data);
         assert_eq!(&data[..6], &[6, 0, 0x19, 2, 0x5E, 1]);
         assert!(data[6..].iter().all(|&b| b == 0));
+    }
+
+    /// Method, extra and target of an evolution.
+    type Evo = (u16, u16, u16);
+
+    fn species(list: &[(usize, &[Evo])]) -> Vec<Species> {
+        let none = Species {
+            items: HeldItems::read(&[0; 20]),
+            evolutions: Vec::new(),
+        };
+        let mut all = vec![none; SPECIES + FORMS + 1];
+        for (number, evolutions) in list {
+            all[*number].evolutions = (evolutions.iter())
+                .map(|&(method, extra, to)| Evolution { method, extra, to })
+                .collect();
+        }
+        all
+    }
+
+    fn of(all: &[Species], number: usize) -> Vec<Evo> {
+        (all[number].evolutions.iter())
+            .map(|e| (e.method, e.extra, e.to))
+            .collect()
+    }
+
+    #[test]
+    fn trades_become_evolutions_for_one_player() {
+        let mut all = species(&[
+            (64, &[(method::TRADE, 0, 65)]),
+            (
+                SLOWPOKE,
+                &[(method::LEVEL, 37, 80), (method::TRADE_ITEM, 221, 199)],
+            ),
+            (
+                366,
+                &[
+                    (method::TRADE_ITEM, 226, 367),
+                    (method::TRADE_ITEM, 227, 368),
+                ],
+            ),
+            (588, &[(method::TRADE_SPECIAL, 0, 589)]),
+            (616, &[(method::TRADE_SPECIAL, 0, 617)]),
+        ]);
+        remove_impossible(&mut all);
+        assert_eq!(of(&all, 64), [(method::LEVEL, 37, 65)]);
+        assert_eq!(of(&all, SLOWPOKE)[1], (method::STONE, WATER_STONE, 199));
+        // Holding the item by day, and a twin for the night.
+        assert_eq!(
+            of(&all, 366),
+            [
+                (method::LEVEL_ITEM_DAY, 226, 367),
+                (method::LEVEL_ITEM_DAY, 227, 368),
+                (method::LEVEL_ITEM_NIGHT, 226, 367),
+                (method::LEVEL_ITEM_NIGHT, 227, 368),
+            ]
+        );
+        assert_eq!(of(&all, 588), [(method::LEVEL_WITH_OTHER, SHELMET, 589)]);
+        assert_eq!(of(&all, 616), [(method::LEVEL_WITH_OTHER, KARRABLAST, 617)]);
+    }
+
+    #[test]
+    fn high_levels_come_down() {
+        let mut all = species(&[
+            (633, &[(method::LEVEL, 50, 634)]),
+            (634, &[(method::LEVEL, 64, 635)]),
+            (147, &[(method::LEVEL, 30, 148)]),
+            (588, &[(method::LEVEL_WITH_OTHER, SHELMET, 589)]),
+        ]);
+        condense_levels(&mut all, false);
+        // 30 at most on the way to a further evolution, 40 for the last.
+        assert_eq!(of(&all, 633), [(method::LEVEL, 30, 634)]);
+        assert_eq!(of(&all, 634), [(method::LEVEL, 40, 635)]);
+        assert_eq!(of(&all, 147), [(method::LEVEL, 30, 148)]);
+        assert_eq!(of(&all, 588), [(method::LEVEL_WITH_OTHER, SHELMET, 589)]);
+        condense_levels(&mut all, true);
+        assert_eq!(of(&all, 588), [(method::LEVEL, 35, 589)]);
+    }
+
+    #[test]
+    fn day_and_night_evolutions_get_a_twin() {
+        let mut all = species(&[
+            (
+                EEVEE,
+                &[
+                    (method::HAPPINESS_DAY, 0, 196),
+                    (method::HAPPINESS_NIGHT, 0, 197),
+                ],
+            ),
+            (447, &[(method::HAPPINESS_DAY, 0, 448)]),
+            (207, &[(method::LEVEL_ITEM_NIGHT, 327, 472)]),
+            (
+                366,
+                &[
+                    (method::LEVEL_ITEM_DAY, 226, 367),
+                    (method::LEVEL_ITEM_NIGHT, 226, 367),
+                ],
+            ),
+        ]);
+        remove_time_based(&mut all);
+        assert_eq!(
+            of(&all, EEVEE),
+            [
+                (method::STONE, SUN_STONE, 196),
+                (method::STONE, MOON_STONE, 197)
+            ]
+        );
+        assert_eq!(
+            of(&all, 447),
+            [
+                (method::HAPPINESS_DAY, 0, 448),
+                (method::HAPPINESS_NIGHT, 0, 448)
+            ]
+        );
+        assert_eq!(
+            of(&all, 207),
+            [
+                (method::LEVEL_ITEM_NIGHT, 327, 472),
+                (method::LEVEL_ITEM_DAY, 327, 472)
+            ]
+        );
+        // Both halves were there already.
+        assert_eq!(of(&all, 366).len(), 2);
+    }
+
+    #[test]
+    fn a_mark_is_found_only_if_it_stands_once() {
+        assert_eq!(find(&[9, 1, 2, 9], &[1, 2]), Some(1));
+        assert_eq!(find(&[9, 1, 2, 1, 2], &[1, 2]), None);
+        assert_eq!(find(&[1, 2, 9], &[1, 2]), None);
+        assert_eq!(find(&[9, 9], &[1, 2]), None);
     }
 
     #[test]
