@@ -1,6 +1,8 @@
 //! The teams of the trainers: read and written back the way the original
 //! randomizer does, and the steps that change them.
 
+use super::tables::{LEGENDARIES, STORY_TRAINERS};
+use super::traits::WONDER_GUARD;
 use super::*;
 
 const TRAINERS: &str = "a/0/9/1";
@@ -60,6 +62,31 @@ pub struct TrainerPokemon {
     pub moves: [u16; 4],
     /// The moves are to be the ones it knows at its level.
     pub(super) reset_moves: bool,
+}
+
+/// How often the same Pokémon may come up among the trainers.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Spread {
+    /// As chance has it.
+    #[default]
+    Free,
+    /// All about equally often.
+    Even,
+    /// About equally often among the trainers of the story.
+    EvenInStory,
+}
+
+/// What the random Pokémon of the trainers have to be like.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TrainerRules {
+    pub spread: Spread,
+    /// About as strong as the ones they replace.
+    pub similar_strength: bool,
+    pub no_legendaries: bool,
+    /// No Pokémon with Wonder Guard below level 20.
+    pub no_early_wonder_guard: bool,
+    /// The levels rise or fall by so many percent.
+    pub levels: i8,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -281,23 +308,130 @@ impl<'a> Game<'a> {
         }
     }
 
+    /// The levels of a trainer's Pokémon rise or fall by `percent`.
+    fn change_levels(trainer: &mut Trainer, percent: i8) {
+        if percent != 0 {
+            for pokemon in &mut trainer.team {
+                let level = f64::from(pokemon.level) * (1.0 + f64::from(percent) / 100.0);
+                pokemon.level = (traits::round(level) as u16).min(100);
+            }
+        }
+    }
+
+    /// Only the levels of the trainers' Pokémon change.
+    pub fn change_trainer_levels(&mut self, percent: i8) -> Result<(), RomError> {
+        let mut all = self.trainers()?;
+        for trainer in &mut all {
+            Self::change_levels(trainer, percent);
+        }
+        self.set_trainers(&all)
+    }
+
+    /// A random Pokémon of `pool` in place of `current`. `used` counts
+    /// how often each was chosen, for those who shall come up alike.
+    fn trainer_pokemon(
+        &mut self,
+        pool: &[usize],
+        current: usize,
+        how: &TrainerRules,
+        wonder_guard: bool,
+        used: Option<&[u32]>,
+    ) -> usize {
+        // How often a chosen one was chosen on average.
+        let average = |used: &[u32]| {
+            let chosen = used.iter().filter(|&&times| times > 0).count();
+            if chosen == 0 {
+                0.0
+            } else {
+                f64::from(used.iter().sum::<u32>()) / chosen as f64
+            }
+        };
+        let rare: Vec<usize>;
+        let mut pool = pool;
+        if let Some(used) = used {
+            let limit = average(used) * 2.0;
+            rare = (pool.iter().copied())
+                .filter(|&n| f64::from(used[n]) < limit)
+                .collect();
+            if !rare.is_empty() {
+                pool = &rare;
+            }
+        }
+        let guarded = |game: &Self, n: usize| game.species[n].abilities.contains(&WONDER_GUARD);
+        if !how.similar_strength {
+            loop {
+                let chosen = pool[self.random.index(pool.len())];
+                if wonder_guard || !guarded(self, chosen) {
+                    return chosen;
+                }
+            }
+        }
+        // Within a tenth of its strength, and wider until some are found.
+        let strength = self.strength(current);
+        let (mut least, mut most) = (strength - strength / 10, strength + strength / 10);
+        let mut fit: Vec<usize> = Vec::new();
+        let mut rounds = 0;
+        while fit.is_empty() || (fit.len() < 3 && rounds < 2) {
+            for &n in pool {
+                if (least..=most).contains(&self.strength(n)) && (wonder_guard || !guarded(self, n))
+                {
+                    fit.push(n);
+                }
+            }
+            least -= strength / 20;
+            most += strength / 20;
+            rounds += 1;
+        }
+        let chosen = fit[self.random.index(fit.len())];
+        let Some(used) = used else {
+            return chosen;
+        };
+        // The original randomizer then chooses again among the rarer.
+        let limit = average(used);
+        let rarer: Vec<usize> = (fit.iter().copied())
+            .filter(|&n| f64::from(used[n]) < limit)
+            .collect();
+        let list = if rarer.is_empty() { &fit } else { &rarer };
+        list[self.random.index(list.len())]
+    }
+
     /// Every trainer gets random Pokémon, with `forms` also other forms.
-    pub fn randomize_trainers(&mut self, forms: bool) -> Result<(), RomError> {
+    pub fn randomize_trainers(&mut self, forms: bool, how: &TrainerRules) -> Result<(), RomError> {
         let last = if forms { SPECIES + FORMS } else { SPECIES };
         let pool: Vec<usize> = (1..=last)
             .filter(|&n| {
                 let entry = &self.species[n];
                 let by_ability =
                     entry.base == CASTFORM || (entry.base == DARMANITAN && entry.form == 1);
-                !entry.looks_only && (!by_ability || self.abilities_changed)
+                let species = if entry.base > 0 { entry.base } else { n };
+                let legendary = LEGENDARIES.contains(&(species as u16));
+                !entry.looks_only
+                    && (!by_ability || self.abilities_changed)
+                    && !(how.no_legendaries && legendary)
             })
             .collect();
         let mut all = self.trainers()?;
         let mut order: Vec<usize> = (0..all.len()).collect();
         self.random.shuffle(&mut order);
+        let mut used = vec![0u32; SPECIES + FORMS + 1];
         for trainer in order {
+            Self::change_levels(&mut all[trainer], how.levels);
+            let index = all[trainer].index;
+            let evenly = match how.spread {
+                Spread::Free => false,
+                Spread::Even => true,
+                Spread::EvenInStory => {
+                    (STORY_TRAINERS.iter()).any(|&(first, last)| (first..=last).contains(&index))
+                }
+            };
             for pokemon in &mut all[trainer].team {
-                let chosen = pool[self.random.index(pool.len())];
+                let current = self.form_of(pokemon.species, pokemon.form);
+                let wonder_guard = !how.no_early_wonder_guard || pokemon.level >= 20;
+                let used_so_far = evenly.then_some(used.as_slice());
+                let chosen = self.trainer_pokemon(&pool, current, how, wonder_guard, used_so_far);
+                if evenly {
+                    used[chosen] += 1;
+                }
                 self.become_form(pokemon, chosen);
                 pokemon.ability = self.random_ability(chosen);
                 pokemon.reset_moves = true;

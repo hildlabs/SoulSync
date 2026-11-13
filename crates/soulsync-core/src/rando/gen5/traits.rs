@@ -34,7 +34,7 @@ const LISTED_TYPES: usize = 25;
 const SHEDINJA: usize = 292;
 /// Makes a second Pokémon of its kind when it evolves, as Nincada does.
 const LEVEL_WITH_EXTRA: u16 = 14;
-const WONDER_GUARD: u8 = 25;
+pub(super) const WONDER_GUARD: u8 = 25;
 const LAST_ABILITY: usize = 164;
 /// Abilities that do nothing on another species: Forecast, Multitype,
 /// Flower Gift and Zen Mode.
