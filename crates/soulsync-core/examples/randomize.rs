@@ -64,6 +64,7 @@ fn main() {
         random_move_types: on("movetypes"),
         random_move_categories: false,
         update_moves: None,
+        no_irregular_forms: false,
         update_stats: None,
         level_alike: None,
         movesets: if on("movesets") {

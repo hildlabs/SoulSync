@@ -497,7 +497,7 @@ impl Preset {
             0b0010 => Stats::Random,
             _ => return None,
         };
-        let types = match d[2] & 0b0111_1111 {
+        let types = match d[2] & 0b0110_0111 {
             0b100 => Change::Unchanged,
             0b010 => Change::Random,
             0b001 => Change::FollowEvolutions,
@@ -643,6 +643,7 @@ impl Preset {
             random_move_types: bit(25, 3),
             random_move_categories: bit(25, 4),
             update_moves: bit(0, 1).then_some(d[45]),
+            no_irregular_forms: bit(49, 3),
             update_stats: bit(1, 5).then_some(d[44]),
             level_alike,
             stats,
@@ -713,7 +714,7 @@ impl Preset {
                 battle_items: bit(41, 7),
             },
             shuffle_shops: bit(37, 1),
-            random_pickup: either(49, !(1 << 2), 1, 0)?,
+            random_pickup: either(49, !(1 << 2 | 1 << 3), 1, 0)?,
             good_pickup_items: bit(49, 0) && bit(49, 2),
             random_statics: !bit(17, 0),
             static_rules: StaticRules {
@@ -1192,9 +1193,9 @@ mod tests {
     fn what_is_not_built_goes_to_the_original_randomizer() {
         let file = include_bytes!("../../soulsync-server/presets/soul-link.rnqs");
         let preset = Preset::read(file).unwrap();
-        // Race mode, music for static Pokémon, evolution moves for all
-        // and the old way of updating moves.
-        for (byte, bit) in [(2, 3), (25, 5), (41, 6), (0, 2)] {
+        // A limit on the Pokémon, music for static Pokémon, evolution
+        // moves for all and the old way of updating moves.
+        for (byte, bit) in [(2, 5), (25, 5), (41, 6), (0, 2)] {
             let mut other = preset.clone();
             other.data[byte] |= 1 << bit;
             assert_eq!(other.native(), None, "{byte}.{bit}");
@@ -1214,6 +1215,14 @@ mod tests {
         );
         let native = preset.native().unwrap();
         assert_eq!((native.update_stats, native.update_moves), (None, None));
+        // Race mode and the old switch against broken moves change
+        // nothing about the game; irregular forms can be kept out.
+        let mut more = preset.clone();
+        more.data[2] |= 1 << 3 | 1 << 4;
+        assert_eq!(more.native(), preset.native());
+        assert!(!native.no_irregular_forms);
+        more.data[49] |= 1 << 3;
+        assert!(more.native().unwrap().no_irregular_forms);
         // Every wild Pokémon becomes one other all over the game, and
         // every species comes up before one comes up twice.
         let mut wild = Overrides::default();

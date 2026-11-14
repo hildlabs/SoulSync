@@ -88,6 +88,9 @@ const ABILITIES: usize = 24;
 /// they only look different, and the one that has such a form with stats
 /// of its own.
 const NO_LOOKS: [usize; 4] = [421, 493, 585, 586];
+/// Forms that are not there to stay: Castform's and Darmanitan's, which
+/// come and go in battle, Meloetta's Pirouette form and Kyurem fused.
+const IRREGULAR_FORMS: [usize; 7] = [662, 663, 664, 666, 667, 668, 669];
 const KELDEO: usize = 647;
 
 const EVOLUTION_LEN: usize = 6;
@@ -409,6 +412,10 @@ pub struct Options {
     /// The abilities of every species, and which ones may come up.
     pub abilities: Change,
     pub ability_rules: AbilityRules,
+    /// Random Pokémon are never a form that only lasts for a battle or
+    /// while an item is used: Castform's, Darmanitan's Zen Mode,
+    /// Meloetta's Pirouette form and the fused Kyurem.
+    pub no_irregular_forms: bool,
     /// The moves and the base stats become what they are in later games,
     /// up to this generation.
     pub update_moves: Option<u8>,
@@ -798,6 +805,8 @@ pub struct Game<'a> {
     /// Whether abilities were changed: forms that exist through an ability
     /// are then Pokémon like any other.
     abilities_changed: bool,
+    /// No random Pokémon is one of the [`IRREGULAR_FORMS`].
+    no_irregular_forms: bool,
     /// Ghost and Dark hit Steel normally by now.
     effectiveness_updated: bool,
     /// The accuracy the game gives a move that never misses.
@@ -913,6 +922,7 @@ impl<'a> Game<'a> {
             code: [rom[12], rom[13], rom[14], rom[15]],
             random: JavaRandom::new(seed),
             abilities_changed: false,
+            no_irregular_forms: false,
             effectiveness_updated: false,
             evolved_in: None,
             looks_random: JavaRandom::new(seed),
@@ -1362,6 +1372,7 @@ pub fn verified(rom: &[u8]) -> bool {
 /// steps. Only the steps of [`Options`] are built so far.
 pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, RomError> {
     let mut game = Game::load(rom, seed)?;
+    game.no_irregular_forms = options.no_irregular_forms;
     if let Some(generation) = options.update_moves {
         game.update_moves(generation);
     }

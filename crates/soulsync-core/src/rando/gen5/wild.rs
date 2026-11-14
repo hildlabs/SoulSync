@@ -377,6 +377,9 @@ impl<'a> Game<'a> {
         if !self.abilities_changed {
             banned.extend(BY_ABILITY);
         }
+        if self.no_irregular_forms {
+            banned.extend(IRREGULAR_FORMS);
+        }
         // All that can be chosen where the choice is not just any.
         let wanted = if how.no_legendaries {
             &pools.ordinary
