@@ -409,6 +409,10 @@ pub struct Options {
     /// The abilities of every species, and which ones may come up.
     pub abilities: Change,
     pub ability_rules: AbilityRules,
+    /// The moves and the base stats become what they are in later games,
+    /// up to this generation.
+    pub update_moves: Option<u8>,
+    pub update_stats: Option<u8>,
     /// The moves get random power, accuracy, PP or types.
     pub random_move_powers: bool,
     pub random_move_accuracies: bool,
@@ -1358,6 +1362,9 @@ pub fn verified(rom: &[u8]) -> bool {
 /// steps. Only the steps of [`Options`] are built so far.
 pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, RomError> {
     let mut game = Game::load(rom, seed)?;
+    if let Some(generation) = options.update_moves {
+        game.update_moves(generation);
+    }
     if options.random_move_powers {
         game.randomize_move_powers();
     }
@@ -1396,6 +1403,9 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
     }
     if options.update_type_effectiveness {
         game.update_type_effectiveness()?;
+    }
+    if let Some(generation) = options.update_stats {
+        game.update_stats(generation);
     }
     if let Some((slow, speed)) = options.level_alike {
         game.level_alike(slow, speed);
