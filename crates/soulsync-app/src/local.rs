@@ -249,8 +249,15 @@ fn live_party_path() -> Option<PathBuf> {
     data_dir().map(|d| d.join("live-party.bin"))
 }
 
+/// The script with the file it writes. On a Mac it runs in the Windows
+/// DeSmuME under Wine, which knows the file by a Windows path.
 fn live_script(out: &Path) -> String {
-    LIVE_SCRIPT.replace("@OUT@", &out.to_string_lossy())
+    let out = if cfg!(target_os = "macos") {
+        crate::fresh::dos_path(out)
+    } else {
+        out.to_string_lossy().into_owned()
+    };
+    LIVE_SCRIPT.replace("@OUT@", &out)
 }
 
 /// Puts the Lua script where the player can load it from. Returns the script
@@ -1229,9 +1236,10 @@ fn begin_fresh(
         .await;
         let progress = match done {
             Ok(Ok(())) => {
-                if let Some(emulator) = &plan.emulator {
-                    crate::fresh::play(emulator, &plan.rom);
-                }
+                let played = plan
+                    .emulator
+                    .as_deref()
+                    .map_or(Ok(()), |emulator| crate::fresh::play(emulator, &plan.rom));
                 if plan.template.is_none() {
                     tokio::spawn(await_template(worker.clone(), plan.save.clone()));
                 }
@@ -1241,7 +1249,11 @@ fn begin_fresh(
                     inner.config.remember(now_ms());
                     write_config(&inner.config);
                 }
-                Progress::Done
+                // The game is made either way; only opening it failed.
+                match played {
+                    Ok(()) => Progress::Done,
+                    Err(why) => Progress::Failed { why, detail: None },
+                }
             }
             Ok(Err((why, detail))) => Progress::Failed { why, detail },
             Err(e) => Progress::Failed {
@@ -1767,7 +1779,12 @@ async fn play(State(local): State<Local>) -> Reply {
         .as_deref()
         .and_then(desmume_exe)
         .ok_or_else(|| bad("emulator"))?;
-    crate::fresh::play(&exe, &rom);
+    crate::fresh::play(&exe, &rom).map_err(|why| {
+        bad(match why {
+            crate::fresh::Why::Wine => "wine",
+            _ => "emulator",
+        })
+    })?;
     Ok(Json(local.view()))
 }
 

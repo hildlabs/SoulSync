@@ -53,7 +53,7 @@ In a Soul Link, two or more players play the same game side by side. The first P
 
 ## Getting started
 
-You need Windows, [DeSmuME](https://desmume.org) and your own copy of a generation 5 game (Black, White, Black 2 or White 2). SoulSync does not include or download games.
+You need Windows (or a Mac, see [SoulSync on a Mac](docs/mac.md)), [DeSmuME](https://desmume.org) and your own copy of a generation 5 game (Black, White, Black 2 or White 2). SoulSync does not include or download games.
 
 1. **Download** `SoulSync.exe` from the [latest release](https://github.com/hildlabs/SoulSync/releases/latest) and start it. It opens in its own window; new versions are offered in the top bar and install with one click.
 2. **Set up once:** enter your name and pick your ROM and your save. For DeSmuME the save is the `.dsv` in its `Battery` folder; SoulSync finds it next to the ROM if it can.
