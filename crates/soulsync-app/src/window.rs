@@ -102,7 +102,11 @@ i{display:block;width:28px;height:28px;margin:0 auto 16px;border-radius:50%;bord
             });
         }
         let url = url.to_owned();
+        #[cfg(target_os = "macos")]
+        let menu = mac_menu();
         event_loop.run(move |event, _, flow| {
+            #[cfg(target_os = "macos")]
+            let _ = &menu;
             *flow = ControlFlow::Wait;
             if let Event::UserEvent(()) = event {
                 let _ = webview.load_url(&url);
@@ -115,6 +119,55 @@ i{display:block;width:28px;height:28px;margin:0 auto 16px;border-radius:50%;bord
                 *flow = ControlFlow::Exit;
             }
         });
+    }
+
+    /// The menu bar of a Mac app. Without its Edit menu the web view takes
+    /// no Cmd+C or Cmd+V, so a run code could not be pasted. Kept alive for
+    /// as long as the window is up.
+    #[cfg(target_os = "macos")]
+    fn mac_menu() -> Option<muda::Menu> {
+        use muda::{Menu, PredefinedMenuItem as Item, Submenu};
+        let app = Submenu::with_items(
+            "SoulSync",
+            true,
+            &[
+                &Item::about(None, None),
+                &Item::separator(),
+                &Item::hide(None),
+                &Item::hide_others(None),
+                &Item::show_all(None),
+                &Item::separator(),
+                &Item::quit(None),
+            ],
+        )
+        .ok()?;
+        let edit = Submenu::with_items(
+            "Edit",
+            true,
+            &[
+                &Item::undo(None),
+                &Item::redo(None),
+                &Item::separator(),
+                &Item::cut(None),
+                &Item::copy(None),
+                &Item::paste(None),
+                &Item::select_all(None),
+            ],
+        )
+        .ok()?;
+        let window = Submenu::with_items(
+            "Window",
+            true,
+            &[
+                &Item::minimize(None),
+                &Item::fullscreen(None),
+                &Item::close_window(None),
+            ],
+        )
+        .ok()?;
+        let menu = Menu::with_items(&[&app, &edit, &window]).ok()?;
+        menu.init_for_nsapp();
+        Some(menu)
     }
 
     /// Without a window of its own the app has nothing to close, so a small

@@ -76,6 +76,10 @@ pub enum Why {
     Save,
     /// A file could not be written.
     Write,
+    /// A Windows emulator needs Wine, which is not installed.
+    Wine,
+    /// The emulator did not start.
+    Emulator,
 }
 
 pub type Failure = (Why, Option<String>);
@@ -92,14 +96,20 @@ pub fn quiet(command: &mut Command) -> &mut Command {
     command
 }
 
-/// Whether the program at `exe` is running. Only Windows is asked; elsewhere
-/// an open emulator does not lock or overwrite anything on exit.
+/// Whether the program at `exe` is running. On Windows the task list is
+/// asked. Elsewhere only a Windows emulator run through Wine matters: it
+/// writes its save on exit like on Windows, and its process names the
+/// `.exe`. Other emulators are left alone.
 pub fn running(exe: &Path) -> bool {
     let Some(name) = exe.file_name().and_then(|n| n.to_str()) else {
         return false;
     };
     if !cfg!(windows) {
-        return false;
+        return needs_wine(exe)
+            && Command::new("pgrep")
+                .args(["-i", "-f", name])
+                .output()
+                .is_ok_and(|o| o.status.success());
     }
     quiet(Command::new("tasklist").args(["/NH", "/FO", "CSV", "/FI"]))
         .arg(format!("IMAGENAME eq {name}"))
@@ -110,6 +120,56 @@ pub fn running(exe: &Path) -> bool {
                 .contains(&name.to_ascii_lowercase())
         })
         .unwrap_or(false)
+}
+
+/// Whether `emulator` is a Windows program on a system that runs it through
+/// Wine: DeSmuME's Lua scripting, which the live sync needs, exists only in
+/// its Windows build, so on a Mac that build runs in Wine.
+pub fn needs_wine(emulator: &Path) -> bool {
+    !cfg!(windows)
+        && emulator
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("exe"))
+}
+
+/// Where Wine may be: the WineHQ builds for macOS install as an app
+/// (Gcenx/macOS_Wine_builds), Homebrew and Linux put `wine` on the PATH. An
+/// app started from the Finder does not get the shell's PATH, so the usual
+/// folders are tried by name.
+fn wine_candidates() -> Vec<PathBuf> {
+    let mut found: Vec<PathBuf> = std::env::var_os("SOULSYNC_WINE")
+        .map(PathBuf::from)
+        .into_iter()
+        .collect();
+    let home = std::env::var_os("HOME").map(PathBuf::from);
+    for app in ["Wine Stable", "Wine Devel", "Wine Staging"] {
+        let inside = format!("{app}.app/Contents/Resources/wine/bin/wine");
+        found.push(Path::new("/Applications").join(&inside));
+        if let Some(home) = &home {
+            found.push(home.join("Applications").join(&inside));
+        }
+    }
+    let path = std::env::var_os("PATH").unwrap_or_default();
+    for dir in std::env::split_paths(&path)
+        .chain(["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"].map(PathBuf::from))
+    {
+        found.push(dir.join("wine"));
+    }
+    found
+}
+
+/// Wine, to run a Windows emulator with, if it is installed.
+pub fn wine() -> Option<PathBuf> {
+    if cfg!(windows) {
+        return None;
+    }
+    wine_candidates().into_iter().find(|p| p.is_file())
+}
+
+/// `path` as a program in Wine sees it: Wine's drive Z: is the root of the
+/// system.
+pub fn dos_path(path: &Path) -> String {
+    format!("Z:{}", path.to_string_lossy().replace('/', "\\"))
 }
 
 /// `path` with `.suffix` after its whole name.
@@ -280,20 +340,59 @@ pub fn run(plan: &Plan) -> Result<(), Failure> {
     Ok(())
 }
 
-/// Opens the game in the emulator.
-pub fn play(emulator: &Path, rom: &Path) {
-    let mut command = Command::new(emulator);
-    command.arg(rom);
+/// Opens the game in the emulator. Fails only when a Windows emulator needs
+/// Wine and there is none, or the emulator does not start.
+pub fn play(emulator: &Path, rom: &Path) -> Result<(), Why> {
+    let mut command = if needs_wine(emulator) {
+        let mut command = Command::new(wine().ok_or(Why::Wine)?);
+        command
+            .arg(emulator)
+            .arg(dos_path(rom))
+            // No offer to install Wine's .NET and browser on the first
+            // start, and no debug output.
+            .env("WINEDLLOVERRIDES", "mscoree,mshtml=")
+            .env("WINEDEBUG", "-all");
+        command
+    } else {
+        let mut command = Command::new(emulator);
+        command.arg(rom);
+        command
+    };
     if let Some(dir) = emulator.parent() {
         command.current_dir(dir);
     }
-    let _ = command.spawn();
+    command.spawn().map(drop).map_err(|_| Why::Emulator)
 }
 
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use std::os::unix::fs::PermissionsExt;
+
+    #[test]
+    fn runs_windows_emulators_through_wine() {
+        assert!(needs_wine(Path::new(
+            "/Users/a/DeSmuME/DeSmuME_0.9.13_x64.exe"
+        )));
+        assert!(needs_wine(Path::new("/Users/a/DeSmuME/DESMUME.EXE")));
+        assert!(!needs_wine(Path::new("/Applications/DeSmuME.app")));
+        assert_eq!(
+            dos_path(Path::new("/Users/a/DeSmuME/Roms/SoulSync-X.nds")),
+            r"Z:\Users\a\DeSmuME\Roms\SoulSync-X.nds"
+        );
+    }
+
+    #[test]
+    fn finds_wine_where_the_mac_build_installs_it() {
+        let found = wine_candidates();
+        assert!(found
+            .iter()
+            .any(|p| p
+                == Path::new("/Applications/Wine Stable.app/Contents/Resources/wine/bin/wine")));
+        assert!(found
+            .iter()
+            .any(|p| p == Path::new("/opt/homebrew/bin/wine")));
+    }
 
     /// A stand-in for `java` that writes what it was asked to.
     fn fake_java(dir: &Path, body: &str) -> OsString {
