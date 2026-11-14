@@ -119,6 +119,7 @@ pub fn app(state: AppState) -> Router {
         .route("/api/config", get(config))
         .route("/api/runs", post(create_run))
         .route("/api/presets", get(presets))
+        .route("/api/species", get(species_names))
         .route("/api/runs/{code}", get(get_run))
         .route("/api/runs/{code}/species", get(species))
         .route("/api/runs/{code}/dex", get(dex))
@@ -277,6 +278,15 @@ async fn get_run(State(app): State<AppState>, Path(code): Path<String>) -> Respo
         Some(e) => Json(e.run.state()).into_response(),
         None => (StatusCode::NOT_FOUND, "run not found").into_response(),
     }
+}
+
+/// The names of all species in English and German, for choosing starters
+/// before there is a run.
+async fn species_names() -> Json<serde_json::Value> {
+    let list: Vec<_> = (1..=run::SPECIES as u16)
+        .filter_map(|id| soulsync_core::dex::species(id).map(|s| (&s.name.en, &s.name.de)))
+        .collect();
+    Json(serde_json::json!(list))
 }
 
 /// Names and catch rates of all species, for the catch calculator.
