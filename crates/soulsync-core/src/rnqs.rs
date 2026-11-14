@@ -58,11 +58,13 @@ pub enum Compat {
     Full,
 }
 
-/// The value of one option: a switch, or the name of one of its choices.
+/// The value of one option: a switch, a number, or the name of one of its
+/// choices.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Value {
     Flag(bool),
+    Number(i32),
     Choice(String),
 }
 
@@ -91,6 +93,18 @@ pub enum Kind {
     Flag(usize, u8),
     /// Exactly one bit of several is set: the choice's name, byte and bit.
     Choice(&'static [(&'static str, usize, u8)]),
+    /// One of several values of a whole byte, by name.
+    Named(usize, &'static [(&'static str, u8)]),
+    /// A number from `min` to `max` in `bits` bits of a byte, the lowest of
+    /// them `shift` bits up, stored with `add` added.
+    Number {
+        byte: usize,
+        shift: u8,
+        bits: u8,
+        add: i32,
+        min: i32,
+        max: i32,
+    },
 }
 
 /// An option of the randomizer SoulSync can show and change.
@@ -114,6 +128,34 @@ const fn choice(id: &'static str, of: &'static [(&'static str, usize, u8)]) -> O
     }
 }
 
+/// A number in the low seven bits of a byte, whose highest bit is a switch
+/// of its own.
+const fn seven(id: &'static str, byte: usize, add: i32, min: i32, max: i32) -> Opt {
+    number(id, byte, 0, 7, add, min, max)
+}
+
+const fn number(
+    id: &'static str,
+    byte: usize,
+    shift: u8,
+    bits: u8,
+    add: i32,
+    min: i32,
+    max: i32,
+) -> Opt {
+    Opt {
+        id,
+        kind: Kind::Number {
+            byte,
+            shift,
+            bits,
+            add,
+            min,
+            max,
+        },
+    }
+}
+
 const COMPAT_TM: &[(&str, usize, u8)] = &[
     ("unchanged", TMS, 2),
     ("random_prefer_type", TMS, 1),
@@ -129,8 +171,9 @@ const COMPAT_TUTOR: &[(&str, usize, u8)] = &[
 
 /// The options SoulSync knows, as `Settings.toString` lays them out: all
 /// that Black 2 and White 2 have and SoulSync's own randomizer can do.
-/// Those that take a number or a list are left to the settings file, and
-/// the tweaks are bits of a number stored with the highest byte first.
+/// Numbers have the range the randomizer's own window gives them. Lists,
+/// as the three starters, are left to the settings file, and the tweaks are
+/// bits of a number stored with the highest byte first.
 pub const OPTIONS: &[Opt] = &[
     // Pokémon traits
     choice(
@@ -341,6 +384,42 @@ pub const OPTIONS: &[Opt] = &[
     flag("ban_maniac_items", 34, 6),
     flag("run_without_shoes", 33, 2),
     flag("no_low_hp_music", 33, 6),
+    // Numbers, and the switches only they belong to
+    seven("update_base_stats_generation", 44, 0, 6, 9),
+    seven("update_moves_generation", 45, 0, 6, 9),
+    Opt {
+        id: "level_alike_speed",
+        kind: Kind::Named(
+            46,
+            &[
+                ("medium_fast", 0),
+                ("medium_slow", 3),
+                ("fast", 4),
+                ("slow", 5),
+                ("erratic", 1),
+                ("fluctuating", 2),
+            ],
+        ),
+    },
+    number("moves_at_start_count", 11, 6, 2, -2, 2, 4),
+    flag("movesets_good_attacks", 12, 7),
+    seven("movesets_good_attacks_percent", 12, 0, 0, 100),
+    flag("tm_good_attacks", 20, 7),
+    seven("tm_good_attacks_percent", 20, 0, 0, 100),
+    flag("tutor_good_attacks", 22, 7),
+    seven("tutor_good_attacks_percent", 22, 0, 0, 100),
+    seven("trainers_fully_evolved_level", 14, 0, 30, 65),
+    flag("trainer_levels", 36, 7),
+    seven("trainer_levels_percent", 36, 50, -50, 50),
+    number("more_boss_pokemon", 40, 1, 3, 0, 0, 5),
+    number("more_important_pokemon", 40, 4, 3, 0, 0, 5),
+    number("more_regular_pokemon", 41, 0, 3, 0, 0, 5),
+    number("elite_unique_pokemon", 50, 0, 3, 0, 0, 2),
+    flag("wild_levels", 38, 7),
+    seven("wild_levels_percent", 38, 50, -50, 50),
+    number("min_catch_rate_level", 50, 3, 3, -1, 1, 5),
+    flag("static_levels", 47, 7),
+    seven("static_levels_percent", 47, 50, -50, 50),
 ];
 
 fn opt(id: &str) -> Option<&'static Opt> {
@@ -433,6 +512,20 @@ impl Preset {
                 .iter()
                 .find(|&&(_, byte, bit)| self.bit(byte, bit))
                 .map(|&(name, _, _)| Value::Choice(name.to_owned())),
+            Kind::Named(byte, of) => of
+                .iter()
+                .find(|&&(_, value)| self.data[byte] == value)
+                .map(|&(name, _)| Value::Choice(name.to_owned())),
+            Kind::Number {
+                byte,
+                shift,
+                bits,
+                add,
+                ..
+            } => {
+                let stored = self.data[byte] >> shift & ((1u16 << bits) - 1) as u8;
+                Some(Value::Number(i32::from(stored) - add))
+            }
         }
     }
 
@@ -447,6 +540,27 @@ impl Preset {
                 for &(n, byte, bit) in of {
                     self.set_bit(byte, bit, n == name);
                 }
+            }
+            (Some(Kind::Named(byte, of)), Value::Choice(name)) => {
+                match of.iter().find(|&&(n, _)| n == name) {
+                    Some(&(_, value)) => self.data[byte] = value,
+                    None => return false,
+                }
+            }
+            (
+                Some(Kind::Number {
+                    byte,
+                    shift,
+                    bits,
+                    add,
+                    min,
+                    max,
+                }),
+                Value::Number(n),
+            ) if (min..=max).contains(n) => {
+                let mask = ((1u16 << bits) - 1) as u8;
+                self.data[byte] =
+                    self.data[byte] & !(mask << shift) | ((n + add) as u8 & mask) << shift;
             }
             _ => return false,
         }
@@ -1275,12 +1389,38 @@ mod tests {
     fn every_option_is_one_the_own_randomizer_can_do() {
         let file = include_bytes!("../../soulsync-server/presets/soul-link.rnqs");
         let preset = Preset::read(file).unwrap();
+        // With the switches on that the numbers belong to.
+        let mut on = Overrides::default();
+        for id in [
+            "update_base_stats",
+            "update_moves",
+            "level_alike",
+            "moves_at_start",
+            "movesets_good_attacks",
+            "tm_good_attacks",
+            "tutor_good_attacks",
+            "trainer_levels",
+            "wild_levels",
+            "static_levels",
+            "min_catch_rate",
+        ] {
+            on.set(id, Value::Flag(true));
+        }
+        for id in ["movesets", "tm", "tutor"] {
+            on.set(&format!("{id}_good_attacks_percent"), Value::Number(50));
+        }
+        for id in ["trainer", "wild", "static"] {
+            on.set(&format!("{id}_levels_percent"), Value::Number(10));
+        }
+        let preset = preset.with(&on);
         let base = preset.native().unwrap();
         let mut same = Vec::new();
         for o in OPTIONS {
             let values = match o.kind {
                 Kind::Flag(..) => vec![Value::Flag(true), Value::Flag(false)],
                 Kind::Choice(of) => of.iter().map(|c| Value::Choice(c.0.into())).collect(),
+                Kind::Named(_, of) => of.iter().map(|c| Value::Choice(c.0.into())).collect(),
+                Kind::Number { min, max, .. } => (min..=max).map(Value::Number).collect(),
             };
             let mut differs = false;
             for value in values {
@@ -1297,7 +1437,6 @@ mod tests {
         // What only matters together with another choice.
         let with_another = [
             "abilities_follow_evolutions",
-            "level_alike_except",
             "evolutions_similar_strength",
             "evolutions_same_type",
             "evolutions_three_stages",
@@ -1313,6 +1452,82 @@ mod tests {
         let native = preset.with(&tweaks).native().unwrap();
         assert!(native.national_dex && native.force_challenge_mode && native.run_without_shoes);
         assert!(!native.no_low_hp_music && !native.ban_lucky_egg);
+    }
+
+    #[test]
+    fn numbers_reach_the_own_randomizer() {
+        let file = include_bytes!("../../soulsync-server/presets/soul-link.rnqs");
+        let preset = Preset::read(file).unwrap();
+        let mut set = Overrides::default();
+        for id in [
+            "update_base_stats",
+            "update_moves",
+            "level_alike",
+            "moves_at_start",
+            "movesets_good_attacks",
+            "tm_good_attacks",
+            "tutor_good_attacks",
+            "trainer_levels",
+            "wild_levels",
+            "static_levels",
+            "min_catch_rate",
+        ] {
+            set.set(id, Value::Flag(true));
+        }
+        for (id, n) in [
+            ("update_base_stats_generation", 7),
+            ("update_moves_generation", 9),
+            ("moves_at_start_count", 4),
+            ("movesets_good_attacks_percent", 100),
+            ("tm_good_attacks_percent", 31),
+            ("tutor_good_attacks_percent", 62),
+            ("trainers_fully_evolved_level", 65),
+            ("trainer_levels_percent", -50),
+            ("more_boss_pokemon", 5),
+            ("more_important_pokemon", 3),
+            ("more_regular_pokemon", 1),
+            ("elite_unique_pokemon", 2),
+            ("wild_levels_percent", 50),
+            ("min_catch_rate_level", 4),
+            ("static_levels_percent", -7),
+        ] {
+            set.set(id, Value::Number(n));
+        }
+        set.set("level_alike_speed", Value::Choice("slow".into()));
+        let changed = preset.with(&set);
+        let o = changed.native().unwrap();
+        assert_eq!((o.update_stats, o.update_moves), (Some(7), Some(9)));
+        assert_eq!(o.level_alike.map(|l| l.1), Some(5));
+        assert_eq!((o.moves_at_start, o.good_attacks), (4, 100));
+        assert_eq!(
+            (o.tm_rules.good_attacks, o.tutor_rules.good_attacks),
+            (31, 62)
+        );
+        assert_eq!(o.trainers_fully_evolved_from, 65);
+        // Regular trainers, important ones, bosses.
+        assert_eq!(o.more_trainer_pokemon, [1, 3, 5]);
+        assert_eq!(
+            (o.trainer_rules.levels, o.trainer_rules.elite_unique),
+            (-50, 2)
+        );
+        assert_eq!((o.wild_rules.levels, o.min_catch_rate), (50, 4));
+        assert_eq!(o.static_rules.levels, -7);
+        // The switches of the numbers kept their place.
+        assert_eq!(changed.get("double_battles"), preset.get("double_battles"));
+        assert_eq!(
+            changed.get("shop_battle_items"),
+            preset.get("shop_battle_items")
+        );
+        // Outside its range a number is not taken.
+        let mut far = Overrides::default();
+        far.set("trainers_fully_evolved_level", Value::Number(29));
+        far.set("more_boss_pokemon", Value::Number(6));
+        far.set("level_alike_speed", Value::Choice("never".into()));
+        assert_eq!(preset.with(&far), preset);
+        // As the page sends them.
+        let sent: Overrides =
+            serde_json::from_str(r#"{"wild_levels":true,"wild_levels_percent":-20}"#).unwrap();
+        assert_eq!(preset.with(&sent).native().unwrap().wild_rules.levels, -20);
     }
 
     #[test]
@@ -1417,6 +1632,8 @@ mod tests {
             let values: Vec<Value> = match o.kind {
                 Kind::Flag(..) => vec![Value::Flag(true), Value::Flag(false)],
                 Kind::Choice(of) => of.iter().map(|c| Value::Choice(c.0.into())).collect(),
+                Kind::Named(_, of) => of.iter().map(|c| Value::Choice(c.0.into())).collect(),
+                Kind::Number { min, max, .. } => (min..=max).map(Value::Number).collect(),
             };
             for v in values {
                 let mut change = Overrides::default();
