@@ -127,9 +127,10 @@ const COMPAT_TUTOR: &[(&str, usize, u8)] = &[
     ("full", TUTORS, 7),
 ];
 
-/// The options SoulSync knows, as `Settings.toString` lays them out. Those
-/// of other generations (Mega Evolutions, Totem Pokémon) and the ones that
-/// take a number or a list are left to the settings file.
+/// The options SoulSync knows, as `Settings.toString` lays them out: all
+/// that Black 2 and White 2 have and SoulSync's own randomizer can do.
+/// Those that take a number or a list are left to the settings file, and
+/// the tweaks are bits of a number stored with the highest byte first.
 pub const OPTIONS: &[Opt] = &[
     // Pokémon traits
     choice(
@@ -259,6 +260,87 @@ pub const OPTIONS: &[Opt] = &[
         "shops",
         &[("unchanged", 37, 2), ("shuffle", 37, 1), ("random", 37, 0)],
     ),
+    // More of traits
+    flag("base_stats_random_growth", 1, 7),
+    flag("level_alike", 1, 4),
+    choice(
+        "level_alike_except",
+        &[
+            ("legendaries", 39, 0),
+            ("strong_legendaries", 39, 1),
+            ("nobody", 39, 2),
+        ],
+    ),
+    flag("two_types", 2, 7),
+    flag("no_trapping_abilities", 3, 4),
+    flag("no_negative_abilities", 3, 5),
+    flag("no_bad_abilities", 3, 6),
+    flag("two_abilities", 48, 6),
+    flag("similar_abilities_together", 40, 7),
+    flag("evolutions_similar_strength", 26, 2),
+    flag("evolutions_same_type", 26, 3),
+    flag("evolutions_three_stages", 26, 4),
+    flag("evolutions_force_change", 26, 5),
+    // More of starters
+    flag("statics_limit_main_legendaries", 17, 4),
+    flag("statics_limit_600", 17, 5),
+    flag("static_forms", 17, 6),
+    flag("trade_nicknames", 23, 4),
+    flag("trade_trainers", 23, 5),
+    flag("trade_ivs", 23, 3),
+    flag("trade_items", 23, 2),
+    // More of moves
+    flag("random_move_categories", 25, 4),
+    flag("moves_at_start", 11, 4),
+    flag("order_moves_by_damage", 11, 5),
+    flag("no_broken_moves", 39, 3),
+    // More of trainers
+    flag("trainers_weighted_types", 27, 2),
+    flag("no_early_wonder_guard", 27, 4),
+    flag("better_trainer_moves", 27, 7),
+    flag("trainer_forms", 39, 6),
+    flag("double_battles", 40, 0),
+    flag("boss_items", 48, 0),
+    flag("important_items", 48, 1),
+    flag("regular_items", 48, 2),
+    flag("consumable_items_only", 48, 3),
+    flag("sensible_items_only", 48, 4),
+    flag("strongest_only_items", 48, 5),
+    // More of wild
+    flag("wild_seasons", 15, 7),
+    flag("min_catch_rate", 16, 0),
+    flag("wild_good_held_items", 16, 4),
+    flag("balance_shaking_grass", 16, 7),
+    flag("wild_forms", 39, 7),
+    // More of tms
+    flag("tm_keep_learnt", 18, 5),
+    flag("tm_keep_field", 18, 6),
+    flag("tm_follow_evolutions", 19, 1),
+    flag("tm_no_broken", 39, 4),
+    flag("tutor_keep_learnt", 21, 5),
+    flag("tutor_keep_field", 21, 6),
+    flag("tutor_follow_evolutions", 19, 2),
+    flag("tutor_no_broken", 39, 5),
+    // More of items
+    flag("field_good_items", 24, 3),
+    flag("shop_good_items", 37, 3),
+    flag("shop_no_usual", 37, 4),
+    flag("shop_no_overpowered", 37, 5),
+    flag("shop_fair_prices", 37, 6),
+    flag("shop_evolution_items", 37, 7),
+    flag("shop_battle_items", 41, 7),
+    choice("pickup", &[("unchanged", 49, 1), ("random", 49, 0)]),
+    flag("pickup_good_items", 49, 2),
+    // More of misc
+    flag("no_irregular_forms", 49, 3),
+    flag("national_dex", 35, 7),
+    flag("update_type_effectiveness", 34, 0),
+    flag("challenge_mode", 34, 1),
+    flag("ban_lucky_egg", 34, 4),
+    flag("no_free_lucky_egg", 34, 5),
+    flag("ban_maniac_items", 34, 6),
+    flag("run_without_shoes", 33, 2),
+    flag("no_low_hp_music", 33, 6),
 ];
 
 fn opt(id: &str) -> Option<&'static Opt> {
@@ -1187,6 +1269,50 @@ mod tests {
             (o.machines, o.tutors),
             (Compat::Full, Compat::RandomPreferType)
         );
+    }
+
+    #[test]
+    fn every_option_is_one_the_own_randomizer_can_do() {
+        let file = include_bytes!("../../soulsync-server/presets/soul-link.rnqs");
+        let preset = Preset::read(file).unwrap();
+        let base = preset.native().unwrap();
+        let mut same = Vec::new();
+        for o in OPTIONS {
+            let values = match o.kind {
+                Kind::Flag(..) => vec![Value::Flag(true), Value::Flag(false)],
+                Kind::Choice(of) => of.iter().map(|c| Value::Choice(c.0.into())).collect(),
+            };
+            let mut differs = false;
+            for value in values {
+                let mut change = Overrides::default();
+                change.set(o.id, value.clone());
+                let native = preset.with(&change).native();
+                assert!(native.is_some(), "{} {value:?}", o.id);
+                differs |= native.as_ref() != Some(&base);
+            }
+            if !differs {
+                same.push(o.id);
+            }
+        }
+        // What only matters together with another choice.
+        let with_another = [
+            "abilities_follow_evolutions",
+            "level_alike_except",
+            "evolutions_similar_strength",
+            "evolutions_same_type",
+            "evolutions_three_stages",
+            "evolutions_force_change",
+        ];
+        assert_eq!(same, with_another);
+        let mut tweaks = Overrides::default();
+        for id in ["national_dex", "challenge_mode", "run_without_shoes"] {
+            tweaks.set(id, Value::Flag(true));
+        }
+        tweaks.set("no_low_hp_music", Value::Flag(false));
+        tweaks.set("ban_lucky_egg", Value::Flag(false));
+        let native = preset.with(&tweaks).native().unwrap();
+        assert!(native.national_dex && native.force_challenge_mode && native.run_without_shoes);
+        assert!(!native.no_low_hp_music && !native.ban_lucky_egg);
     }
 
     #[test]
