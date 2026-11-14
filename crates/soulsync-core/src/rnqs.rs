@@ -105,6 +105,8 @@ pub enum Kind {
         min: i32,
         max: i32,
     },
+    /// A number from 0 to `max` in two bytes, the low one first.
+    Word(usize, u16),
 }
 
 /// An option of the randomizer SoulSync can show and change.
@@ -153,6 +155,13 @@ const fn number(
             min,
             max,
         },
+    }
+}
+
+const fn word(id: &'static str, byte: usize) -> Opt {
+    Opt {
+        id,
+        kind: Kind::Word(byte, 649),
     }
 }
 
@@ -211,6 +220,7 @@ pub const OPTIONS: &[Opt] = &[
             ("unchanged", 4, 2),
             ("random", 4, 1),
             ("random_two_evolutions", 4, 3),
+            ("custom", 4, 0),
         ],
     ),
     choice(
@@ -384,6 +394,11 @@ pub const OPTIONS: &[Opt] = &[
     flag("ban_maniac_items", 34, 6),
     flag("run_without_shoes", 33, 2),
     flag("no_low_hp_music", 33, 6),
+    // The starters chosen by hand, by the number of their species; 0 is
+    // any other
+    word("starter_1", 5),
+    word("starter_2", 7),
+    word("starter_3", 9),
     // Which Pokémon there are to choose from
     flag("limit_pokemon", 2, 5),
     flag("limit_gen1", 31, 0),
@@ -534,6 +549,10 @@ impl Preset {
                 let stored = self.data[byte] >> shift & ((1u16 << bits) - 1) as u8;
                 Some(Value::Number(i32::from(stored) - add))
             }
+            Kind::Word(byte, _) => Some(Value::Number(i32::from(u16::from_le_bytes([
+                self.data[byte],
+                self.data[byte + 1],
+            ])))),
         }
     }
 
@@ -569,6 +588,9 @@ impl Preset {
                 let mask = ((1u16 << bits) - 1) as u8;
                 self.data[byte] =
                     self.data[byte] & !(mask << shift) | ((n + add) as u8 & mask) << shift;
+            }
+            (Some(Kind::Word(byte, max)), Value::Number(n)) if (0..=i32::from(max)).contains(n) => {
+                self.data[byte..byte + 2].copy_from_slice(&(*n as u16).to_le_bytes());
             }
             _ => return false,
         }
@@ -1434,6 +1456,7 @@ mod tests {
         }
         on.set("limit_pokemon", Value::Flag(true));
         on.set("limit_gen3", Value::Flag(true));
+        on.set("starters", Value::Choice("custom".into()));
         let preset = preset.with(&on);
         let base = preset.native().unwrap();
         let mut same = Vec::new();
@@ -1443,6 +1466,10 @@ mod tests {
                 Kind::Choice(of) => of.iter().map(|c| Value::Choice(c.0.into())).collect(),
                 Kind::Named(_, of) => of.iter().map(|c| Value::Choice(c.0.into())).collect(),
                 Kind::Number { min, max, .. } => (min..=max).map(Value::Number).collect(),
+                Kind::Word(_, max) => (0..=i32::from(max))
+                    .step_by(59)
+                    .map(Value::Number)
+                    .collect(),
             };
             let mut differs = false;
             for value in values {
@@ -1677,6 +1704,10 @@ mod tests {
                 Kind::Choice(of) => of.iter().map(|c| Value::Choice(c.0.into())).collect(),
                 Kind::Named(_, of) => of.iter().map(|c| Value::Choice(c.0.into())).collect(),
                 Kind::Number { min, max, .. } => (min..=max).map(Value::Number).collect(),
+                Kind::Word(_, max) => (0..=i32::from(max))
+                    .step_by(59)
+                    .map(Value::Number)
+                    .collect(),
             };
             for v in values {
                 let mut change = Overrides::default();
