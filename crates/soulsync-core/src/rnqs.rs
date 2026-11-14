@@ -384,6 +384,14 @@ pub const OPTIONS: &[Opt] = &[
     flag("ban_maniac_items", 34, 6),
     flag("run_without_shoes", 33, 2),
     flag("no_low_hp_music", 33, 6),
+    // Which Pokémon there are to choose from
+    flag("limit_pokemon", 2, 5),
+    flag("limit_gen1", 31, 0),
+    flag("limit_gen2", 31, 1),
+    flag("limit_gen3", 31, 2),
+    flag("limit_gen4", 31, 3),
+    flag("limit_gen5", 31, 4),
+    flag("limit_relatives", 31, 7),
     // Numbers, and the switches only they belong to
     seven("update_base_stats_generation", 44, 0, 6, 9),
     seven("update_moves_generation", 45, 0, 6, 9),
@@ -598,9 +606,9 @@ impl Preset {
     /// switch, is `None`: such settings go to the original randomizer.
     pub fn native(&self) -> Option<crate::rando::gen5::Options> {
         use crate::rando::gen5::{
-            AbilityRules, Change, Evolving, Movesets, Options, ShopRules, Slow, Spread, Starters,
-            StaticRules, Statics, Stats, Taught, Themes, TrainerItems, TrainerRules, Wild,
-            WildRule, WildRules,
+            AbilityRules, Change, Evolving, Limit, Movesets, Options, ShopRules, Slow, Spread,
+            Starters, StaticRules, Statics, Stats, Taught, Themes, TrainerItems, TrainerRules,
+            Wild, WildRule, WildRules,
         };
         // Files of 4.6.0 and 4.6.1 have the same layout; older ones the
         // randomizer rewrites first.
@@ -693,7 +701,18 @@ impl Preset {
             0b0010 => Stats::Random,
             _ => return None,
         };
-        let types = match d[2] & 0b0110_0111 {
+        // A limit on the Pokémon names generations these games have, or
+        // nothing at all: then the original takes every Pokémon. With
+        // relatives alone it has nothing to choose from.
+        let limit = match (bit(2, 5), &d[28..31], d[31]) {
+            (false, _, _) => None,
+            (true, [0, 0, 0], to) if to & 0x1F != 0 || to == 0 => Some(Limit {
+                generations: [0, 1, 2, 3, 4].map(|g| to & 1 << g != 0),
+                relatives: to & 0x80 != 0,
+            }),
+            _ => return None,
+        };
+        let types = match d[2] & 0b0100_0111 {
             0b100 => Change::Unchanged,
             0b010 => Change::Random,
             0b001 => Change::FollowEvolutions,
@@ -778,6 +797,7 @@ impl Preset {
             return None;
         }
         Some(Options {
+            limit,
             random_evolutions,
             movesets,
             moves_at_start: if bit(11, 4) { (d[11] >> 6) + 2 } else { 0 },
@@ -1041,8 +1061,8 @@ fn base64_decode(text: &[u8]) -> Option<Vec<u8>> {
 mod tests {
     use super::*;
     use crate::rando::gen5::{
-        AbilityRules, ShopRules, Slow, Starters, StaticRules, Statics, Taught, Wild, WildRule,
-        WildRules,
+        AbilityRules, Limit, ShopRules, Slow, Starters, StaticRules, Statics, Taught, Wild,
+        WildRule, WildRules,
     };
 
     /// A real settings file for Black 2 (German), saved by randomizer 4.6.0:
@@ -1412,6 +1432,8 @@ mod tests {
         for id in ["trainer", "wild", "static"] {
             on.set(&format!("{id}_levels_percent"), Value::Number(10));
         }
+        on.set("limit_pokemon", Value::Flag(true));
+        on.set("limit_gen3", Value::Flag(true));
         let preset = preset.with(&on);
         let base = preset.native().unwrap();
         let mut same = Vec::new();
@@ -1534,9 +1556,9 @@ mod tests {
     fn what_is_not_built_goes_to_the_original_randomizer() {
         let file = include_bytes!("../../soulsync-server/presets/soul-link.rnqs");
         let preset = Preset::read(file).unwrap();
-        // A limit on the Pokémon, music for static Pokémon, evolution
-        // moves for all and the old way of updating moves.
-        for (byte, bit) in [(2, 5), (25, 5), (41, 6), (0, 2)] {
+        // Music for static Pokémon, evolution moves for all and the old
+        // way of updating moves.
+        for (byte, bit) in [(25, 5), (41, 6), (0, 2)] {
             let mut other = preset.clone();
             other.data[byte] |= 1 << bit;
             assert_eq!(other.native(), None, "{byte}.{bit}");
@@ -1556,6 +1578,27 @@ mod tests {
         );
         let native = preset.native().unwrap();
         assert_eq!((native.update_stats, native.update_moves), (None, None));
+        // A limit on the Pokémon: by generation, with their relatives
+        // or without; none named is all of them, relatives alone nothing.
+        let mut limited = Overrides::default();
+        limited.set("limit_pokemon", Value::Flag(true));
+        let limit = |o: &Overrides| preset.with(o).native().map(|n| n.limit);
+        let none = Limit {
+            generations: [false; 5],
+            relatives: false,
+        };
+        assert_eq!(limit(&limited), Some(Some(none)));
+        limited.set("limit_relatives", Value::Flag(true));
+        assert_eq!(limit(&limited), None);
+        limited.set("limit_gen1", Value::Flag(true));
+        limited.set("limit_gen5", Value::Flag(true));
+        let both = Limit {
+            generations: [true, false, false, false, true],
+            relatives: true,
+        };
+        assert_eq!(limit(&limited), Some(Some(both)));
+        limited.set("limit_pokemon", Value::Flag(false));
+        assert_eq!(limit(&limited), Some(None));
         // Race mode and the old switch against broken moves change
         // nothing about the game; irregular forms can be kept out.
         let mut more = preset.clone();

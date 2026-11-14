@@ -58,6 +58,7 @@ fn main() {
         })
     });
     let options = preset.unwrap_or(gen5::Options {
+        limit: None,
         random_move_powers: on("movepower"),
         random_move_accuracies: on("moveaccuracy"),
         random_move_pps: on("movepp"),

@@ -689,7 +689,6 @@ impl<'a> Game<'a> {
         evolved_from: u16,
         rival_keeps_starter: bool,
     ) -> Result<(), RomError> {
-        let last = if forms { SPECIES + FORMS } else { SPECIES };
         let usable = |game: &Self, n: usize| {
             let entry = &game.species[n];
             let species = if entry.base > 0 { entry.base } else { n };
@@ -702,16 +701,24 @@ impl<'a> Game<'a> {
                 let stats = &game.stats[Self::stats_file(n)];
                 stats[FIRST_TYPE] == kind || stats[FIRST_TYPE + 1] == kind
             };
-            (1..=last).filter(|&n| usable(game, n) && has(n)).collect()
+            let all = if forms { &game.pool_forms } else { &game.pool };
+            (all.iter().copied())
+                .filter(|&n| usable(game, n) && has(n))
+                .collect()
         };
         let allowed = |game: &Self, n: usize| {
             let entry = &game.species[n];
             let by_ability =
                 entry.base == CASTFORM || (entry.base == DARMANITAN && entry.form == 1);
             let irregular = game.no_irregular_forms && IRREGULAR_FORMS.contains(&n);
-            (!by_ability || game.abilities_changed) && !irregular
+            // The original only bans those of them a limit leaves in.
+            let banned = by_ability && !game.abilities_changed && game.pool_forms.contains(&n);
+            !banned && !irregular
         };
-        let pool: Vec<usize> = (1..=last)
+        // With a limit on the Pokémon the original still takes every form.
+        let every_form = SPECIES + 1..=SPECIES + FORMS;
+        let pool: Vec<usize> = (self.pool.iter().copied())
+            .chain(every_form.filter(|_| forms))
             .filter(|&n| usable(self, n) && allowed(self, n))
             .collect();
         let mut all = self.trainers()?;

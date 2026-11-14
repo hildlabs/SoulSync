@@ -311,11 +311,21 @@ impl<'a> Game<'a> {
         if !self.abilities_changed {
             banned.extend(BY_ABILITY);
         }
+        // The original only bans those of them it may choose at all.
+        banned.retain(|n| self.pool_forms.contains(n));
         if self.no_irregular_forms {
             banned.extend(IRREGULAR_FORMS);
         }
-        let last = if how.forms { SPECIES + FORMS } else { SPECIES };
-        let usable: Vec<usize> = (1..=last)
+        // With a limit on the Pokémon the original still takes every
+        // form where legendary ones stand for legendary ones.
+        let all: Vec<usize> = match (how.forms, how.mode) {
+            (false, _) => self.pool.clone(),
+            (true, Statics::Matching) => (self.pool.iter().copied())
+                .chain(SPECIES + 1..=SPECIES + FORMS)
+                .collect(),
+            (true, _) => self.pool_forms.clone(),
+        };
+        let usable: Vec<usize> = (all.into_iter())
             .filter(|&n| !(how.forms && self.species[n].looks_only) && !banned.contains(&n))
             .collect();
         // Legendary ones for legendary ones, or one pool for all.

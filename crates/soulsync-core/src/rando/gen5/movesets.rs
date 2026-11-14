@@ -251,6 +251,11 @@ impl Game<'_> {
                 .ok_or(layout(LEARNSETS))?;
             let entries = data.chunks_exact(4).map(|e| (word(e, 0), word(e, 2)));
             let mut set: Vec<(u16, u16)> = entries.take_while(|&e| e != (0xFFFF, 0xFFFF)).collect();
+            // What a limit leaves out keeps its moves.
+            if !self.pool_forms.contains(&number) {
+                all.push(set);
+                continue;
+            }
             let known = set.iter().filter(|&&(_, level)| level == 1).count();
             for _ in known..at_start {
                 set.insert(0, (0, 1));
@@ -317,6 +322,9 @@ impl Game<'_> {
         let mut eggs = Self::narc(&self.nds, EGG_MOVES)?;
         let pool = self.move_pool(no_broken)?;
         for number in 1..=SPECIES {
+            if !self.pool.contains(&number) {
+                continue;
+            }
             let data = eggs.get_mut(number).ok_or(layout(EGG_MOVES))?;
             let count = if data.len() >= 2 {
                 usize::from(word(data, 0))
