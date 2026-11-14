@@ -1466,11 +1466,11 @@ impl<'a> Game<'a> {
 }
 
 /// Whether `rom`, or just its first bytes, is a game whose randomization
-/// was compared with the original randomizer's, byte for byte. So far that
-/// is the German Black 2; the others are built from the same tables but
-/// nobody has checked them.
+/// was compared with the original randomizer's, byte for byte. So far those
+/// are the German Black 2 and White 2; the others are built from the same
+/// tables but nobody has checked them.
 pub fn verified(rom: &[u8]) -> bool {
-    const VERIFIED: [&[u8]; 1] = [b"IRED"];
+    const VERIFIED: [&[u8]; 2] = [b"IRED", b"IRDD"];
     rom.get(12..16).is_some_and(|code| VERIFIED.contains(&code))
 }
 
@@ -1675,6 +1675,20 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_the_compared_games_count_as_verified() {
+        let header = |code: &[u8]| {
+            let mut h = [0u8; 16];
+            h[12..].copy_from_slice(code);
+            h
+        };
+        assert!(verified(&header(b"IRED")));
+        assert!(verified(&header(b"IRDD")));
+        assert!(!verified(&header(b"IREO")));
+        assert!(!verified(&header(b"IRBD")));
+        assert!(!verified(b"short"));
+    }
 
     #[test]
     fn held_items_are_kept_as_the_randomizer_keeps_them() {
