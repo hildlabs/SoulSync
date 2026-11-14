@@ -311,6 +311,9 @@ impl<'a> Game<'a> {
         if !self.abilities_changed {
             banned.extend(BY_ABILITY);
         }
+        if self.no_irregular_forms {
+            banned.extend(IRREGULAR_FORMS);
+        }
         let last = if how.forms { SPECIES + FORMS } else { SPECIES };
         let usable: Vec<usize> = (1..=last)
             .filter(|&n| !(how.forms && self.species[n].looks_only) && !banned.contains(&n))

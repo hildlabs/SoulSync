@@ -708,7 +708,8 @@ impl<'a> Game<'a> {
             let entry = &game.species[n];
             let by_ability =
                 entry.base == CASTFORM || (entry.base == DARMANITAN && entry.form == 1);
-            !by_ability || game.abilities_changed
+            let irregular = game.no_irregular_forms && IRREGULAR_FORMS.contains(&n);
+            (!by_ability || game.abilities_changed) && !irregular
         };
         let pool: Vec<usize> = (1..=last)
             .filter(|&n| usable(self, n) && allowed(self, n))
