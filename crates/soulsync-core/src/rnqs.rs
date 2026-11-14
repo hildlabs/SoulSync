@@ -420,7 +420,10 @@ impl Preset {
             b if b == 1 << on => Some(true),
             _ => None,
         };
-        const TWEAKS: u32 = 1 << 7 | 1 << 8 | 1 << 12;
+        // The tweaks the original has for these games, apart from the
+        // fastest text, which only some languages have.
+        const TWEAKS: u32 =
+            1 << 7 | 1 << 8 | 1 << 9 | 1 << 12 | 1 << 13 | 1 << 14 | 1 << 18 | 1 << 22;
         let tweaks = u32::from_be_bytes([d[32], d[33], d[34], d[35]]);
         // Evolutions and moves as they are; nothing added to trainers.
         let untouched = d[19] & !7 == 0
@@ -457,6 +460,7 @@ impl Preset {
                 0
             },
             elite_unique: d[50] & 7,
+            challenge_mode: tweaks & 1 << 9 != 0,
         };
         // What the species evolve into; a new one at every level is not
         // built, and other forms the game cannot evolve into.
@@ -587,6 +591,11 @@ impl Preset {
             national_dex: tweaks & 1 << 7 != 0,
             update_type_effectiveness: tweaks & 1 << 8 != 0,
             ban_lucky_egg: tweaks & 1 << 12 != 0,
+            ban_maniac_items: tweaks & 1 << 14 != 0,
+            no_free_lucky_egg: tweaks & 1 << 13 != 0,
+            run_without_shoes: tweaks & 1 << 18 != 0,
+            force_challenge_mode: tweaks & 1 << 9 != 0,
+            no_low_hp_music: tweaks & 1 << 22 != 0,
             random_wild_held_items: bit(16, 3),
             good_wild_held_items: bit(16, 3) && bit(16, 4),
             change_impossible_evolutions: bit(0, 0),
@@ -1100,6 +1109,23 @@ mod tests {
         assert_eq!(native.level_alike, Some((Slow::StrongLegendaries, 4)));
         more.data[46] = 6;
         assert!(more.native().is_none());
+
+        // The other tweaks these games have; Challenge Mode also tells
+        // the trainers who the elite are.
+        let mut tweaked = preset.clone();
+        let native = tweaked.native().unwrap();
+        assert!(!native.no_free_lucky_egg && !native.force_challenge_mode);
+        let all: u32 = 1 << 9 | 1 << 13 | 1 << 14 | 1 << 18 | 1 << 22;
+        for (byte, add) in tweaked.data[32..36].iter_mut().zip(all.to_be_bytes()) {
+            *byte |= add;
+        }
+        let native = tweaked.native().unwrap();
+        assert!(native.no_free_lucky_egg && native.ban_maniac_items && native.run_without_shoes);
+        assert!(native.force_challenge_mode && native.no_low_hp_music);
+        assert!(native.trainer_rules.challenge_mode);
+        // The fastest text is a patch only some languages have.
+        tweaked.data[35] |= 1 << 3;
+        assert!(tweaked.native().is_none());
 
         // TMs and move tutors with every rule of their own.
         let mut taught = preset.clone();

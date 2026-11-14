@@ -279,6 +279,29 @@ pub enum Starters {
     Custom([u16; 3]),
 }
 
+/// What the item maniacs buy: four treasures from the Balm Mushroom on,
+/// the four relics, and seven rare berries.
+const MANIAC_ITEMS: [(usize, usize); 3] = [(580, 4), (587, 4), (206, 7)];
+/// The script with the gifts of the two Lucky Eggs, and the kinds of
+/// mulch that take their place.
+const GIFT_SCRIPT: usize = 676;
+const MULCH: [u16; 4] = [95, 96, 97, 98];
+/// The overlay of walking around, and what follows the branch that
+/// asks for the Running Shoes in it.
+const FIELD_CODE: usize = 36;
+const SHOES_MARK: [u8; 11] = [
+    0x01, 0xD0, 0x01, 0x20, 0x08, 0xBD, 0x00, 0x20, 0x08, 0xBD, 0x63,
+];
+/// The start of the function that says how hard the game is.
+const DIFFICULTY_MARK: [u8; 20] = [
+    0x81, 0x6A, 0x40, 0x6B, 0x0B, 0x1C, 0x07, 0x49, 0x00, 0x22, 0x43, 0x40, 0x90, 0x00, 0x08, 0x58,
+    0x83, 0x42, 0x01, 0xD1,
+];
+/// The overlay of battles' music, and the branch taken when no Pokémon
+/// is low on HP.
+const LOW_HP_OVERLAY: usize = 168;
+const LOW_HP_MARK: [u8; 4] = [0x00, 0xD1, 0x01, 0x27];
+
 /// What a randomization changes; everything is off by default.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Options {
@@ -288,6 +311,15 @@ pub struct Options {
     pub update_type_effectiveness: bool,
     /// No random choice gives a Lucky Egg.
     pub ban_lucky_egg: bool,
+    /// Nor what the item maniacs pay fortunes for.
+    pub ban_maniac_items: bool,
+    /// The Lucky Eggs the game gives away become mulch.
+    pub no_free_lucky_egg: bool,
+    /// Running works from the start.
+    pub run_without_shoes: bool,
+    /// Always Challenge Mode.
+    pub force_challenge_mode: bool,
+    pub no_low_hp_music: bool,
     /// Wild Pokémon hold random items, with `good_wild_held_items` only
     /// useful ones.
     pub random_wild_held_items: bool,
@@ -890,6 +922,86 @@ impl<'a> Game<'a> {
         self.good_items.ban(LUCKY_EGG);
     }
 
+    /// Keeps what the item maniacs pay fortunes for out of every random
+    /// choice of items: the big mushroom and its like, the relics and
+    /// the rare berries.
+    pub fn ban_maniac_items(&mut self) {
+        for (first, count) in MANIAC_ITEMS {
+            for item in first..first + count {
+                self.items.ban(item);
+                self.good_items.ban(item);
+            }
+        }
+    }
+
+    /// The two Lucky Eggs the game gives away become one kind of mulch.
+    /// The original looks for them byte by byte through each script of
+    /// the file until both are found.
+    pub fn remove_free_lucky_eggs(&mut self) -> Result<(), RomError> {
+        let mulch = MULCH[self.random.index(MULCH.len())];
+        let script = (self.scripts.get_mut(GIFT_SCRIPT)).ok_or(layout("script"))?;
+        let (mut list, mut left) = (0, 2);
+        while left > 0 && list + 4 <= script.len() && word(script, list) != 0xFD13 {
+            let jump = i32::from_le_bytes([
+                script[list],
+                script[list + 1],
+                script[list + 2],
+                script[list + 3],
+            ]);
+            let mut at = (list as i64 + 4 + i64::from(jump)) as usize;
+            list += 4;
+            if at > script.len() {
+                break;
+            }
+            loop {
+                at += 1;
+                if at >= script.len() {
+                    return Err(layout("script of the Lucky Eggs"));
+                }
+                if script[at] == 0x2A && at + 6 <= script.len() {
+                    let here = [word(script, at), word(script, at + 2), word(script, at + 4)];
+                    if here == [0x2A, 0x8000, LUCKY_EGG as u16] {
+                        set_word(script, at + 4, mulch);
+                        left -= 1;
+                    }
+                }
+                // The start of the next script.
+                if script[at] == 0x2E {
+                    break;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Running works without the Running Shoes.
+    pub fn run_without_shoes(&mut self) -> Result<(), RomError> {
+        let mut code = (self.nds.overlay(FIELD_CODE)).ok_or(layout("overlay"))?;
+        let at = find(&code, &SHOES_MARK).ok_or(layout("check for the Running Shoes"))?;
+        set_word(&mut code, at, 0);
+        self.nds.set_overlay(FIELD_CODE, &code);
+        Ok(())
+    }
+
+    /// The game says it is played in Challenge Mode whatever was chosen.
+    pub fn force_challenge_mode(&mut self) {
+        if let Some(at) = find(&self.arm9, &DIFFICULTY_MARK) {
+            // mov r0, #2; bx lr
+            self.arm9[at..at + 4].copy_from_slice(&[0x02, 0x20, 0x70, 0x47]);
+        }
+    }
+
+    /// The music does not change when a Pokémon is low on HP.
+    pub fn disable_low_hp_music(&mut self) -> Result<(), RomError> {
+        let mut code = (self.nds.overlay(LOW_HP_OVERLAY)).ok_or(layout("overlay"))?;
+        if let Some(at) = find(&code, &LOW_HP_MARK) {
+            // The branch past the change is always taken.
+            code[at + 1] = 0xE0;
+            self.nds.set_overlay(LOW_HP_OVERLAY, &code);
+        }
+        Ok(())
+    }
+
     /// Switches the national Pokédex on together with the Pokédex. The
     /// original randomizer does this with a patch that replaces most of
     /// the script; this puts the same two instructions in and moves the
@@ -1263,6 +1375,21 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
     }
     if options.ban_lucky_egg {
         game.ban_lucky_egg();
+    }
+    if options.ban_maniac_items {
+        game.ban_maniac_items();
+    }
+    if options.no_free_lucky_egg {
+        game.remove_free_lucky_eggs()?;
+    }
+    if options.run_without_shoes {
+        game.run_without_shoes()?;
+    }
+    if options.force_challenge_mode {
+        game.force_challenge_mode();
+    }
+    if options.no_low_hp_music {
+        game.disable_low_hp_music()?;
     }
     if options.national_dex {
         game.national_dex_at_start()?;

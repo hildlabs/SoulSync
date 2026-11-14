@@ -118,6 +118,8 @@ const BOX_CHOICE: [u8; 8] = [0x60, 0x88, 0xA8, 0x42, 0x0A, 0xD1, 0xA0, 0x88];
 const NOT_KEPT: [usize; 2] = [655, 656];
 /// The four of the elite and the champion.
 const ELITE: [usize; 5] = [38, 39, 40, 41, 341];
+/// The same people as they fight in Challenge Mode.
+const CHALLENGE_ELITE: [usize; 5] = [772, 773, 774, 775, 776];
 /// The types of the game in the order the original randomizer lists them.
 const TYPES_IN_ORDER: [u8; 17] = [0, 1, 2, 11, 10, 9, 5, 4, 13, 6, 15, 12, 7, 3, 14, 8, 16];
 
@@ -148,6 +150,9 @@ pub struct TrainerRules {
     /// So many of the strongest Pokémon of each of the elite nobody
     /// else has.
     pub elite_unique: u8,
+    /// The game is always played in Challenge Mode, where the elite are
+    /// other trainers.
+    pub challenge_mode: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -756,7 +761,12 @@ impl<'a> Game<'a> {
 
         // The elite's strongest Pokémon are theirs alone: nobody else has
         // them, nor what they evolve from or into where that matters.
-        let elite = |place: usize| how.elite_unique > 0 && ELITE.contains(&(place + 1));
+        let the_elite = if how.challenge_mode {
+            CHALLENGE_ELITE
+        } else {
+            ELITE
+        };
+        let elite = |place: usize| how.elite_unique > 0 && the_elite.contains(&(place + 1));
         let mut before: Vec<Vec<usize>> = vec![Vec::new(); SPECIES + FORMS + 1];
         for (from, species) in self.species.iter().enumerate().take(SPECIES + 1).skip(1) {
             for evolution in &species.evolutions {
@@ -849,7 +859,7 @@ impl<'a> Game<'a> {
             let themed = kind.and_then(|kind| typed.get(&kind)).filter(|_| !evenly);
             // The elite's Pokémon from the last to the first, the
             // strongest ahead; only for choosing.
-            let tracked = how.elite_unique > 0 && ELITE.contains(&index);
+            let tracked = how.elite_unique > 0 && the_elite.contains(&index);
             let mut team: Vec<usize> = (0..all[trainer].team.len()).collect();
             if tracked {
                 team.reverse();
