@@ -63,6 +63,8 @@ fn main() {
         random_move_pps: on("movepp"),
         random_move_types: on("movetypes"),
         random_move_categories: false,
+        update_moves: None,
+        update_stats: None,
         level_alike: None,
         movesets: if on("movesets") {
             gen5::Movesets::Random

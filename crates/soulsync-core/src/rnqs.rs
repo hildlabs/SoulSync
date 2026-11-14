@@ -430,7 +430,7 @@ impl Preset {
             && d[25] & 0xE0 == 0
             && d[27] & (1 << 5 | 1 << 6) == 0
             && d[41] & 0x40 == 0
-            && d[0] & !(1 | 1 << 3 | 1 << 4 | 1 << 5 | 1 << 6) == 0
+            && d[0] & !(1 | 1 << 1 | 1 << 3 | 1 << 4 | 1 << 5 | 1 << 6) == 0
             && d[16] & (1 << 5 | 1 << 6) == 0
             && tweaks & !TWEAKS == 0;
         if !untouched {
@@ -489,9 +489,9 @@ impl Preset {
             0b1000 => Movesets::Metronome,
             _ => return None,
         };
-        // What the species are like. Updated stats, levelling alike, a
-        // limit on the Pokémon and the bans on abilities are not built.
-        let stats = match d[1] & 0b0110_1110 {
+        // What the species are like. Stats that follow Mega Evolutions
+        // do not exist in these games.
+        let stats = match d[1] & 0b0100_1110 {
             0b1000 => Stats::Unchanged,
             0b0100 => Stats::Shuffle,
             0b0010 => Stats::Random,
@@ -642,6 +642,8 @@ impl Preset {
             random_move_pps: bit(25, 2),
             random_move_types: bit(25, 3),
             random_move_categories: bit(25, 4),
+            update_moves: bit(0, 1).then_some(d[45]),
+            update_stats: bit(1, 5).then_some(d[44]),
             level_alike,
             stats,
             stats_follow_evolutions: bit(1, 0),
@@ -1190,14 +1192,28 @@ mod tests {
     fn what_is_not_built_goes_to_the_original_randomizer() {
         let file = include_bytes!("../../soulsync-server/presets/soul-link.rnqs");
         let preset = Preset::read(file).unwrap();
-        for (id, value) in [
-            ("update_base_stats", Value::Flag(true)),
-            ("update_moves", Value::Flag(true)),
-        ] {
-            let mut change = Overrides::default();
-            change.set(id, value);
-            assert_eq!(preset.with(&change).native(), None, "{id}");
+        // Race mode, music for static Pokémon, evolution moves for all
+        // and the old way of updating moves.
+        for (byte, bit) in [(2, 3), (25, 5), (41, 6), (0, 2)] {
+            let mut other = preset.clone();
+            other.data[byte] |= 1 << bit;
+            assert_eq!(other.native(), None, "{byte}.{bit}");
         }
+        // Moves and base stats as in later games, up to the generation
+        // the file names.
+        let mut newer = Overrides::default();
+        newer.set("update_base_stats", Value::Flag(true));
+        newer.set("update_moves", Value::Flag(true));
+        let mut newer = preset.with(&newer);
+        newer.data[44] = 8;
+        newer.data[45] = 9;
+        let native = newer.native().unwrap();
+        assert_eq!(
+            (native.update_stats, native.update_moves),
+            (Some(8), Some(9))
+        );
+        let native = preset.native().unwrap();
+        assert_eq!((native.update_stats, native.update_moves), (None, None));
         // Every wild Pokémon becomes one other all over the game, and
         // every species comes up before one comes up twice.
         let mut wild = Overrides::default();

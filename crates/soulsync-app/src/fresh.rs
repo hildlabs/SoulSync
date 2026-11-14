@@ -457,12 +457,7 @@ echo "$3|$6|$8" > "${10}"; echo log > "${10}.log""#,
         assert_eq!(std::fs::read_to_string(&plan.rom).unwrap(), "old game");
         assert_eq!(std::fs::read_to_string(&plan.save).unwrap(), "old save");
 
-        // Settings with something that is not built go to the original.
-        let mut other = Overrides::default();
-        other.set("update_moves", soulsync_core::rnqs::Value::Flag(true));
-        plan.overrides = other;
-        assert_eq!(own(&plan), None);
-        plan.overrides = Overrides::default();
+        // Without the choice of the own randomizer it is the original.
         plan.own = false;
         assert_eq!(own(&plan), None);
     }

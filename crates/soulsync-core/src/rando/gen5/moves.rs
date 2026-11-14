@@ -31,7 +31,119 @@ pub(super) fn hits(number: usize) -> f64 {
     }
 }
 
+/// What later games changed about moves: the generation, the move, and
+/// its power, accuracy and PP where they changed. Accuracy 101 is a move
+/// that never misses.
+type Newer = (u8, u16, Option<u8>, Option<u8>, Option<u8>);
+const NEWER_MOVES: [Newer; 82] = [
+    (6, 14, None, None, Some(20)),
+    (6, 18, None, Some(101), None),
+    (6, 22, Some(45), None, Some(25)),
+    (6, 42, Some(25), Some(95), None),
+    (6, 53, Some(90), None, None),
+    (6, 56, Some(110), None, None),
+    (6, 57, Some(90), None, None),
+    (6, 58, Some(90), None, None),
+    (6, 59, Some(110), None, None),
+    (6, 74, None, None, Some(20)),
+    (6, 85, Some(90), None, None),
+    (6, 87, Some(110), None, None),
+    (6, 107, None, None, Some(10)),
+    (6, 112, None, None, Some(20)),
+    (6, 122, Some(30), None, None),
+    (6, 123, Some(30), None, None),
+    (6, 126, Some(110), None, None),
+    (6, 130, Some(130), None, Some(10)),
+    (6, 137, None, Some(100), None),
+    (6, 139, None, Some(90), None),
+    (6, 145, Some(40), None, None),
+    (6, 149, None, Some(100), None),
+    (6, 151, None, None, Some(20)),
+    (6, 152, Some(100), None, None),
+    (6, 168, Some(60), None, Some(25)),
+    (6, 173, Some(50), None, None),
+    (6, 210, Some(40), None, None),
+    (6, 248, Some(120), None, None),
+    (6, 257, Some(95), None, None),
+    (6, 261, None, Some(85), None),
+    (6, 265, Some(70), None, None),
+    (6, 282, Some(65), None, None),
+    (6, 309, Some(90), Some(90), None),
+    (6, 314, Some(60), None, None),
+    (6, 315, Some(130), None, None),
+    (6, 317, Some(60), Some(95), Some(15)),
+    (6, 326, None, None, Some(20)),
+    (6, 330, Some(90), None, None),
+    (6, 343, None, None, Some(25)),
+    (6, 358, Some(70), None, None),
+    (6, 366, None, None, Some(15)),
+    (6, 372, Some(60), None, None),
+    (6, 375, None, Some(100), None),
+    (6, 396, Some(80), None, None),
+    (6, 403, None, None, Some(15)),
+    (6, 406, Some(85), None, None),
+    (6, 408, Some(80), None, None),
+    (6, 412, Some(90), None, None),
+    (6, 434, Some(130), None, None),
+    (6, 437, Some(130), None, None),
+    (6, 441, None, Some(80), None),
+    (6, 448, Some(65), None, None),
+    (6, 463, Some(100), None, None),
+    (6, 480, Some(45), None, None),
+    (6, 485, Some(120), None, None),
+    (6, 490, Some(65), None, None),
+    (6, 506, Some(65), None, None),
+    (6, 510, Some(60), None, None),
+    (6, 518, Some(80), None, None),
+    (6, 519, Some(80), None, None),
+    (6, 520, Some(80), None, None),
+    (6, 522, Some(50), None, None),
+    (6, 524, Some(45), None, None),
+    (6, 533, None, None, Some(15)),
+    (6, 542, Some(110), None, None),
+    (6, 546, Some(120), None, None),
+    (7, 33, Some(40), None, None),
+    (7, 66, None, None, Some(20)),
+    (7, 86, None, Some(90), None),
+    (7, 141, Some(80), None, Some(10)),
+    (7, 207, None, Some(85), None),
+    (7, 389, Some(70), None, None),
+    (7, 464, None, Some(50), None),
+    (8, 229, Some(50), None, None),
+    (9, 105, None, None, Some(5)),
+    (9, 135, None, None, Some(5)),
+    (9, 156, None, None, Some(5)),
+    (9, 208, None, None, Some(5)),
+    (9, 295, Some(95), None, None),
+    (9, 296, Some(95), None, None),
+    (9, 303, None, None, Some(5)),
+    (9, 355, None, None, Some(5)),
+];
+
 impl Game<'_> {
+    /// The moves become what they are in the games up to `generation`.
+    pub fn update_moves(&mut self, generation: u8) {
+        for (from, number, power, accuracy, pp) in NEWER_MOVES {
+            if from > generation {
+                continue;
+            }
+            let data = &mut self.moves[usize::from(number)];
+            if let Some(power) = power {
+                data[POWER] = power;
+            }
+            if let Some(accuracy) = accuracy {
+                data[ACCURACY] = if accuracy == 101 {
+                    self.sure_accuracy
+                } else {
+                    accuracy
+                };
+            }
+            if let Some(pp) = pp {
+                data[PP] = pp;
+            }
+        }
+    }
+
     /// The moves, Struggle left out, with their numbers.
     fn changeable_moves(&mut self) -> impl Iterator<Item = (usize, &mut Vec<u8>)> {
         let moves = self.moves.iter_mut().enumerate().take(MOVES_COUNT + 1);
@@ -146,5 +258,17 @@ mod tests {
         assert_eq!(hits(24), 2.0);
         assert_eq!(hits(TRIPLE_KICK), 2.71);
         assert_eq!(hits(33), 1.0);
+    }
+
+    #[test]
+    fn newer_moves_come_in_the_order_of_the_games() {
+        assert!(NEWER_MOVES.is_sorted_by_key(|m| (m.0, m.1)));
+        assert!(NEWER_MOVES.iter().all(|m| (6..=9).contains(&m.0)));
+        assert!(NEWER_MOVES.iter().all(|m| usize::from(m.1) <= MOVES_COUNT));
+        // Thunderbolt lost power in the sixth generation, Tackle in the
+        // seventh; Whirlwind never misses since the sixth.
+        assert!(NEWER_MOVES.contains(&(6, 85, Some(90), None, None)));
+        assert!(NEWER_MOVES.contains(&(7, 33, Some(40), None, None)));
+        assert!(NEWER_MOVES.contains(&(6, 18, None, Some(101), None)));
     }
 }
