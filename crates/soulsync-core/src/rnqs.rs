@@ -402,7 +402,7 @@ impl Preset {
     /// switch, is `None`: such settings go to the original randomizer.
     pub fn native(&self) -> Option<crate::rando::gen5::Options> {
         use crate::rando::gen5::{
-            AbilityRules, Change, Evolving, Movesets, Options, ShopRules, Spread, Starters,
+            AbilityRules, Change, Evolving, Movesets, Options, ShopRules, Slow, Spread, Starters,
             StaticRules, Statics, Stats, Taught, Themes, TrainerItems, TrainerRules, Wild,
             WildRule, WildRules,
         };
@@ -424,7 +424,7 @@ impl Preset {
         let tweaks = u32::from_be_bytes([d[32], d[33], d[34], d[35]]);
         // Evolutions and moves as they are; nothing added to trainers.
         let untouched = d[19] & !7 == 0
-            && d[25] & 0xF0 == 0
+            && d[25] & 0xE0 == 0
             && d[27] & (1 << 5 | 1 << 6) == 0
             && d[41] & 0x40 == 0
             && d[0] & !(1 | 1 << 3 | 1 << 4 | 1 << 5 | 1 << 6) == 0
@@ -487,7 +487,7 @@ impl Preset {
         };
         // What the species are like. Updated stats, levelling alike, a
         // limit on the Pokémon and the bans on abilities are not built.
-        let stats = match d[1] & 0b0111_1110 {
+        let stats = match d[1] & 0b0110_1110 {
             0b1000 => Stats::Unchanged,
             0b0100 => Stats::Shuffle,
             0b0010 => Stats::Random,
@@ -553,14 +553,22 @@ impl Preset {
         };
         let random_trades = match d[23] & (1 | 1 << 1 | 1 << 6) {
             0x40 => false,
-            // Random trainer names of the traded Pokémon are not built.
-            1 | 2 if !bit(23, 5) => true,
+            1 | 2 => true,
             _ => return None,
         };
         let fully_evolved = match (bit(14, 7), d[14] & 0x7F) {
             (false, _) => 0,
             (true, 0) => return None,
             (true, level) => level as u16,
+        };
+        // Gaining levels alike: at one of the game's six speeds, and who
+        // stays slow.
+        let level_alike = match (bit(1, 4), d[39] & 7, d[46]) {
+            (false, _, _) => None,
+            (true, 0b001, speed @ 0..=5) => Some((Slow::Legendaries, speed)),
+            (true, 0b010, speed @ 0..=5) => Some((Slow::StrongLegendaries, speed)),
+            (true, 0b100, speed @ 0..=5) => Some((Slow::None, speed)),
+            _ => return None,
         };
         // With evolutions at every level the families go in circles, and
         // what follows evolutions never ends, in the original neither.
@@ -624,6 +632,8 @@ impl Preset {
             random_move_accuracies: bit(25, 1),
             random_move_pps: bit(25, 2),
             random_move_types: bit(25, 3),
+            random_move_categories: bit(25, 4),
+            level_alike,
             stats,
             stats_follow_evolutions: bit(1, 0),
             stats_grow_at_random: bit(1, 7),
@@ -665,6 +675,7 @@ impl Preset {
             random_trades,
             trades_want_random: random_trades && bit(23, 0),
             random_trade_nicknames: random_trades && bit(23, 4),
+            random_trade_trainers: random_trades && bit(23, 5),
             random_trade_ivs: random_trades && bit(23, 3),
             random_trade_items: random_trades && bit(23, 2),
             // Items lying around: as they are, in other places, random,
@@ -822,7 +833,8 @@ fn base64_decode(text: &[u8]) -> Option<Vec<u8>> {
 mod tests {
     use super::*;
     use crate::rando::gen5::{
-        AbilityRules, ShopRules, Starters, StaticRules, Statics, Taught, Wild, WildRule, WildRules,
+        AbilityRules, ShopRules, Slow, Starters, StaticRules, Statics, Taught, Wild, WildRule,
+        WildRules,
     };
 
     /// A real settings file for Black 2 (German), saved by randomizer 4.6.0:
@@ -1070,6 +1082,24 @@ mod tests {
         assert!(native.shuffle_shops && !native.random_shops);
         items.data[37] = 1 | 1 << 1;
         assert!(items.native().is_none());
+
+        // Attacks physical or special by chance, all species gaining
+        // levels fast apart from the strong legendary ones, and traded
+        // Pokémon from random trainers.
+        let mut more = preset.clone();
+        let native = more.native().unwrap();
+        assert!(!native.random_move_categories && !native.random_trade_trainers);
+        assert_eq!(native.level_alike, None);
+        more.data[25] |= 1 << 4;
+        more.data[23] |= 1 << 5;
+        more.data[1] |= 1 << 4;
+        more.data[39] = more.data[39] & !7 | 0b010;
+        more.data[46] = 4;
+        let native = more.native().unwrap();
+        assert!(native.random_move_categories && native.random_trade_trainers);
+        assert_eq!(native.level_alike, Some((Slow::StrongLegendaries, 4)));
+        more.data[46] = 6;
+        assert!(more.native().is_none());
 
         // TMs and move tutors with every rule of their own.
         let mut taught = preset.clone();

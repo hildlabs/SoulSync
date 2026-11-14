@@ -7,6 +7,11 @@ const TYPE: usize = 0;
 const POWER: usize = 3;
 const ACCURACY: usize = 4;
 const PP: usize = 5;
+/// Whether a move is an attack, and which stats it works with.
+const CATEGORY: usize = 2;
+const STATUS: u8 = 0;
+const PHYSICAL: u8 = 1;
+const SPECIAL: u8 = 2;
 /// Moves that hit two to five times, those that hit twice, and Triple
 /// Kick: their power is for one hit.
 const SEVERAL_HITS: [usize; 13] = [292, 140, 198, 331, 4, 3, 31, 154, 333, 42, 350, 131, 541];
@@ -113,6 +118,20 @@ impl Game<'_> {
         for number in (1..=MOVES_COUNT).filter(|&n| n != usize::from(STRUGGLE)) {
             let kind = self.random_type();
             self.moves[number][TYPE] = kind;
+        }
+    }
+
+    /// Every attack is physical or special by the toss of a coin.
+    pub fn randomize_move_categories(&mut self) {
+        for number in (1..=MOVES_COUNT).filter(|&n| n != usize::from(STRUGGLE)) {
+            let category = self.moves[number][CATEGORY];
+            if category != STATUS && self.random.index(2) == 0 {
+                self.moves[number][CATEGORY] = if category == PHYSICAL {
+                    SPECIAL
+                } else {
+                    PHYSICAL
+                };
+            }
         }
     }
 }

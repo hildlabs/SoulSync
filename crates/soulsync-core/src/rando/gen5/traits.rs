@@ -1,5 +1,6 @@
 //! What a species is like: its base stats, its types and its abilities.
 
+use super::tables::LEGENDARIES;
 use super::*;
 
 /// How base stats change.
@@ -60,6 +61,26 @@ const ALIKE: [[u8; 3]; 8] = [
     [24, 160, 0],
     [104, 163, 164],
 ];
+
+/// Where a species' stats say how fast it gains levels, and the slowest
+/// way of the game's six.
+const GROWTH: usize = 21;
+const SLOW: u8 = 5;
+/// The legendary Pokémon that are stronger than the rest: Mewtwo, Lugia,
+/// Ho-Oh, Kyogre, Groudon, Rayquaza, Dialga, Palkia, Regigigas, Giratina,
+/// Arceus, Reshiram, Zekrom and Kyurem.
+const STRONG_LEGENDARIES: [u16; 14] = [
+    150, 249, 250, 382, 383, 384, 483, 484, 486, 487, 493, 643, 644, 646,
+];
+
+/// Who keeps gaining levels slowly when all others do alike.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Slow {
+    #[default]
+    None,
+    Legendaries,
+    StrongLegendaries,
+}
 
 /// Which random abilities are allowed.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -353,6 +374,23 @@ impl Game<'_> {
             }
         }
         self.copy_species_to_looks_only(&[FIRST_TYPE, FIRST_TYPE + 1]);
+    }
+
+    /// Every species gains levels at the speed `speed`, as the game
+    /// numbers them; those `slow` picks out stay slow.
+    pub fn level_alike(&mut self, slow: Slow, speed: u8) {
+        for number in 1..=SPECIES + FORMS {
+            let species = match self.species[number].base {
+                0 => number as u16,
+                base => base as u16,
+            };
+            let stays = match slow {
+                Slow::None => false,
+                Slow::Legendaries => LEGENDARIES.contains(&species),
+                Slow::StrongLegendaries => STRONG_LEGENDARIES.contains(&species),
+            };
+            self.stats[Self::stats_file(number)][GROWTH] = if stays { SLOW } else { speed };
+        }
     }
 
     /// An ability that `rules` allow and that is not one of `taken`.

@@ -27,7 +27,7 @@ pub use movesets::Movesets;
 pub use statics::{StaticRules, Statics};
 pub use trainer_items::TrainerItems;
 pub use trainers::{Spread, Themes, TrainerRules};
-pub use traits::{AbilityRules, Change, Stats};
+pub use traits::{AbilityRules, Change, Slow, Stats};
 pub use wild::{Wild, WildRule, WildRules};
 
 use super::random::JavaRandom;
@@ -339,6 +339,7 @@ pub struct Options {
     pub random_trades: bool,
     pub trades_want_random: bool,
     pub random_trade_nicknames: bool,
+    pub random_trade_trainers: bool,
     pub random_trade_ivs: bool,
     pub random_trade_items: bool,
     /// Random items lie around, with `good_field_items` only useful ones.
@@ -381,6 +382,10 @@ pub struct Options {
     pub random_move_accuracies: bool,
     pub random_move_pps: bool,
     pub random_move_types: bool,
+    pub random_move_categories: bool,
+    /// Every species gains levels at this speed, as the game numbers
+    /// them, apart from those that stay slow.
+    pub level_alike: Option<(Slow, u8)>,
     /// Every species evolves into random others.
     pub random_evolutions: Option<Evolving>,
     /// The moves every species learns by level and hatches with. With
@@ -1253,6 +1258,9 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
     if options.random_move_types {
         game.randomize_move_types();
     }
+    if options.random_move_categories {
+        game.randomize_move_categories();
+    }
     if options.ban_lucky_egg {
         game.ban_lucky_egg();
     }
@@ -1261,6 +1269,9 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
     }
     if options.update_type_effectiveness {
         game.update_type_effectiveness()?;
+    }
+    if let Some((slow, speed)) = options.level_alike {
+        game.level_alike(slow, speed);
     }
     game.randomize_types(options.types, options.two_types);
     if options.random_wild_held_items {
@@ -1382,6 +1393,7 @@ pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, Ro
         game.randomize_trades(
             options.trades_want_random,
             options.random_trade_nicknames,
+            options.random_trade_trainers,
             options.random_trade_ivs,
             options.random_trade_items,
         )?;
