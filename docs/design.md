@@ -77,6 +77,8 @@ Every control in the top bar is exactly `--ctl` high (and icon buttons
 | `.capbar` | Striped level-cap bar with the cap in pixel digits. |
 | `.rblock` | A settings or rules section with an `h2`. |
 | `.cmd` | A command line with a copy button. |
+| `dialog.rdlg` | The randomizer settings: groups on the left (`.rnav`), the rows of one group in two columns on the right (`.ro` rows in `.rdc`), a search over all groups, and a footer. The page itself only shows `randoHtml()`: a button, how much is changed, and the changes as `.rchip`. Options that only matter with another one stand indented under it and show only then. |
+| `.sw` | A switch as a button with `role=switch`; looks like the checkboxes of the rules. |
 | `dialog.mon` | The Pokémon overview, one screen without scrolling: a head (sprite, name, HP, link partners), then three columns: facts, moves as a 2×2 grid of `.mvc` cards with the stats under them, and level-up moves with the next one on its own `.lsn` card. |
 
 Type badges come from `tyChip(type)`, HP from `hpLine(hp, max)`, sprites from
