@@ -150,18 +150,18 @@ impl<'a> Game<'a> {
         let (mut all_given, mut all_wanted, mut used) = (Vec::new(), Vec::new(), Vec::new());
         for trade in &mut trades {
             let old = trade.given;
-            let mut given = 1 + self.random.index(SPECIES);
+            let mut given = self.any_of_pool();
             while all_given.contains(&given) {
-                given = 1 + self.random.index(SPECIES);
+                given = self.any_of_pool();
             }
             all_given.push(given);
             trade.given = given;
             if old == trade.wanted {
                 trade.wanted = given;
             } else if wanted {
-                let mut asked = 1 + self.random.index(SPECIES);
+                let mut asked = self.any_of_pool();
                 while all_wanted.contains(&asked) || asked == given {
-                    asked = 1 + self.random.index(SPECIES);
+                    asked = self.any_of_pool();
                 }
                 all_wanted.push(asked);
                 trade.wanted = asked;

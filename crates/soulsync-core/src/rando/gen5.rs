@@ -45,6 +45,10 @@ const FORM_OFFSET: usize = 35;
 
 const STATS: &str = "a/0/1/6";
 const EVOLUTIONS: &str = "a/0/1/9";
+/// For every species the one its eggs hatch.
+const BABIES: &str = "a/0/2/0";
+/// The first and the last species of the generations.
+const GENERATIONS: [(usize, usize); 5] = [(1, 151), (152, 251), (252, 386), (387, 493), (494, 649)];
 const MOVES: &str = "a/0/2/1";
 const STRINGS: &str = "a/0/0/2";
 const STORY: &str = "a/0/0/3";
@@ -308,6 +312,8 @@ const LOW_HP_MARK: [u8; 4] = [0x00, 0xD1, 0x01, 0x27];
 /// What a randomization changes; everything is off by default.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Options {
+    /// Random choices give only Pokémon of some generations.
+    pub limit: Option<Limit>,
     /// The national Pokédex from the start.
     pub national_dex: bool,
     /// Ghost and Dark hit Steel normally, as in later games.
@@ -661,6 +667,15 @@ pub struct Species {
     pub looks_only: bool,
 }
 
+/// Which Pokémon random choices may give.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Limit {
+    /// Those of the first to the fifth generation.
+    pub generations: [bool; 5],
+    /// And what they evolve from or into, whichever generation that is of.
+    pub relatives: bool,
+}
+
 /// Evolutions that need a trade become possible alone.
 fn remove_impossible(all: &mut [Species], learnt_at: Option<&dyn Fn(usize, u16) -> u16>) {
     for (number, species) in all.iter_mut().enumerate() {
@@ -807,6 +822,12 @@ pub struct Game<'a> {
     abilities_changed: bool,
     /// No random Pokémon is one of the [`IRREGULAR_FORMS`].
     no_irregular_forms: bool,
+    /// The species random choices draw from, in the original's order:
+    /// all of them unless there is a [`Limit`].
+    pool: Vec<usize>,
+    /// The same with the forms: after all species, or with a limit each
+    /// after its species.
+    pool_forms: Vec<usize>,
     /// Ghost and Dark hit Steel normally by now.
     effectiveness_updated: bool,
     /// The accuracy the game gives a move that never misses.
@@ -923,11 +944,96 @@ impl<'a> Game<'a> {
             random: JavaRandom::new(seed),
             abilities_changed: false,
             no_irregular_forms: false,
+            pool: (1..=SPECIES).collect(),
+            pool_forms: (1..=SPECIES + FORMS).collect(),
             effectiveness_updated: false,
             evolved_in: None,
             looks_random: JavaRandom::new(seed),
             nds,
         })
+    }
+
+    /// Narrows what random choices draw from, and takes away evolutions
+    /// from or into what is left out.
+    pub fn limit_pokemon(&mut self, limit: Limit) -> Result<(), RomError> {
+        let mut pool: Vec<usize> = (GENERATIONS.iter().zip(limit.generations))
+            .filter(|(_, allowed)| *allowed)
+            .flat_map(|(&(first, last), _)| first..=last)
+            .collect();
+        // None named: everything stays to choose from, in its usual order.
+        let everything = pool.is_empty();
+        if everything {
+            pool = (1..=SPECIES).collect();
+        }
+        if limit.relatives {
+            // Whole families: what is linked by evolutions, however far.
+            let mut family: Vec<usize> = (0..=SPECIES).collect();
+            fn head(family: &mut [usize], mut n: usize) -> usize {
+                while family[n] != n {
+                    family[n] = family[family[n]];
+                    n = family[n];
+                }
+                n
+            }
+            let species = self.species.iter().enumerate();
+            for (number, species) in species.take(SPECIES + 1).skip(1) {
+                for evolution in &species.evolutions {
+                    let (a, b) = (
+                        head(&mut family, number),
+                        head(&mut family, usize::from(evolution.to)),
+                    );
+                    family[a] = b;
+                }
+            }
+            let mut inside = vec![false; SPECIES + 1];
+            for &number in &pool {
+                inside[head(&mut family, number)] = true;
+            }
+            let more: Vec<usize> = (1..=SPECIES)
+                .filter(|n| !pool.contains(n) && inside[head(&mut family, *n)])
+                .collect();
+            pool.extend(more);
+        }
+        let species = self.species.iter_mut().enumerate();
+        for (number, species) in species.take(SPECIES + 1).skip(1) {
+            let stays = pool.contains(&number);
+            (species.evolutions).retain(|e| stays && pool.contains(&usize::from(e.to)));
+        }
+        // The eggs of each species hatch the first of its family that is left.
+        let mut before = vec![0; SPECIES + 1];
+        for number in (1..=SPECIES).rev() {
+            for evolution in &self.species[number].evolutions {
+                before[usize::from(evolution.to)] = number;
+            }
+        }
+        let mut babies = Self::narc(&self.nds, BABIES)?;
+        for number in 1..=SPECIES {
+            let mut baby = number;
+            while before[baby] != 0 {
+                baby = before[baby];
+            }
+            let file = babies.get_mut(number).filter(|f| f.len() >= 2);
+            set_word(file.ok_or(layout("babies"))?, 0, baby as u16);
+        }
+        self.put_narc(BABIES, &babies)?;
+        if everything {
+            return Ok(());
+        }
+        let species = &self.species;
+        self.pool_forms = (pool.iter())
+            .flat_map(|&number| {
+                let forms = (SPECIES + 1..=SPECIES + FORMS)
+                    .filter(move |&form| species[form].base == number);
+                std::iter::once(number).chain(forms)
+            })
+            .collect();
+        self.pool = pool;
+        Ok(())
+    }
+
+    /// Any species random choices may give.
+    fn any_of_pool(&mut self) -> usize {
+        self.pool[self.random.index(self.pool.len())]
     }
 
     /// Keeps the Lucky Egg out of every random choice of items.
@@ -1102,7 +1208,7 @@ impl<'a> Game<'a> {
             Starters::Unchanged => return Ok(()),
             Starters::Random => {
                 while picked.len() < 3 {
-                    let species = 1 + self.random.index(SPECIES) as u16;
+                    let species = self.any_of_pool() as u16;
                     if !picked.contains(&species) {
                         picked.push(species);
                     }
@@ -1134,7 +1240,7 @@ impl<'a> Game<'a> {
                     let mut species = species;
                     // 0 is any that is neither wanted nor picked.
                     while species == 0 || species as usize > SPECIES {
-                        let any = 1 + self.random.index(SPECIES) as u16;
+                        let any = self.any_of_pool() as u16;
                         if !picked.contains(&any) && !wanted.contains(&any) {
                             species = any;
                         }
@@ -1309,7 +1415,7 @@ impl<'a> Game<'a> {
 
     /// Puts a random Pokémon into the game's introduction.
     pub fn randomize_intro(&mut self) -> Result<(), RomError> {
-        let species = 1 + self.random.index(SPECIES) as u16;
+        let species = self.any_of_pool() as u16;
         self.patch_overlay(INTRO_OVERLAY, &INTRO_BEFORE, INTRO_BEFORE.len(), species)?;
         self.patch_overlay(INTRO_CRY_OVERLAY, &INTRO_CRY, 0, species)
     }
@@ -1373,6 +1479,9 @@ pub fn verified(rom: &[u8]) -> bool {
 pub fn randomize(rom: &[u8], options: &Options, seed: i64) -> Result<Vec<u8>, RomError> {
     let mut game = Game::load(rom, seed)?;
     game.no_irregular_forms = options.no_irregular_forms;
+    if let Some(limit) = options.limit {
+        game.limit_pokemon(limit)?;
+    }
     if let Some(generation) = options.update_moves {
         game.update_moves(generation);
     }

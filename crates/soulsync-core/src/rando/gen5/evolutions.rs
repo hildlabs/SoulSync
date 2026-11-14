@@ -150,11 +150,11 @@ impl Game<'_> {
             .map(|s| s.evolutions.clone())
             .collect();
         let was = |from: usize, to: usize| original[from].iter().any(|e| usize::from(e.to) == to);
-        let mut order: Vec<usize> = (1..=SPECIES).collect();
+        let mut order = self.pool.clone();
         self.random.shuffle(&mut order);
         for &from in &order {
             let types = self.types_of(from);
-            let mut choice: Vec<usize> = (1..=SPECIES)
+            let mut choice: Vec<usize> = (self.pool.iter().copied())
                 .filter(|&to| {
                     to != from
                         && self.stats[to][GROWTH] == self.stats[from][GROWTH]
@@ -215,14 +215,14 @@ impl Game<'_> {
             from: vec![Vec::new(); SPECIES + 1],
             evolved: original.iter().map(|list| !list.is_empty()).collect(),
         };
-        let mut order: Vec<usize> = (1..=SPECIES).collect();
+        let mut order = self.pool.clone();
         self.random.shuffle(&mut order);
         let mut taken: Vec<usize> = Vec::new();
         for &from in &order {
             let types = self.types_of(from);
             for (slot, evolution) in original[from].iter().enumerate() {
                 let mut choice: Vec<usize> = Vec::new();
-                for to in 1..=SPECIES {
+                for &to in &self.pool {
                     if to == from
                         || self.stats[to][GROWTH] != self.stats[from][GROWTH]
                         || families.into[from].contains(&to)

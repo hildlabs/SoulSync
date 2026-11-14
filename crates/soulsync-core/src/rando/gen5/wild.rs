@@ -368,15 +368,17 @@ impl<'a> Game<'a> {
             };
             LEGENDARIES.contains(&(species as u16))
         };
-        let last = if forms { SPECIES + FORMS } else { SPECIES };
+        let all = if forms { &self.pool_forms } else { &self.pool };
         let pools = Pools {
-            all: (1..=last).collect(),
-            ordinary: (1..=last).filter(|&n| !legendary(n)).collect(),
+            all: all.clone(),
+            ordinary: all.iter().copied().filter(|&n| !legendary(n)).collect(),
         };
         let mut banned = NOT_WILD.to_vec();
         if !self.abilities_changed {
             banned.extend(BY_ABILITY);
         }
+        // The original only bans those of them it may choose at all.
+        banned.retain(|n| self.pool_forms.contains(n));
         if self.no_irregular_forms {
             banned.extend(IRREGULAR_FORMS);
         }
