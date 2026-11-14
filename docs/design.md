@@ -77,8 +77,9 @@ Every control in the top bar is exactly `--ctl` high (and icon buttons
 | `.capbar` | Striped level-cap bar with the cap in pixel digits. |
 | `.rblock` | A settings or rules section with an `h2`. |
 | `.cmd` | A command line with a copy button. |
-| `dialog.rdlg` | The randomizer settings: groups on the left (`.rnav`), the rows of one group in two columns on the right (`.ro` rows in `.rdc`), a search over all groups, and a footer. The page itself only shows `randoHtml()`: a button, how much is changed, and the changes as `.rchip`. Options that only matter with another one stand indented under it and show only then. |
+| `dialog.rdlg` | The randomizer settings: groups on the left (`.rnav`), the rows of one group in two columns on the right (`.ro` rows in `.rdc`, held together as `.rblk` blocks: an option with what hangs on it, or plain switches in a row), a search over all groups, and a footer. The page itself only shows `randoHtml()`: a button, how much is changed, and the changes as `.rchip`. Options that only matter with another one stand indented under it and show only then. |
 | `.sw` | A switch as a button with `role=switch`; looks like the checkboxes of the rules. |
+| `dialog.rdlg.rules` | The rules of a new run in the app: the same window, narrow and as high as its list. The setup page only names the rules that are on (`rulesField()`), so that it fits a screen without scrolling; "My runs" is a third tab there, not a card below. |
 | `.rn` | A number in a row of the randomizer settings: minus, the value to type over, plus; its unit stands inside, muted. |
 | `dialog.mon` | The Pokémon overview, one screen without scrolling: a head (sprite, name, HP, link partners), then three columns: facts, moves as a 2×2 grid of `.mvc` cards with the stats under them, and level-up moves with the next one on its own `.lsn` card. |
 

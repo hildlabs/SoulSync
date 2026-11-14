@@ -665,8 +665,11 @@ dialog.mon[open]{animation:rise .5s var(--spring) backwards}
 .runs-pane h2{font-size:15px;font-weight:600}
 .runs-pane>p{margin-top:4px;color:var(--muted);font-size:13px}
 .ptabs{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:var(--r-md)}
-.ptabs::before{content:"";position:absolute;top:4px;bottom:4px;left:4px;width:calc(50% - 6px);border-radius:10px;background:var(--ov-3);transition:transform .45s var(--spring)}
+.ptabs::before{content:"";position:absolute;top:4px;bottom:4px;left:4px;width:calc((100% - 8px - (var(--n,2) - 1)*4px)/var(--n,2));border-radius:10px;background:var(--ov-3);transition:transform .45s var(--spring)}
 .ptabs[data-i="1"]::before{transform:translateX(calc(100% + 4px))}
+.ptabs[data-i="2"]::before{transform:translateX(calc(200% + 8px))}
+.ptabs.three{--n:3;grid-template-columns:1fr 1fr 1fr}
+.ptabs button i{margin-left:7px;padding:1px 7px;border-radius:999px;background:var(--ov-3);font-style:normal;font-size:11.5px;color:var(--muted)}
 .ptabs button{position:relative;padding:9px 12px;border-radius:10px;font-weight:600;color:var(--muted);transition:color .2s}
 .ptabs button[aria-selected=true]{color:var(--text)}
 .field label{display:block;margin-bottom:8px;font-size:13px;font-weight:600}
@@ -675,6 +678,13 @@ dialog.mon[open]{animation:rise .5s var(--spring) backwards}
 .field input:focus{border-color:var(--edge-hi);background:var(--ov-2)}
 .rsum{display:flex;align-items:center;gap:12px;margin-top:8px;font-size:12.5px;color:var(--muted)}
 .rsum .btn2{margin-top:0}
+.field.inline{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.field.inline label{margin:0}
+.field.inline input:not([type=checkbox]){flex:none;width:110px;height:38px;text-align:center}
+dialog.rdlg.rules{width:min(600px,calc(100vw - 32px));height:fit-content;max-height:calc(100vh - 32px)}
+dialog.rdlg.rules .rdl{padding:4px 24px 8px}
+.rblk{break-inside:avoid;margin:0 0 12px;padding:1px 14px;border:1px solid var(--edge);border-radius:14px;background:var(--ov-1)}
+.rblk .ro:last-child{border-bottom:0}
 .rchips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
 .rchip{padding:4px 9px;border-radius:999px;border:1px solid var(--edge);background:var(--ov-1);font-size:11.5px;color:var(--muted)}
 .rchip b{font-weight:600;color:var(--a)}
@@ -694,8 +704,8 @@ dialog.rdlg::backdrop{background:rgba(var(--shade),.55);backdrop-filter:blur(6px
 .rnav button:hover{color:var(--text);background:var(--ov-1)}
 .rnav button[aria-pressed=true]{color:var(--text);background:var(--ov-3)}
 .rnav i{flex:none;min-width:20px;padding:1px 6px;border-radius:999px;background:color-mix(in srgb,var(--a) 18%,transparent);font-style:normal;font-size:11.5px;text-align:center;color:var(--a)}
-.rdl{flex:1;min-width:0;padding:6px 24px 16px;overflow:auto;overscroll-behavior:contain}
-.rdc{columns:2;column-gap:36px}
+.rdl{flex:1;min-width:0;padding:16px 24px 16px;overflow:auto;overscroll-behavior:contain}
+.rdc{columns:2;column-gap:14px}
 .rdc.find{columns:1;max-width:520px}
 .rdc h3{column-span:all;margin:12px 0 2px;font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
 .rdc .rnone{column-span:all;padding:30px 0;text-align:center;font-size:13px;color:var(--muted)}
@@ -756,7 +766,7 @@ p.slow{margin-top:-6px;text-align:center;font-size:13px;color:var(--muted)}
 .checks label{display:grid;grid-template-columns:minmax(0,1fr) 40px;gap:2px 14px;padding:11px 0;border-top:1px solid var(--edge);cursor:pointer;margin:0;font-size:13.5px;font-weight:600}
 .checks label:first-child{border-top:0}
 .checks label>small,.checks label>.capline{grid-column:1;margin:0;font-weight:400}
-.checks label>span{grid-column:1;grid-row:1}
+.checks label>span:not(.capline){grid-column:1;grid-row:1}
 .checks input{grid-column:2;grid-row:1/span 3;align-self:center}
 input[type=checkbox]{appearance:none;-webkit-appearance:none;position:relative;flex:none;width:40px;height:23px;margin:0;border-radius:12px;background:var(--ov-3);cursor:pointer;transition:background .25s}
 input[type=checkbox]::after{content:"";position:absolute;top:3px;left:3px;width:17px;height:17px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .35s var(--spring)}
@@ -765,6 +775,7 @@ input[type=checkbox]:checked::after{transform:translateX(17px)}
 input[type=checkbox]:disabled{opacity:.55;cursor:default}
 .checks input:disabled+span{color:var(--muted)}
 details.adv summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--muted)}
+details.adv summary span{margin-left:8px;font-weight:400;color:var(--faint)}
 details.adv .field{margin-top:12px}
 .center-msg{padding:96px 16px;text-align:center;color:var(--muted)}
 
@@ -948,7 +959,7 @@ const T = {
     rRules: "Soul Link rules", rNote: "SoulSync tracks links, levels and losses. The other rules are on your honour for now.",
     brTogether: (a, b) => `<b>${a}</b> is in the team, its partner <b>${b}</b> is in the box.`, brFate: (a, b) => `<b>${a}</b> is still in the team, but its partner <b>${b}</b> has fainted.`, brFailed: a => `<b>${a}</b> is in the team, but its area was closed by a failed catch.`, brCap: (a, l, c) => `<b>${a}</b> is level ${l}, the level cap is ${c}.`, brWho: p => `on ${p}'s side`,
     rules: { first: ["First encounter only", "In each area you may catch only the first Pokémon you meet."], linked: ["Same area, linked", "Your catch and your partner’s catch from the same area form a link."], fate: ["Shared fate", "If one of them faints, its partner is lost too."], together: ["Together or not at all", "Linked partners are in the team together or in the box together."], failed: ["Failed catch", "If one of you fails the catch, the area is closed for both."], cap: ["Level cap", "No Pokémon may be above the strongest Pokémon of the next gym leader."], items: ["Item for item", "In a fight you may use one item for each item your opponent has used, and never before."], dupes: ["No duplicates", "A species you already own does not count as the first encounter."], nick: ["Nicknames", "Every caught Pokémon gets a nickname."], set: ["Set mode", "No switching after the opponent’s Pokémon faints."] },
-    rAlways: "always on", pickRules: "Rules",
+    rAlways: "always on", pickRules: "Rules", rulesLead: "What counts in this run. It holds for everyone in it.", rulesOn: (n, of) => `${n} of ${of} on`,
     team: "Team", boxed: "Boxed", open: "Open", lost: "Lost",
     sum: (l, o, x) => [`<b>${l} linked</b>`, `${o} open`, x ? `<span class="bad">${x} lost</span>` : `0 lost`].join("  ·  "),
     badges: n => n === 1 ? "1 badge" : `${n} badges`, cap: n => `Level cap ${n}`,
@@ -1024,7 +1035,7 @@ rando: { title: "What gets randomized", lead: "What the preset says, and what yo
     rRules: "Soul-Link-Regeln", rNote: "SoulSync verfolgt Links, Level und Verluste. Die übrigen Regeln laufen vorerst auf Vertrauen.",
     brTogether: (a, b) => `<b>${a}</b> ist im Team, sein Partner <b>${b}</b> in der Box.`, brFate: (a, b) => `<b>${a}</b> ist noch im Team, obwohl sein Partner <b>${b}</b> besiegt wurde.`, brFailed: a => `<b>${a}</b> ist im Team, obwohl sein Gebiet durch einen misslungenen Fang gesperrt ist.`, brCap: (a, l, c) => `<b>${a}</b> ist Level ${l}, das Level-Cap liegt bei ${c}.`, brWho: p => `bei ${p}`,
     rules: { first: ["Nur die erste Begegnung", "In jedem Gebiet darfst du nur das erste Pokémon fangen, das dir begegnet."], linked: ["Gleiches Gebiet, verbunden", "Dein Fang und der Fang deines Partners aus demselben Gebiet bilden einen Link."], fate: ["Geteiltes Schicksal", "Wird eins besiegt, ist auch sein Partner verloren."], together: ["Zusammen oder gar nicht", "Verbundene Partner sind gemeinsam im Team oder gemeinsam in der Box."], failed: ["Fehlgeschlagener Fang", "Misslingt einem von euch der Fang, ist das Gebiet für beide gesperrt."], cap: ["Level-Cap", "Kein Pokémon darf über dem stärksten Pokémon des nächsten Arenaleiters liegen."], items: ["Item gegen Item", "Im Kampf darfst du für jedes Item, das dein Gegner eingesetzt hat, selbst ein Item einsetzen, vorher keins."], dupes: ["Keine Doppelten", "Eine Art, die du schon besitzt, zählt nicht als erste Begegnung."], nick: ["Spitznamen", "Jedes gefangene Pokémon bekommt einen Spitznamen."], set: ["Folgemodus", "Kein Wechsel, nachdem ein gegnerisches Pokémon besiegt wurde."] },
-    rAlways: "immer aktiv", pickRules: "Regeln",
+    rAlways: "immer aktiv", pickRules: "Regeln", rulesLead: "Was in diesem Run gilt, für alle, die mitspielen.", rulesOn: (n, of) => `${n} von ${of} aktiv`,
     team: "Team", boxed: "In der Box", open: "Offen", lost: "Verloren",
     sum: (l, o, x) => [`<b>${l} verbunden</b>`, `${o} offen`, x ? `<span class="bad">${x} verloren</span>` : `0 verloren`].join("  ·  "),
     badges: n => `${n} Orden`, cap: n => `Level-Cap ${n}`,
@@ -1333,11 +1344,12 @@ async function loadPresets() {
   try { const r = await fetch(`${local ? "" : SRV}/api/presets`); PRESETS = r.ok ? await r.json() : []; } catch { PRESETS = []; }
   return PRESETS;
 }
-function rulePicker(chosen, first = "", alone = false) {
-  return `<div class="field"><label>${t().pickRules}</label><div class="checks${alone ? " solo" : ""}" id="f-rules">${first}${RULES.filter(id => id !== "cap").map(id => {
+const rulePicker = (chosen, first = "", alone = false) => `<div class="field"><label>${t().pickRules}</label>${ruleChecks(chosen, first, alone)}</div>`;
+function ruleChecks(chosen, first = "", alone = false) {
+  return `<div class="checks${alone ? " solo" : ""}" id="f-rules">${first}${RULES.filter(id => id !== "cap").map(id => {
     const fixed = RULES_FIXED.includes(id);
     return `<label${LINK_RULES.includes(id) || id === "fate" ? ` class="linkrule"` : ""}><input type="checkbox" value="${id}" ${chosen.includes(id) ? "checked" : ""} ${fixed ? "disabled" : ""}><span>${t().rules[id][0]}${fixed ? `  ·  ${t().rAlways}` : ""}</span>${t().solo.rules[id] && !fixed ? `<small class="pair-t">${t().rules[id][1]}</small><small class="solo-t">${t().solo.rules[id][1]}</small>` : `<small>${t().rules[id][1]}</small>`}</label>`;
-  }).join("")}</div></div>`;
+  }).join("")}</div>`;
 }
 function readRules(caps) {
   const box = document.getElementById("f-rules"), alone = box && box.classList.contains("solo");
@@ -1486,10 +1498,22 @@ function randoRows(base, r, rows, all) {
     const ctl = num && choices.pick ? `<select data-rn="${id}">${base ? "" : `<option value="">${T.std("–")}</option>`}${Array.from({ length: choices.max + 1 }, (_, v) => `<option value="${v}"${(base ? rClamp(id, now) : r[id]) === v ? " selected" : ""}>${esc(choices.f(v))}</option>`).join("")}</select>`
       : num ? `<div class="rn"><button type="button" data-rs="${id}" data-d="-1" aria-label="−"${base && rClamp(id, now) <= choices.min ? " disabled" : ""}>−</button>${choices.pre ? `<i>${choices.pre}</i>` : ""}<input type="number" data-rn="${id}" min="${choices.min}" max="${choices.max}" value="${base ? rClamp(id, now) : r[id] != null ? r[id] : ""}" placeholder="–" aria-label="${esc(T.opt[id])}">${choices.suf ? `<i>${choices.suf}</i>` : ""}<button type="button" data-rs="${id}" data-d="1" aria-label="+"${base && rClamp(id, now) >= choices.max ? " disabled" : ""}>+</button></div>`
       : !base ? `<select data-rc="${id}"><option value="">${T.std("–")}</option>${(choices || [true, false]).map(c => `<option value="${c}"${r[id] === c ? " selected" : ""}>${rVal(id, c)}</option>`).join("")}</select>`
-      : choices ? `<select data-rc="${id}">${choices.map(c => `<option value="${c}"${now === c ? " selected" : ""}>${rVal(id, c)}${c === base[id] ? " · " + T.preset : ""}</option>`).join("")}</select>`
+      : choices ? `<select data-rc="${id}">${choices.map(c => `<option value="${c}"${now === c ? " selected" : ""}>${rVal(id, c)}</option>`).join("")}</select>`
       : `<button type="button" class="sw" role="switch" aria-checked="${now === true}" aria-label="${esc(T.opt[id])}" data-rf="${id}"></button>`;
     return `<div class="ro${chg ? " chg" : ""}${need ? " sub" : ""}"><span>${T.opt[id]}</span>${chg ? `<button type="button" class="rback" data-rb="${id}" title="${esc(T.back)}">↺</button>` : ""}${ctl}</div>`;
   }).join("");
+}
+// A group as blocks: an option with what hangs on it, or the plain
+// switches that follow one another. A column never cuts a block.
+function randoBlocks(base, r, rows) {
+  const out = [];
+  for (const o of rows) {
+    const last = out[out.length - 1];
+    if (o[2] && last) { last.push(o); last.plain = false; }
+    else if (last && last.plain && !(rows[rows.indexOf(o) + 1] || [])[2]) last.push(o);
+    else { const b = [o]; b.plain = !(rows[rows.indexOf(o) + 1] || [])[2]; out.push(b); }
+  }
+  return out.map(b => { const h = randoRows(base, r, b); return h ? `<div class="rblk">${h}</div>` : ""; }).join("");
 }
 function randoList() {
   const d = $("#rdlg"), src = rdlg.src && rdlg.src(); if (!d || !src) return;
@@ -1499,7 +1523,7 @@ function randoList() {
   const found = q ? RANDO.map(([g, rows]) => [g, rows.filter(o => T.opt[o[0]].toLowerCase().includes(q))]).filter(g => g[1].length) : null;
   $(".rdc", d).classList.toggle("find", !!found);
   $(".rdc", d).innerHTML = found ? (found.map(([g, rows]) => `<h3>${T.group[g]}</h3>${randoRows(base, r, rows, true)}`).join("") || `<p class="rnone">${T.none}</p>`)
-    : randoRows(base, r, RANDO.find(g => g[0] === rdlg.group)[1]);
+    : randoBlocks(base, r, RANDO.find(g => g[0] === rdlg.group)[1]);
   $(".rcount", d).textContent = total ? T.changed(total) : T.asPreset;
   $("[data-rall]", d).disabled = !total;
 }
@@ -1556,9 +1580,36 @@ function presetField(u, fr) {
   const base = presetBase(u, fr);
   const r = fr.rando || {};
   const about = chosen ? `<small>${esc(chosen.about[lang])}</small>` : u.preset === "own" && !(fr.options && fr.options.ok) ? `<small class="bad">${t().pOwnMissing}</small>` : "";
-  return `<div class="field"><label for="f-preset">${t().fPreset}</label><select id="f-preset">${opts.map(([id, n]) => `<option value="${id}"${u.preset === id ? " selected" : ""}>${esc(n)}</option>`).join("")}</select>${about}</div>
-    ${u.preset === "none" ? "" : `<div class="field"><label>${t().rando.title}</label><small>${t().rando.lead}</small>${randoHtml(base, r, "setup")}</div>
-    <div class="field"><label for="f-candies">${t().fCandies}</label><input type="number" id="f-candies" min="0" max="999" value="${+fr.candies || 0}"></div>`}`;
+  return `<div class="field"><label for="f-preset">${t().fPreset}</label><select id="f-preset">${opts.map(([id, n]) => `<option value="${id}"${u.preset === id ? " selected" : ""}>${esc(n)}</option>`).join("")}</select>${about}${u.preset === "none" ? "" : randoHtml(base, r, "setup")}</div>
+    ${u.preset === "none" ? "" : `<div class="field inline"><label for="f-candies">${t().fCandies}</label><input type="number" id="f-candies" min="0" max="999" value="${+fr.candies || 0}"></div>`}`;
+}
+// The rules of a new run: the page names the ones that are on, a window
+// holds them all.
+const rulesOn = u => RULES.filter(id => (id === "cap" ? u.capOn : u.rules.includes(id)) && !(u.players === 1 && LINK_RULES.includes(id)));
+const ruleName = (u, id) => (u.players === 1 && t().solo.rules[id] || t().rules[id])[0];
+function rulesField(u) {
+  const on = rulesOn(u), of = RULES.filter(id => !(u.players === 1 && LINK_RULES.includes(id))).length;
+  return `<div class="field"><label>${t().pickRules}</label><div class="rsum"><button type="button" class="btn2" data-rules-open>${t().rando.open}</button><span>${t().rulesOn(on.length, of)}</span></div><div class="rchips">${on.map(id => `<span class="rchip">${ruleName(u, id)}</span>`).join("")}</div></div>`;
+}
+function openRules(u, rom, done) {
+  let d = $("#ruledlg");
+  if (!d) { d = document.createElement("dialog"); d.id = "ruledlg"; d.className = "rdlg rules"; document.body.appendChild(d); }
+  const fill = () => {
+    d.innerHTML = `<div class="rdh"><div><h2>${t().pickRules}</h2><p>${t().rulesLead}</p></div><button type="button" class="x" data-rx aria-label="${esc(t().rando.close)}">×</button></div>
+      <div class="rdl">${ruleChecks(u.rules, capPicker(u.capOn, rom), u.players === 1)}</div>
+      <div class="rdf"><span class="rcount">${t().rulesOn(rulesOn(u).length, RULES.filter(id => !(u.players === 1 && LINK_RULES.includes(id))).length)}</span><button type="button" class="btn2 hot" data-rx>${t().rando.done}</button></div>`;
+  };
+  d.onclick = e => { if (e.target === d || e.target.closest("[data-rx]")) d.close(); };
+  d.onchange = e => {
+    const at = e.target.id || e.target.value, top = $(".rdl", d).scrollTop;
+    u.capOn = $("#f-cap", d).checked;
+    u.rules = [...d.querySelectorAll("#f-rules input:checked")].map(i => i.value).filter(id => id !== "on" && RULES.includes(id));
+    fill(); $(".rdl", d).scrollTop = top;
+    const again = d.querySelector(at === "f-cap" ? "#f-cap" : `#f-rules input[value="${at}"]`); if (again) again.focus();
+  };
+  d.onclose = () => { d.innerHTML = ""; done(); };
+  fill();
+  if (!d.open) d.showModal();
 }
 
 function renderSetup() {
@@ -1566,6 +1617,8 @@ function renderSetup() {
   if (!u.rules) u.rules = RULES_DEFAULT.slice();
   if (!u.mode) u.mode = save && save.ok ? "own" : "roll";
   if (!PRESETS) { loadPresets().then(() => renderSetup()); }
+  const nRuns = (local.runs || []).length;
+  if (u.tab === 2 && !nRuns) u.tab = 1;
   const asFile = p => p ? { path: p, ok: true } : null;
   const file = (kind, f, label, okText) => `<div class="field"><label for="f-${kind}">${label}</label>
     <div class="filerow"><input id="f-${kind}" autocomplete="off" spellcheck="false" placeholder="${t().fPathPh}" value="${f ? esc(f.path) : ""}">${local.dialogs ? `<button type="button" data-pick="${kind}">${t().browse}</button>` : ""}</div>
@@ -1590,33 +1643,33 @@ function renderSetup() {
       </div>
     </div>
     <div class="fcol">
-      <div class="ptabs glass" role="tablist" data-i="${u.tab}"><button type="button" role="tab" aria-selected="${u.tab === 0}" data-i="0">${t().tabJoin}</button><button type="button" role="tab" aria-selected="${u.tab === 1}" data-i="1">${t().tabNew}</button></div>
-      <div class="pane glass reveal" style="--i:1">${u.tab === 0
+      <div class="ptabs glass${nRuns ? " three" : ""}" role="tablist" data-i="${u.tab}"><button type="button" role="tab" aria-selected="${u.tab === 0}" data-i="0">${t().tabJoin}</button><button type="button" role="tab" aria-selected="${u.tab === 1}" data-i="1">${t().tabNew}</button>${nRuns ? `<button type="button" role="tab" aria-selected="${u.tab === 2}" data-i="2">${t().myRuns}<i>${nRuns}</i></button>` : ""}</div>
+      ${u.tab === 2 ? `<div class="pane glass runs-pane reveal" id="myruns" style="--i:1">${runsHtml(true)}</div>` : `<div class="pane glass reveal" style="--i:1">${u.tab === 0
         ? `<div class="field"><label for="f-code">${t().code}</label><input id="f-code" class="mono" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="HYPNO-6811" value="${esc(u.code)}"><small>${t().codeHelp}${u.mode === "roll" ? " " + t().pJoin : ""}</small></div>`
-        : playersField(u.players) + presetField(u, fr) + rulePicker(u.rules, capPicker(u.capOn, u.mode === "roll" ? fr.original : rom), u.players === 1)}
-        <details class="adv" ${local.server ? "open" : ""}><summary>${t().advanced}</summary><div class="field"><label for="f-server">${t().fServer}</label><input id="f-server" autocomplete="off" spellcheck="false" placeholder="https://" value="${esc(local.server)}"><small>${t().fServerHelp}</small></div>${u.tab === 1 ? `<div class="field"><div class="checks"><label><input type="checkbox" id="f-seed" ${u.sharedSeed ? "checked" : ""}><span>${t().fSeed}</span><small>${t().fSeedHelp}</small></label></div></div>` : ""}</details>
+        : playersField(u.players) + presetField(u, fr) + rulesField(u)}
+        <details class="adv" ${u.adv ? "open" : ""}><summary>${t().advanced}${local.server ? `<span>${esc(local.server.replace(/^https?:\/\//, "").replace(/\/.*$/, ""))}</span>` : ""}</summary><div class="field"><label for="f-server">${t().fServer}</label><input id="f-server" autocomplete="off" spellcheck="false" placeholder="https://" value="${esc(local.server)}"><small>${t().fServerHelp}</small></div>${u.tab === 1 ? `<div class="field"><div class="checks"><label><input type="checkbox" id="f-seed" ${u.sharedSeed ? "checked" : ""}><span>${t().fSeed}</span><small>${t().fSeedHelp}</small></label></div></div>` : ""}</details>
         <p class="err" id="err" ${u.error ? "" : "hidden"}>${esc(u.error)}</p>
         <button class="btn" type="submit">${ICON.play.replace("<svg", '<svg width="20" height="20"')}${u.tab === 0 ? t().startJoin : t().startNew}</button>
-      </div>
-      ${runsHtml(true) ? `<div class="pane glass runs-pane reveal" id="myruns" style="--i:2">${runsHtml(true)}</div>` : ""}
+      </div>`}
     </div>
   </form></main>`);
   bindChrome();
   if ($("#myruns")) bindRuns($("#myruns"), renderSetup);
   const form = $("#setupf");
   const keep = () => {
-    const cap = $("#f-cap"), code = $("#f-code");
-    if (cap) { u.capOn = cap.checked; u.rules = readRules([]); }
+    const code = $("#f-code"), adv = $("details.adv", form);
+    if (adv) u.adv = adv.open;
     if ($("#f-seed")) u.sharedSeed = $("#f-seed").checked;
     if (code) u.code = code.value;
   };
   const save_ = async patch => { keep(); const r = await localPost("set", patch); if (r.ok) { local = await r.json(); SRV = local.server || ""; } };
   const FILES = u.mode === "roll" ? ["original", "emulator"] : ["rom", "save"];
-  const fields = () => { const o = { name: $("#f-name").value, server: $("#f-server").value }; for (const k of FILES) o[k] = $("#f-" + k).value; return o; };
-  for (const id of ["name", "server", ...FILES]) $("#f-" + id).onchange = async () => { await save_(fields()); if (id !== "name" && id !== "server") renderSetup(); };
+  const fields = () => { const o = { name: $("#f-name").value }; if ($("#f-server")) o.server = $("#f-server").value; for (const k of FILES) o[k] = $("#f-" + k).value; return o; };
+  for (const id of ["name", "server", ...FILES]) if ($("#f-" + id)) $("#f-" + id).onchange = async () => { await save_(fields()); if (id !== "name") renderSetup(); };
+  const rules = $("[data-rules-open]", form);
+  if (rules) rules.onclick = () => { keep(); openRules(u, u.mode === "roll" ? (local.fresh || {}).original : local.rom, renderSetup); };
   form.onchange = async e => {
-    if (e.target.id === "f-cap") { keep(); renderSetup(); }
-    else if (e.target.id === "f-preset") { keep(); u.preset = e.target.value; renderSetup(); }
+    if (e.target.id === "f-preset") { keep(); u.preset = e.target.value; renderSetup(); }
     else if (e.target.id === "f-candies") {
       const n = Math.max(0, Math.min(999, Math.round(+($("#f-candies") || {}).value) || 0));
       await save_({ candies: n }); renderSetup();
@@ -1627,7 +1680,8 @@ function renderSetup() {
   form.onclick = async e => {
     const pick = e.target.closest("[data-pick]"), tabBtn = e.target.closest(".ptabs button"), modeBtn = e.target.closest("#f-mode button");
     if (modeBtn) { keep(); u.mode = modeBtn.dataset.m; u.error = ""; return renderSetup(); }
-    u.players = pickPlayers(e) || u.players;
+    const n = pickPlayers(e);
+    if (n && n !== u.players) { keep(); u.players = n; return renderSetup(); }
     if (pick) {
       await save_(fields()); pick.disabled = true;
       const r = await localPost("pick", { kind: pick.dataset.pick });
