@@ -16,6 +16,9 @@ Write entries for players, not for developers: what they notice in the app.
 - The run list no longer jumps when a partner joins.
 -->
 
+### New
+- The dashboard is now also available in Spanish (ES button next to EN, DE and FR). Pokémon and place names fall back to English for now.
+
 ## 0.3.8
 
 ### New
