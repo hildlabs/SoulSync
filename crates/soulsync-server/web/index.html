@@ -512,6 +512,11 @@ button:active{transform:scale(.97)}
 .forget:hover,.forget.sure{color:var(--danger);border-color:var(--danger)}
 
 /* team */
+.sdrow{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+.sdbtn{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:var(--r-md);border:1px solid var(--edge);background:var(--ov-1);color:var(--text);font-size:13px;transition:all .2s var(--out)}
+.sdbtn i{flex:none;width:8px;height:8px;border-radius:50%;background:var(--c)}
+.sdbtn svg{flex:none;color:var(--muted)}
+.sdbtn:hover{border-color:var(--c);background:color-mix(in srgb,var(--c) 10%,transparent)}
 .pairs{display:grid;grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:14px;align-content:start}
 .pairc{position:relative;display:grid;grid-template-columns:repeat(var(--n,2),minmax(0,1fr));padding:28px 10px 16px;overflow:hidden}
 .pairc .ploc{position:absolute;left:50%;top:10px;transform:translateX(-50%);z-index:1;max-width:60%;padding:2px 9px;border-radius:999px;background:var(--pillbg);border:1px solid var(--edge-hi);font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -989,6 +994,7 @@ details.adv .field{margin-top:12px}
 const T = {
   en: {
     links: "Links", run: "Run", activity: "Activity", copy: "Copy", copied: "Copied",
+    sdCopy: "Copy team for Showdown", sdOf: n => `Copy ${n}'s team for Showdown`,
     // Where a run with one player, a classic Nuzlocke, says it differently.
     solo: { links: "Catches", soulLink: () => "Nuzlocke  ·  solo", liveAll: () => "Live", sum: (l, o, x) => [`<b>${l} alive</b>`, x ? `<span class="bad">${x} lost</span>` : `0 lost`].join("  ·  "), hint: { team: "in the team", boxed: "resting in the PC", open: "", lost: "fainted or not caught" }, teamLead: "Your team. Click a Pokémon for its moves and stats.", teamEmpty: "No Pokémon in the team yet.", rCapsHint: "The highlighted cap applies until you have the next badge.", rRules: "Nuzlocke rules", rules: { fate: ["Fainted means gone", "A Pokémon that faints counts as dead and stays out for the rest of the run."], failed: ["Failed catch", "If the first Pokémon of an area gets away or faints, the area is used up."] } },
     fSolo: "Solo",
@@ -1067,6 +1073,7 @@ rando: { title: "What gets randomized", lead: "What the preset says, and what yo
   },
   de: {
     links: "Links", run: "Run", activity: "Verlauf", copy: "Kopieren", copied: "Kopiert",
+    sdCopy: "Team für Showdown kopieren", sdOf: n => `Team von ${n} für Showdown kopieren`,
     solo: { links: "Fänge", soulLink: () => "Nuzlocke  ·  solo", liveAll: () => "Live", sum: (l, o, x) => [`<b>${l} am Leben</b>`, x ? `<span class="bad">${x} verloren</span>` : `0 verloren`].join("  ·  "), hint: { team: "im Team", boxed: "ruhen im PC", open: "", lost: "besiegt oder nicht gefangen" }, teamLead: "Dein Team. Klick auf ein Pokémon für Attacken und Werte.", teamEmpty: "Noch kein Pokémon im Team.", rCapsHint: "Das markierte Limit gilt, bis du den nächsten Orden hast.", rRules: "Nuzlocke-Regeln", rules: { fate: ["Besiegt heißt weg", "Ein Pokémon, das besiegt wird, gilt als tot und bleibt für den Rest des Runs draußen."], failed: ["Fehlgeschlagener Fang", "Entkommt das erste Pokémon eines Gebiets oder wird es besiegt, ist das Gebiet verbraucht."] } },
     fSolo: "Solo",
     liveAll: n => n === 2 ? "Beide Spieler live" : `Alle ${n} Spieler live`, liveSome: (k, n) => `${k} von ${n} Spielern live`, live0: "Warte auf Spieler", offline: "Verbinde neu", missing: "Run nicht gefunden",
@@ -1144,6 +1151,7 @@ rando: { title: "Was gewürfelt wird", lead: "Was die Vorauswahl sagt und was du
   },
   fr: {
     links: "Liens", run: "Partie", activity: "Activité", copy: "Copier", copied: "Copié",
+    sdCopy: "Copier l’équipe pour Showdown", sdOf: n => `Copier l’équipe de ${n} pour Showdown`,
     // Where a run with one player, a classic Nuzlocke, says it differently.
     solo: { links: "Captures", soulLink: () => "Nuzlocke  ·  solo", liveAll: () => "En direct", sum: (l, o, x) => [`<b>${l} en vie</b>`, x ? `<span class="bad">${x} perdu${x > 1 ? "s" : ""}</span>` : `0 perdu`].join("  ·  "), hint: { team: "dans l’équipe", boxed: "au repos dans le PC", open: "", lost: "K.O. ou non capturés" }, teamLead: "Ton équipe. Clique sur un Pokémon pour voir ses capacités et ses stats.", teamEmpty: "Aucun Pokémon dans l’équipe pour l’instant.", rCapsHint: "Le plafond en surbrillance s’applique jusqu’à ce que tu aies le badge suivant.", rRules: "Règles du Nuzlocke", rules: { fate: ["K.O. = perdu", "Un Pokémon mis K.O. est considéré comme mort et reste hors jeu jusqu’à la fin de la partie."], failed: ["Capture ratée", "Si le premier Pokémon d’une zone s’enfuit ou est mis K.O., la zone est épuisée."] } },
     fSolo: "Solo",
@@ -1222,6 +1230,7 @@ rando: { title: "Ce qui est randomisé", lead: "Ce que dit le preset, et ce que 
   },
   es: {
     links: "Vínculos", run: "Run", activity: "Actividad", copy: "Copiar", copied: "Copiado",
+    sdCopy: "Copiar equipo para Showdown", sdOf: n => `Copiar el equipo de ${n} para Showdown`,
     // Where a run with one player, a classic Nuzlocke, says it differently.
     solo: { links: "Capturas", soulLink: () => "Nuzlocke  ·  solo", liveAll: () => "En directo", sum: (l, o, x) => [`<b>${l} vivo${l === 1 ? "" : "s"}</b>`, x ? `<span class="bad">${x} perdido${x === 1 ? "" : "s"}</span>` : `0 perdidos`].join("  ·  "), hint: { team: "en el equipo", boxed: "descansando en el PC", open: "", lost: "debilitados o no capturados" }, teamLead: "Tu equipo. Haz clic en un Pokémon para ver sus movimientos y estadísticas.", teamEmpty: "Aún no hay Pokémon en el equipo.", rCapsHint: "El límite resaltado se aplica hasta que consigas la siguiente medalla.", rRules: "Reglas del Nuzlocke", rules: { fate: ["Debilitado es perdido", "Un Pokémon que se debilita cuenta como muerto y queda fuera el resto de la run."], failed: ["Captura fallida", "Si el primer Pokémon de una zona huye o se debilita, la zona queda agotada."] } },
     fSolo: "Solo",
@@ -2621,6 +2630,33 @@ function openCard(seat, pid) {
   updateCard();
 }
 
+// The team of one player as Pokémon Showdown text (Import). Showdown knows
+// English names only: species and nature are English; moves, item and ability
+// are named by the player's own ROM, so they are in the language of that game.
+function showdownText(seat) {
+  const pl = state.players[seat], dex = dexFor(seat), nat = T.en.mon.natures;
+  const named = (list, id) => dex && list && list[id] ? list[id].name : "";
+  return (pl && pl.snapshot ? pl.snapshot.party : []).filter(p => !p.is_egg && p.species_name).map(p => {
+    const sp = (p.species_name.en || "").replace("♀", "-F").replace("♂", "-M");
+    const item = p.item ? named(dex && dex.items, p.item) : "", ab = named(dex && dex.abilities, p.ability);
+    const lines = [(p.is_nicknamed && p.nickname ? `${p.nickname} (${sp})` : sp) + (item ? ` @ ${item}` : "")];
+    if (ab) lines.push(`Ability: ${ab}`);
+    if (p.battle) lines.push(`Level: ${p.battle.level}`);
+    if (nat[p.nature]) lines.push(`${nat[p.nature]} Nature`);
+    for (const m of p.moves || []) { const mv = named(dex && dex.moves, m.id); if (mv) lines.push(`- ${mv}`); }
+    return lines.join("\n");
+  }).join("\n\n");
+}
+
+async function copyShowdown(btn) {
+  const seat = +btn.dataset.sd, span = $("span", btn), old = span.textContent;
+  const say = txt => { span.textContent = txt; setTimeout(() => { if (span.textContent === txt) span.textContent = old; }, 1500); };
+  if (dexFor(seat) === undefined) return say(t().mon.loading);
+  const text = showdownText(seat);
+  if (!text) return;
+  try { await navigator.clipboard.writeText(text); say(t().copied); } catch {}
+}
+
 const CATS = ["physical", "special", "status"];
 function moveCard(mv, info, pp, max) {
   const c = t().mon, ppTxt = pp != null ? pp + (max ? "/" + max : "") : "–";
@@ -2727,6 +2763,8 @@ function updateCard() {
 document.addEventListener("click", e => {
   const dlg = $("#mon");
   if (dlg && dlg.open && (e.target === dlg || e.target.closest("[data-close]"))) { dlg.close(); return; }
+  const sd = e.target.closest && e.target.closest("[data-sd]");
+  if (sd) { copyShowdown(sd); return; }
   const el = e.target.closest && e.target.closest("[data-mon]");
   if (el) openCard(+el.dataset.seat, +el.dataset.mon);
 });
@@ -3213,7 +3251,7 @@ function tick() {
 // Linked pairs in the team, then those resting in the box.
 function updateTeam() {
   const ms = model(), n = seats();
-  const sig = JSON.stringify([lang, n, ms.filter(m => m.sec === "team" || m.sec === "boxed").map(m => [m.sec, m.sides.map(s => s && [s.pokemon.pid, s.pokemon.species, s.pokemon.nickname, s.pokemon.battle, s.status])]), local && local.art, !!sprites]);
+  const sig = JSON.stringify([lang, n, state.players.map(pl => [pl.name, pl.snapshot ? pl.snapshot.party.length : 0]), ms.filter(m => m.sec === "team" || m.sec === "boxed").map(m => [m.sec, m.sides.map(s => s && [s.pokemon.pid, s.pokemon.species, s.pokemon.nickname, s.pokemon.battle, s.status])]), local && local.art, !!sprites]);
   const el = $("#team");
   if (el._sig === sig) return;
   el._sig = sig;
@@ -3225,7 +3263,14 @@ function updateTeam() {
   };
   const card = (m, k) => `<article class="pairc glass reveal${n !== 2 ? " multi" : ""}" style="--n:${n};--i:${Math.min(k, 10)}"><span class="ploc">${esc(locName(m.link))}</span>${m.sides.map(mon).join("")}</article>`;
   const team = ms.filter(m => m.sec === "team"), boxed = ms.filter(m => m.sec === "boxed");
-  el.innerHTML = (team.length ? `<div class="pairs${n === 1 ? " solo" : ""}">${team.map(card).join("")}</div>` : `<p class="empty-list">${ts().teamEmpty}</p>`)
+  // One copy button per player whose team is known. Starting the fetch of the
+  // ROM's names now means the moves are there by the time it is clicked.
+  const sd = state.players.map((pl, i) => {
+    if (!pl.snapshot || !pl.snapshot.party.some(p => !p.is_egg)) return "";
+    dexFor(i);
+    return `<button type="button" class="sdbtn" style="--c:${col(i)}" data-sd="${i}"><i></i>${ICON.copy}<span>${esc(n === 1 ? t().sdCopy : t().sdOf(seatName(i)))}</span></button>`;
+  }).join("");
+  el.innerHTML = (sd ? `<div class="sdrow">${sd}</div>` : "") + (team.length ? `<div class="pairs${n === 1 ? " solo" : ""}">${team.map(card).join("")}</div>` : `<p class="empty-list">${ts().teamEmpty}</p>`)
     + (boxed.length ? `<div class="sec" style="margin-top:20px"><h3><span>${t().boxed}</span><em>${boxed.length}</em><small>${ts().hint.boxed}</small></h3></div><div class="pairs${n === 1 ? " solo" : ""}">${boxed.map(card).join("")}</div>` : "");
 }
 const tyChip = ty => `<span class="ty" style="--tc:${TCOL[ty]}">${esc(typeName(ty))}</span>`;

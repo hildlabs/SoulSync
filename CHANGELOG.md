@@ -18,6 +18,7 @@ Write entries for players, not for developers: what they notice in the app.
 
 ### New
 - The dashboard is now also available in Spanish (ES button next to EN, DE and FR). Pokémon and place names fall back to English for now.
+- The Team tab has a button to copy a player's team as Pokémon Showdown text, to paste into Showdown's team builder (Import) or a damage calculator. Species and nature are in English; moves, item and ability use the names of that player's game.
 
 ## 0.3.8
 
